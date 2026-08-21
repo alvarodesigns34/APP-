@@ -10,7 +10,10 @@ SPA con **Vite + TanStack Router** (no TanStack Start). La app es 100 % cliente 
 npm install
 npm run dev
 npm run build
+npm test
 ```
+
+PWA: `public/manifest.webmanifest`, iconos 180/192/512 y un service worker (`public/sw.js`) que precachea el shell. Tras el primer `build` + visita, abre sin red.
 
 ## v4.1
 
@@ -18,8 +21,8 @@ npm run build
 - Registro de comidas, recetas, despensa y lista de compra
 - Al vuelo, comidas habituales, marcas de entreno
 - Ventana de ayuno 12:12 / 14:10 / 16:8 / 18:6
-- Anillos, rachas, tendencias
-- Unidades métricas o imperiales, tema claro/oscuro
+- Anillos, rachas, tendencias y proyección de peso
+- Unidades métricas o imperiales (altura imperial en pies y pulgadas)
 - Exportar e importar JSON
 
 Brío no sustituye el consejo de un profesional sanitario.
