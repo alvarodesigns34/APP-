@@ -21,6 +21,7 @@ import {
   workoutMinTotal,
 } from "@/lib/brio/selectors";
 import { activityOf } from "@/lib/brio/domain";
+import { QUICK_LOG_EVENT } from "@/lib/brio/hotkeys";
 import { useBrioStore } from "@/lib/brio/store";
 import { WaterSheet, StepsSheet, SleepSheet, WorkoutSheet, WeightSheet } from "@/components/brio/log-sheets";
 import { StreakSheet } from "@/components/brio/streak-sheet";
@@ -91,6 +92,20 @@ export function TodayScreen() {
   useEffect(() => {
     if (foodOpen) setFoodMounted(true);
   }, [foodOpen]);
+
+  useEffect(() => {
+    function onQuick(e: Event) {
+      const kind = (e as CustomEvent).detail;
+      if (kind === "food") {
+        setFoodMounted(true);
+        setFoodOpen(true);
+      } else if (kind === "water") setWaterOpen(true);
+      else if (kind === "steps") setStepsOpen(true);
+      else if (kind === "weight") setWgOpen(true);
+    }
+    window.addEventListener(QUICK_LOG_EVENT, onQuick);
+    return () => window.removeEventListener(QUICK_LOG_EVENT, onQuick);
+  }, []);
 
   const actions: { n: string; Icon: LucideIcon; color: string; onOpen: () => void }[] = [
     { n: "Comida", Icon: Utensils, color: "text-kcal", onOpen: () => setFoodOpen(true) },
