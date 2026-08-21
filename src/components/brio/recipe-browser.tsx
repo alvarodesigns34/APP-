@@ -11,6 +11,7 @@ import { MEALS, type MealId } from "@/lib/brio/types";
 import { missingIngredients } from "@/lib/brio/selectors-catalog";
 import { useBrioStore } from "@/lib/brio/store";
 import { nf, round } from "@/lib/brio/format";
+import { scaleRecipe } from "@/lib/brio/scale-recipe";
 import { cn } from "@/lib/utils";
 
 export function RecipeBrowser({
@@ -124,10 +125,12 @@ export function RecipeDetail({
   const missing = useMemo(() => missingIngredients({ ...useBrioStore.getState(), pantry }, recipe), [pantry, recipe]);
   const [meal, setMeal] = useState<MealId>("comida");
   const [servings, setServings] = useState(1);
-  const scale = servings / Math.max(recipe.servings, 1);
-  const grams = round(recipe.servingG * servings, 1);
-  const kcal = round(recipe.perServing.kcal * servings);
+  const scaled = useMemo(() => scaleRecipe(recipe, servings), [recipe, servings]);
   const badges = recipe.badges;
+  const presets = useMemo(() => {
+    const vals = [1, recipe.servings / 2, recipe.servings, recipe.servings * 1.5].filter((n) => n > 0.5 && n <= 20);
+    return [...new Set(vals.map((n) => round(n, 1)))].sort((a, b) => a - b);
+  }, [recipe.servings]);
 
   function step(delta: number) {
     setServings((n) => Math.min(20, Math.max(0.5, round(n + delta, 1))));
@@ -142,13 +145,13 @@ export function RecipeDetail({
         <Button
           className="w-full"
           onClick={() => {
-            addMeal(date, meal, recipeAsFood(recipe), grams, servings, "ración");
+            addMeal(date, meal, recipeAsFood(recipe), scaled.grams, scaled.servings, "ración");
             onOpenChange(false);
             toast.success("Receta registrada");
           }}
         >
-          Registrar {nf(servings, servings % 1 === 0 ? 0 : 1)} {servings === 1 ? "ración" : "raciones"} · {nf(kcal)}{" "}
-          kcal
+          Registrar {nf(scaled.servings, scaled.servings % 1 === 0 ? 0 : 1)}{" "}
+          {scaled.servings === 1 ? "ración" : "raciones"} · {nf(scaled.macros.kcal)} kcal
         </Button>
       }
     >
@@ -165,7 +168,8 @@ export function RecipeDetail({
         ))}
       </div>
       <p className="mb-3 text-sm text-muted-foreground">
-        {recipe.minutes} min · {recipe.servings} raciones · {nf(recipe.perServing.prot * servings)} g prot
+        {recipe.minutes} min · {recipe.servings} raciones · {nf(scaled.macros.kcal)} kcal · {nf(scaled.macros.prot, 1)} g
+        prot · {nf(scaled.macros.carb, 1)} g carb · {nf(scaled.macros.fat, 1)} g grasa
       </p>
       <div className="mb-3 flex items-center justify-between rounded-2xl bg-muted/50 px-3 py-2">
         <span className="text-sm font-medium">Raciones</span>
@@ -178,6 +182,13 @@ export function RecipeDetail({
             <Plus className="size-4" />
           </Button>
         </div>
+      </div>
+      <div className="mb-3 flex gap-1 overflow-x-auto">
+        {presets.map((n) => (
+          <Chip key={n} on={servings === n} onClick={() => setServings(n)}>
+            {n === 1 ? "1 ración" : `${nf(n, n % 1 === 0 ? 0 : 1)} raciones`}
+          </Chip>
+        ))}
       </div>
       <div className="mb-3 flex gap-1 overflow-x-auto">
         {MEALS.map((m) => (
@@ -199,11 +210,11 @@ export function RecipeDetail({
       </div>
       <h3 className="mb-1 text-sm font-medium">Ingredientes</h3>
       <ul className="mb-4 text-sm">
-        {recipe.ing.map((i) => (
+        {scaled.ingredients.map((i) => (
           <li key={i.id} className="flex justify-between py-1">
             <span>{i.name}</span>
             <span className="tabular-nums text-muted-foreground">
-              {nf(i.g * scale, 0)} {i.base}
+              {nf(i.g, i.g % 1 === 0 ? 0 : 1)} {i.base}
             </span>
           </li>
         ))}
