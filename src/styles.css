@@ -104,11 +104,13 @@
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-y: auto;
   }
   body {
     background: var(--brio-bg);
     color: var(--brio-fg);
     font-family: var(--font-sans);
+    min-height: 100dvh;
   }
   h1,
   h2,

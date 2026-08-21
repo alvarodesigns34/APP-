@@ -7,6 +7,7 @@ import { useBrioStore } from "@/lib/brio/store";
 import { todayKey } from "@/lib/brio/dates";
 import { HoySkeleton } from "@/components/brio/hoy-skeleton";
 import { Onboarding } from "@/components/brio/onboarding";
+import { ScrollRestore } from "@/components/layout/scroll-restore";
 
 const TABS = [
   { to: "/", n: "Hoy", icon: Home },
@@ -17,8 +18,7 @@ const TABS = [
 ] as const;
 
 function applyTheme(pref: "auto" | "light" | "dark") {
-  const dark =
-    pref === "dark" || (pref === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const dark = pref === "dark" || (pref === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.classList.toggle("dark", dark);
 }
 
@@ -90,10 +90,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
-      <div className="mx-auto flex min-h-dvh max-w-md flex-col border-border md:border-x">
-        <main className="min-h-0 flex-1 overflow-y-auto pb-24 pt-[max(0.5rem,env(safe-area-inset-top))]">
-          {children}
-        </main>
+      <div className="mx-auto min-h-dvh max-w-md border-border md:border-x">
+        <main className="pb-24 pt-[max(0.5rem,env(safe-area-inset-top))]">{children}</main>
         <nav
           className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md border-t border-border bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur"
           aria-label="Secciones"
@@ -106,6 +104,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <li key={t.to}>
                   <Link
                     to={t.to}
+                    resetScroll={false}
                     className={cn(
                       "flex flex-col items-center gap-1 py-2 text-[11px] font-medium",
                       active ? "text-primary" : "text-muted-foreground",
@@ -121,6 +120,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </ul>
         </nav>
       </div>
+      <ScrollRestore />
       <UndoHotkey />
       <Toaster position="top-center" richColors />
     </div>
