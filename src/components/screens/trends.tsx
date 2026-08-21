@@ -35,12 +35,19 @@ function shortDate(key: string) {
 }
 
 function pesoYDomain(
-  pts: { kg: number | null; trend: number; goal: number; bandLow: number; bandHigh: number }[],
+  pts: {
+    kg: number | null;
+    trend: number;
+    goal: number;
+    bandLow: number;
+    bandHigh: number;
+    ma7: number | null;
+  }[],
 ): [number, number] {
   let min = Infinity;
   let max = -Infinity;
   for (const p of pts) {
-    for (const v of [p.kg, p.trend, p.goal, p.bandLow, p.bandHigh]) {
+    for (const v of [p.kg, p.trend, p.goal, p.bandLow, p.bandHigh, p.ma7]) {
       if (v != null && Number.isFinite(v)) {
         min = Math.min(min, v);
         max = Math.max(max, v);
@@ -301,6 +308,15 @@ export function TrendsScreen() {
                   />
                   <Line
                     type="linear"
+                    dataKey="ma7"
+                    name="Media 7d"
+                    stroke="var(--brio-kcal)"
+                    strokeWidth={2}
+                    connectNulls={true}
+                    dot={false}
+                  />
+                  <Line
+                    type="linear"
                     dataKey="kg"
                     name="Real"
                     stroke="var(--brio-move)"
@@ -315,6 +331,10 @@ export function TrendsScreen() {
               <li className="flex items-center gap-1.5">
                 <span className="h-0.5 w-3 rounded-full bg-[var(--brio-move)]" />
                 Real
+              </li>
+              <li className="flex items-center gap-1.5">
+                <span className="h-0.5 w-3 rounded-full bg-[var(--brio-kcal)]" />
+                Media 7d
               </li>
               <li className="flex items-center gap-1.5">
                 <span className="w-3 border-t-2 border-dashed border-[var(--brio-move)]" />
