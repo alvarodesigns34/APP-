@@ -13,18 +13,21 @@ import {
 } from "recharts";
 import { Card, SectionLabel } from "@/components/brio/section";
 import { nf } from "@/lib/brio/format";
+import type { MacroSeriesPoint } from "@/lib/brio/macro-series";
 import { cn } from "@/lib/utils";
 import { fmtWeight, kgToDisplay, type UnitSystem } from "@/lib/brio/units";
 
-export type DayPoint = {
+export type DayPoint = MacroSeriesPoint<{
   d: string;
   kcal: number;
   prot: number;
+  carb: number;
+  fat: number;
   water: number;
   move: number;
   steps: number;
   sleep: number;
-};
+}>;
 
 export type PesoPoint = {
   label: string;
@@ -36,6 +39,116 @@ export type PesoPoint = {
   bandSpan: number;
   ma7: number | null;
 };
+
+type MacroKey = "kcal" | "prot" | "carb" | "fat";
+
+const MACRO_CHARTS: {
+  key: MacroKey;
+  ma: "kcalMa" | "protMa" | "carbMa" | "fatMa";
+  goal: "kcalGoal" | "protGoal" | "carbGoal" | "fatGoal";
+  label: string;
+  unit: string;
+  color: string;
+}[] = [
+  { key: "kcal", ma: "kcalMa", goal: "kcalGoal", label: "Calorías", unit: " kcal", color: "var(--brio-kcal)" },
+  { key: "prot", ma: "protMa", goal: "protGoal", label: "Proteína", unit: " g", color: "var(--brio-kcal)" },
+  { key: "carb", ma: "carbMa", goal: "carbGoal", label: "Hidratos", unit: " g", color: "var(--brio-steps)" },
+  { key: "fat", ma: "fatMa", goal: "fatGoal", label: "Grasa", unit: " g", color: "var(--brio-move)" },
+];
+
+function macroYDomain(
+  data: DayPoint[],
+  value: MacroKey,
+  ma: (typeof MACRO_CHARTS)[number]["ma"],
+  goal: (typeof MACRO_CHARTS)[number]["goal"],
+): [number, number] {
+  let max = 0;
+  for (const p of data) {
+    for (const v of [p[value], p[ma], p[goal]]) {
+      if (typeof v === "number" && Number.isFinite(v)) max = Math.max(max, v);
+    }
+  }
+  if (max <= 0) return [0, 1];
+  return [0, max * 1.08];
+}
+
+function MacroComposedChart({
+  data,
+  valueKey,
+  maKey,
+  goalKey,
+  label,
+  unit,
+  color,
+}: {
+  data: DayPoint[];
+  valueKey: MacroKey;
+  maKey: (typeof MACRO_CHARTS)[number]["ma"];
+  goalKey: (typeof MACRO_CHARTS)[number]["goal"];
+  label: string;
+  unit: string;
+  color: string;
+}) {
+  const domain = macroYDomain(data, valueKey, maKey, goalKey);
+  return (
+    <>
+      <SectionLabel>{label}</SectionLabel>
+      <Card className="mb-3 p-2">
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--brio-border)" />
+              <XAxis dataKey="d" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} width={32} domain={domain} />
+              <Tooltip
+                formatter={(v, name) => {
+                  const n = typeof v === "number" ? v : Number(v);
+                  if (!Number.isFinite(n)) return ["—", String(name)];
+                  return [`${nf(n)}${unit}`, String(name)];
+                }}
+              />
+              <Bar dataKey={valueKey} name="Diario" fill={color} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+              <Line
+                type="linear"
+                dataKey={maKey}
+                name="Media 7d"
+                stroke={color}
+                strokeWidth={2}
+                connectNulls={false}
+                dot={false}
+                isAnimationActive={false}
+              />
+              <Line
+                type="linear"
+                dataKey={goalKey}
+                name="Meta"
+                stroke="var(--brio-muted-fg)"
+                strokeWidth={1.5}
+                strokeDasharray="2 4"
+                dot={false}
+                isAnimationActive={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <ul className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 px-1 text-[11px] text-muted-foreground">
+          <li className="flex items-center gap-1.5">
+            <span className="h-2 w-3 rounded-sm" style={{ background: color }} />
+            Diario
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="h-0.5 w-3 rounded-full" style={{ background: color }} />
+            Media 7d
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="w-3 border-t border-dotted border-[var(--brio-muted-fg)]" />
+            Meta
+          </li>
+        </ul>
+      </Card>
+    </>
+  );
+}
 
 export function TrendsCharts({
   data,
@@ -50,18 +163,18 @@ export function TrendsCharts({
 }) {
   return (
     <>
-      <SectionLabel>Calorías</SectionLabel>
-      <Card className="mb-3 h-48 p-2">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--brio-border)" />
-            <XAxis dataKey="d" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 10 }} width={32} />
-            <Tooltip formatter={(v) => [`${v} kcal`, "Calorías"]} />
-            <Bar dataKey="kcal" fill="var(--brio-kcal)" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
+      {MACRO_CHARTS.map((c) => (
+        <MacroComposedChart
+          key={c.key}
+          data={data}
+          valueKey={c.key}
+          maKey={c.ma}
+          goalKey={c.goal}
+          label={c.label}
+          unit={c.unit}
+          color={c.color}
+        />
+      ))}
 
       <SectionLabel>Agua</SectionLabel>
       <Card className="mb-3 h-44 p-2">

@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { Card, Empty, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { rangeKeys, sleepDuration, todayKey } from "@/lib/brio/dates";
 import { nf } from "@/lib/brio/format";
+import { buildMacroSeries } from "@/lib/brio/macro-series";
 import {
   dayFoodTotals,
   goalsMet,
@@ -48,11 +49,26 @@ function pesoYDomain(
   return [min - pad, max + pad];
 }
 
+function FoodChartSkeleton() {
+  return (
+    <Card className="mb-3 p-2">
+      <div className="h-48" />
+      <div className="mt-1 h-4" />
+    </Card>
+  );
+}
+
 function ChartSkeleton({ hasWeight }: { hasWeight: boolean }) {
   return (
     <>
       <SectionLabel>Calorías</SectionLabel>
-      <Card className="mb-3 h-48 p-2">{null}</Card>
+      <FoodChartSkeleton />
+      <SectionLabel>Proteína</SectionLabel>
+      <FoodChartSkeleton />
+      <SectionLabel>Hidratos</SectionLabel>
+      <FoodChartSkeleton />
+      <SectionLabel>Grasa</SectionLabel>
+      <FoodChartSkeleton />
       <SectionLabel>Agua</SectionLabel>
       <Card className="mb-3 h-44 p-2">{null}</Card>
       <SectionLabel>Sueño</SectionLabel>
@@ -92,18 +108,26 @@ export function TrendsScreen() {
   const setViewDate = useBrioStore((s) => s.setViewDate);
   const data = useMemo(() => {
     const keys = rangeKeys(todayKey(), 14);
-    return keys.map((k) => {
+    const days = keys.map((k) => {
       const t = dayFoodTotals(snap, k);
       const sl = snap.days[k]?.sleep;
       return {
         d: shortDate(k),
         kcal: Math.round(t.kcal),
         prot: Math.round(t.prot),
+        carb: Math.round(t.carb),
+        fat: Math.round(t.fat),
         water: waterTotal(snap, k),
         move: workoutMinTotal(snap, k),
         steps: snap.days[k]?.steps || 0,
         sleep: sl ? Math.round((sleepDuration(sl.bed, sl.wake) / 60) * 10) / 10 : 0,
       };
+    });
+    return buildMacroSeries(days, {
+      kcal: snap.goals.kcal,
+      prot: snap.goals.prot,
+      carb: snap.goals.carb,
+      fat: snap.goals.fat,
     });
   }, [snap]);
   const week = rangeKeys(todayKey(), 7);
