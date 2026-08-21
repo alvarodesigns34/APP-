@@ -5,6 +5,7 @@ import { currentStreak, goalsMet } from "@/lib/brio/selectors";
 import { rangeKeys, todayKey } from "@/lib/brio/dates";
 import { useBrioStore } from "@/lib/brio/store";
 import { cn } from "@/lib/utils";
+import { MonthCal } from "./month-cal";
 
 const MILESTONES = [
   { n: "3 días seguidos", goal: 3 },
@@ -31,6 +32,7 @@ export function StreakSheet({ open, onOpenChange }: { open: boolean; onOpenChang
       onboarded: s.onboarded,
     })),
   );
+  const setViewDate = useBrioStore((s) => s.setViewDate);
   const streak = useMemo(() => currentStreak(snap), [snap]);
   const last14 = rangeKeys(todayKey(), 14);
   return (
@@ -51,6 +53,14 @@ export function StreakSheet({ open, onOpenChange }: { open: boolean; onOpenChang
           );
         })}
       </div>
+      <MonthCal
+        open={open}
+        countFor={(k) => goalsMet(snap, k).count}
+        onSelect={(k) => {
+          setViewDate(k);
+          onOpenChange(false);
+        }}
+      />
       <ul className="space-y-2">
         {MILESTONES.map((m) => (
           <li key={m.goal} className="flex justify-between text-sm">

@@ -98,3 +98,33 @@ export function mealForHour(h = new Date().getHours()): MealId {
   if (h < 21) return "cena";
   return "snack";
 }
+
+export function fmtMonthYear(key: string): string {
+  const d = dateOf(key);
+  return `${capitalize(MESES[d.getMonth()])} ${d.getFullYear()}`;
+}
+
+export function monthStart(key: string): string {
+  const d = dateOf(key);
+  d.setDate(1);
+  return keyOf(d);
+}
+
+export function addMonths(key: string, n: number): string {
+  const d = dateOf(key);
+  d.setDate(1);
+  d.setMonth(d.getMonth() + n);
+  return keyOf(d);
+}
+
+export const WEEKDAYS = ["L", "M", "X", "J", "V", "S", "D"] as const;
+
+export function monthGrid(year: number, month: number): (string | null)[] {
+  const first = new Date(year, month, 1);
+  const lead = (first.getDay() + 6) % 7;
+  const n = new Date(year, month + 1, 0).getDate();
+  const cells: (string | null)[] = Array.from({ length: lead }, () => null);
+  for (let d = 1; d <= n; d++) cells.push(keyOf(new Date(year, month, d)));
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
