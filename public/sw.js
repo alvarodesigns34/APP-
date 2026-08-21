@@ -1,4 +1,4 @@
-const CACHE = "brio-v4.2-fonts";
+const CACHE = "brio-v4.2";
 const PRECACHE = [
   "/",
   "/index.html",
@@ -7,9 +7,11 @@ const PRECACHE = [
   "/icon-180.png",
   "/icon-192.png",
   "/icon-512.png",
-  // ARRANQUE: self-hosted fonts (keep existing shell entries above)
   "/fonts/outfit-latin-wght.woff2",
   "/fonts/fraunces-latin-opsz-wght.woff2",
+  "/data/foods.json",
+  "/data/recipes.json",
+  "/data/routines.json",
 ];
 
 self.addEventListener("install", (event) => {

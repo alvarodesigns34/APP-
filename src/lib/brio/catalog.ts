@@ -1,11 +1,16 @@
-import foodsJson from "@/data/foods.json";
-import recipesJson from "@/data/recipes.json";
-import routinesJson from "@/data/routines.json";
-import type { Food, Macros, Recipe, RecipeSource, UserRecipe } from "./types";
+import type { Food, Recipe, RecipeSource, UserRecipe } from "./types";
 import { round } from "./format";
-import { buildFoodIndex, searchIndexed } from "./search";
+import { buildFoodIndex, searchIndexed, type FoodIndexEntry } from "./search";
 
-export const BASE_FOODS = foodsJson as Food[];
+export { scaleMacros } from "./scale-macros";
+
+/**
+ * Builtin catalog is fetched from stable `/data/*.json` URLs (copied to public/,
+ * precached by the SW). Nothing here imports JSON at module load — `ensureCatalog`
+ * builds the snapshot on first call and caches the promise.
+ */
+
+export let BASE_FOODS: Food[] = [];
 
 const NON_VEGETARIAN_IDS = new Set(["f683", "f684", "f942", "f232"]);
 const NON_VEGAN_IDS = new Set(["f279"]);
@@ -13,7 +18,6 @@ const NON_VEGETARIAN_CATS = new Set(["carne", "pescado"]);
 const NON_VEGAN_CATS = new Set(["carne", "pescado", "lacteo"]);
 
 export const FOOD_BY_ID: Record<string, Food> = {};
-for (const f of BASE_FOODS) FOOD_BY_ID[f.id] = f;
 
 export const RECIPE_FILTERS: {
   id: string;
@@ -71,23 +75,8 @@ export const RECIPE_FILTERS: {
   },
 ];
 
-function emptyMacros(): Macros {
+function emptyMacros() {
   return { kcal: 0, prot: 0, carb: 0, fat: 0, fib: 0, sug: 0, sat: 0, sod: 0 };
-}
-
-export function scaleMacros(m: Pick<Food, keyof Macros>, grams: number): Macros {
-  const k = grams / 100;
-  const mul = (v: number | null) => (v == null ? null : v * k);
-  return {
-    kcal: m.kcal * k,
-    prot: m.prot * k,
-    carb: m.carb * k,
-    fat: m.fat * k,
-    fib: m.fib * k,
-    sug: mul(m.sug),
-    sat: mul(m.sat),
-    sod: mul(m.sod),
-  };
 }
 
 export function buildRecipe(src: RecipeSource, foodById: Record<string, Food> = FOOD_BY_ID): Recipe | null {
@@ -123,7 +112,7 @@ export function buildRecipe(src: RecipeSource, foodById: Record<string, Food> = 
     if (NON_VEGAN_CATS.has(f.cat) || NON_VEGETARIAN_IDS.has(f.id) || NON_VEGAN_IDS.has(f.id)) vegan = false;
   }
 
-  const per100: Macros = {
+  const per100 = {
     kcal: totalG ? (sum.kcal * 100) / totalG : 0,
     prot: totalG ? (sum.prot * 100) / totalG : 0,
     carb: totalG ? (sum.carb * 100) / totalG : 0,
@@ -158,10 +147,8 @@ export function buildRecipe(src: RecipeSource, foodById: Record<string, Food> = 
   return recipe;
 }
 
-const sources = recipesJson as RecipeSource[];
-export const BASE_RECIPES: Recipe[] = sources.map((s) => buildRecipe(s)).filter((r): r is Recipe => !!r);
+export let BASE_RECIPES: Recipe[] = [];
 export const RECIPE_BY_ID: Record<string, Recipe> = {};
-for (const r of BASE_RECIPES) RECIPE_BY_ID[r.id] = r;
 
 export function recipeAsFood(r: Recipe): Food {
   return {
@@ -182,10 +169,9 @@ export function recipeAsFood(r: Recipe): Food {
   };
 }
 
-export const RECIPE_FOODS = BASE_RECIPES.map(recipeAsFood);
-for (const f of RECIPE_FOODS) FOOD_BY_ID[f.id] = f;
+export let RECIPE_FOODS: Food[] = [];
 
-const BUILTIN_INDEX = buildFoodIndex([...BASE_FOODS, ...RECIPE_FOODS]);
+let builtinIndex: FoodIndexEntry[] = [];
 
 export const RECIPE_CATS = [
   { id: "desayuno", n: "Desayunos" },
@@ -207,7 +193,7 @@ export type Routine = {
   sessions: { name: string; exercises: { name: string; rx: string; rest: string }[] }[];
 };
 
-export const ROUTINES = routinesJson as Routine[];
+export let ROUTINES: Routine[] = [];
 export const ROUTINE_LEVELS = [
   { id: "inicio", n: "Principiante" },
   { id: "medio", n: "Intermedio" },
@@ -283,7 +269,7 @@ export function defaultServing(food: Food): { grams: number; qty: number; unitNa
 }
 
 export function searchFoods(q: string, cat: string | null, ctx: CatalogContext, limit = 80): Food[] {
-  return searchIndexed(q, cat, BUILTIN_INDEX, ctxFoods(ctx), limit);
+  return searchIndexed(q, cat, builtinIndex, ctxFoods(ctx), limit);
 }
 
 export function filterName(id: string): string {
@@ -296,4 +282,48 @@ export function parseRestSeconds(rest: string): number {
   if (min) return Number(min[1]) * 60;
   const sec = str.match(/(\d+)\s*s/i);
   return sec ? Number(sec[1]) : 0;
+}
+
+let catalogPromise: Promise<void> | null = null;
+let catalogReady = false;
+
+export function isCatalogReady(): boolean {
+  return catalogReady;
+}
+
+export function ensureCatalog(): Promise<void> {
+  if (!catalogPromise) {
+    catalogPromise = loadCatalog().catch((err) => {
+      catalogPromise = null;
+      throw err;
+    });
+  }
+  return catalogPromise;
+}
+
+async function fetchJson<T>(path: string): Promise<T> {
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`catalog ${path} ${res.status}`);
+  return (await res.json()) as T;
+}
+
+function applySnapshot(foods: Food[], sources: RecipeSource[], routines: Routine[]) {
+  BASE_FOODS = foods;
+  for (const f of BASE_FOODS) FOOD_BY_ID[f.id] = f;
+  BASE_RECIPES = sources.map((s) => buildRecipe(s)).filter((r): r is Recipe => !!r);
+  for (const r of BASE_RECIPES) RECIPE_BY_ID[r.id] = r;
+  RECIPE_FOODS = BASE_RECIPES.map(recipeAsFood);
+  for (const f of RECIPE_FOODS) FOOD_BY_ID[f.id] = f;
+  builtinIndex = buildFoodIndex([...BASE_FOODS, ...RECIPE_FOODS]);
+  ROUTINES = routines;
+  catalogReady = true;
+}
+
+async function loadCatalog(): Promise<void> {
+  const [foods, sources, routines] = await Promise.all([
+    fetchJson<Food[]>("/data/foods.json"),
+    fetchJson<RecipeSource[]>("/data/recipes.json"),
+    fetchJson<Routine[]>("/data/routines.json"),
+  ]);
+  applySnapshot(foods, sources, routines);
 }

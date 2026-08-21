@@ -4,10 +4,11 @@ import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BASE_RECIPES, RECIPE_CATS, RECIPE_FILTERS, filterName } from "@/lib/brio/catalog";
+import { BASE_RECIPES, RECIPE_CATS, RECIPE_FILTERS, filterName, recipeAsFood } from "@/lib/brio/catalog";
+import { useCatalog } from "@/lib/brio/use-catalog";
 import type { Recipe } from "@/lib/brio/types";
 import { MEALS, type MealId } from "@/lib/brio/types";
-import { missingIngredients } from "@/lib/brio/selectors";
+import { missingIngredients } from "@/lib/brio/selectors-catalog";
 import { useBrioStore } from "@/lib/brio/store";
 import { nf, round } from "@/lib/brio/format";
 import { cn } from "@/lib/utils";
@@ -22,19 +23,21 @@ export function RecipeBrowser({
   date: string;
 }) {
   const favRecipes = useBrioStore((s) => s.favRecipes);
+  const catalogReady = useCatalog();
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
   const [filter, setFilter] = useState<string | null>(null);
   const [picked, setPicked] = useState<Recipe | null>(null);
 
   const list = useMemo(() => {
+    if (!catalogReady) return [];
     return BASE_RECIPES.filter((r) => {
       if (cat && r.cat !== cat) return false;
       if (filter && !r.badges.includes(filter)) return false;
       if (q && !r.name.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     }).slice(0, 60);
-  }, [q, cat, filter]);
+  }, [q, cat, filter, catalogReady]);
 
   if (picked) {
     return (
@@ -75,7 +78,11 @@ export function RecipeBrowser({
       <ul className="space-y-2">
         {list.map((r) => (
           <li key={r.id}>
-            <button type="button" className="min-h-11 w-full rounded-2xl bg-muted/50 px-3 py-3 text-left" onClick={() => setPicked(r)}>
+            <button
+              type="button"
+              className="min-h-11 w-full rounded-2xl bg-muted/50 px-3 py-3 text-left"
+              onClick={() => setPicked(r)}
+            >
               <div className="flex justify-between gap-2">
                 <span className="font-medium">{r.name}</span>
                 {favRecipes.includes(r.id) ? <Star className="size-4 fill-primary text-primary" /> : null}
@@ -114,10 +121,7 @@ export function RecipeDetail({
   const favRecipes = useBrioStore((s) => s.favRecipes);
   const pantry = useBrioStore((s) => s.pantry);
   const fav = favRecipes.includes(recipe.id);
-  const missing = useMemo(
-    () => missingIngredients({ ...useBrioStore.getState(), pantry }, recipe),
-    [pantry, recipe],
-  );
+  const missing = useMemo(() => missingIngredients({ ...useBrioStore.getState(), pantry }, recipe), [pantry, recipe]);
   const [meal, setMeal] = useState<MealId>("comida");
   const [servings, setServings] = useState(1);
   const scale = servings / Math.max(recipe.servings, 1);
@@ -138,12 +142,13 @@ export function RecipeDetail({
         <Button
           className="w-full"
           onClick={() => {
-            addMeal(date, meal, recipe.id, grams, servings, "ración");
+            addMeal(date, meal, recipeAsFood(recipe), grams, servings, "ración");
             onOpenChange(false);
             toast.success("Receta registrada");
           }}
         >
-          Registrar {nf(servings, servings % 1 === 0 ? 0 : 1)} {servings === 1 ? "ración" : "raciones"} · {nf(kcal)} kcal
+          Registrar {nf(servings, servings % 1 === 0 ? 0 : 1)} {servings === 1 ? "ración" : "raciones"} · {nf(kcal)}{" "}
+          kcal
         </Button>
       }
     >

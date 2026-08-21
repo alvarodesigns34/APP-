@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { BASE_FOODS, searchFoods } from "./catalog";
+import { beforeAll, describe, expect, it } from "vitest";
+import { BASE_FOODS, ensureCatalog, searchFoods } from "./catalog";
+
 import { categoryIdsForQuery, fuzzyMaxDistance, levenshtein, levenshteinAtMost, tokenize } from "./search";
 import type { Food, UserRecipe } from "./types";
 
 const emptyCtx = { customFoods: [] as Food[], recipes: [] as UserRecipe[] };
+
+beforeAll(async () => {
+  await ensureCatalog();
+});
 
 function customFood(partial: Partial<Food> & Pick<Food, "id" | "name">): Food {
   return {

@@ -15,13 +15,11 @@ import type {
 import { MEALS, NOTE_MAX } from "./types";
 import { defaultState, emptyDay, isEmptyDay, loadState, migrate, saveState } from "./persist";
 import { uid, round } from "./format";
-import { getFood, scaleMacros } from "./catalog";
+import { scaleMacros } from "./scale-macros";
 import { addDays } from "./dates";
 import { kcalFromWorkout } from "./domain";
 import { latestWeight } from "./selectors";
 import { applyUndo, clearUndo, isApplyingUndo, popUndo, pushUndo } from "./undo";
-
-type Ctx = { customFoods: Food[]; recipes: UserRecipe[] };
 
 export type BrioStore = PersistedState & {
   hydrated: boolean;
@@ -35,8 +33,16 @@ export type BrioStore = PersistedState & {
   patchGoals: (patch: Partial<PersistedState["goals"]>) => void;
   patchSettings: (patch: Partial<PersistedState["settings"]>) => void;
   ensureDay: (key: string) => DayLog;
-  addMeal: (key: string, meal: MealId, foodId: string, grams: number, qty: number, unitName: string) => string;
-  updateMeal: (key: string, meal: MealId, entryId: string, grams: number, qty: number, unitName: string) => void;
+  addMeal: (key: string, meal: MealId, food: Food, grams: number, qty: number, unitName: string) => string;
+  updateMeal: (
+    key: string,
+    meal: MealId,
+    entryId: string,
+    grams: number,
+    qty: number,
+    unitName: string,
+    food?: Food,
+  ) => void;
   removeMeal: (key: string, meal: MealId, entryId: string) => MealEntry | null;
   restoreMeal: (key: string, meal: MealId, entry: MealEntry) => void;
   duplicateMeal: (key: string, meal: MealId, entryId: string) => void;
@@ -64,10 +70,6 @@ export type BrioStore = PersistedState & {
   resetAll: () => void;
   undoLast: () => void;
 };
-
-function ctxOf(s: PersistedState): Ctx {
-  return { customFoods: s.customFoods, recipes: s.recipes };
-}
 
 function withDay(s: PersistedState, key: string, mut: (d: DayLog) => void): Record<string, DayLog> {
   const days = { ...s.days };
@@ -156,15 +158,13 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
 
   ensureDay: (key) => get().days[key] ?? emptyDay(),
 
-  addMeal: (key, meal, foodId, grams, qty, unitName) => {
+  addMeal: (key, meal, food, grams, qty, unitName) => {
     const s = get();
-    const food = getFood(foodId, ctxOf(s));
-    if (!food) return "";
     const n = scaleMacros(food, grams);
     const id = uid("e");
     const entry: MealEntry = {
       id,
-      foodId,
+      foodId: food.id,
       name: food.name,
       qty: round(qty, 2),
       unitName,
@@ -178,7 +178,7 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       sat: n.sat == null ? null : round(n.sat, 1),
       sod: n.sod == null ? null : round(n.sod, 1),
     };
-    const recents = [foodId, ...s.recents.filter((x) => x !== foodId)].slice(0, 25);
+    const recents = [food.id, ...s.recents.filter((x) => x !== food.id)].slice(0, 25);
     set({ days: withDay(s, key, (d) => d.meals[meal].push(entry)), recents });
     get().persist();
     recordUndo("Comida añadida", () => {
@@ -187,13 +187,12 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     return id;
   },
 
-  updateMeal: (key, meal, entryId, grams, qty, unitName) => {
+  updateMeal: (key, meal, entryId, grams, qty, unitName, food) => {
     const s = get();
     set({
       days: withDay(s, key, (d) => {
         const e = d.meals[meal].find((x) => x.id === entryId);
         if (!e) return;
-        const food = getFood(e.foodId, ctxOf(s));
         const n = food
           ? scaleMacros(food, grams)
           : e.grams
@@ -345,12 +344,20 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
   },
   removeWater: (key, id) => {
     const s = get();
-    set({ days: withDay(s, key, (d) => { d.water = d.water.filter((w) => w.id !== id); }) });
+    set({
+      days: withDay(s, key, (d) => {
+        d.water = d.water.filter((w) => w.id !== id);
+      }),
+    });
     get().persist();
   },
   setSteps: (key, steps) => {
     const s = get();
-    set({ days: withDay(s, key, (d) => { d.steps = Math.max(0, Math.round(steps)); }) });
+    set({
+      days: withDay(s, key, (d) => {
+        d.steps = Math.max(0, Math.round(steps));
+      }),
+    });
     get().persist();
   },
   addWorkout: (key, type, min, intensity) => {
@@ -359,9 +366,7 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     const kcal = kcalFromWorkout(type, min, intensity, kg);
     const id = uid("k");
     set({
-      days: withDay(s, key, (d) =>
-        d.workouts.push({ id, type, min: Math.round(min), intensity, kcal }),
-      ),
+      days: withDay(s, key, (d) => d.workouts.push({ id, type, min: Math.round(min), intensity, kcal })),
     });
     get().persist();
     recordUndo("Entrenamiento añadido", () => {
@@ -398,12 +403,20 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
   },
   setSleep: (key, sleep) => {
     const s = get();
-    set({ days: withDay(s, key, (d) => { d.sleep = sleep; }) });
+    set({
+      days: withDay(s, key, (d) => {
+        d.sleep = sleep;
+      }),
+    });
     get().persist();
   },
   setNote: (key, note) => {
     const s = get();
-    set({ days: withDay(s, key, (d) => { d.note = note.slice(0, NOTE_MAX); }) });
+    set({
+      days: withDay(s, key, (d) => {
+        d.note = note.slice(0, NOTE_MAX);
+      }),
+    });
     get().persist();
   },
   upsertWeight: (date, kg, extra) => {
@@ -459,7 +472,15 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     set((s) => ({
       customFoods: [
         ...s.customFoods,
-        { ...food, id, cat: "propio", custom: true, sug: food.sug ?? null, sat: food.sat ?? null, sod: food.sod ?? null },
+        {
+          ...food,
+          id,
+          cat: "propio",
+          custom: true,
+          sug: food.sug ?? null,
+          sat: food.sat ?? null,
+          sod: food.sod ?? null,
+        },
       ],
     }));
     get().persist();

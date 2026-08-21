@@ -2,13 +2,15 @@ import { useMemo, useState } from "react";
 import { Sheet } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { BASE_RECIPES, getFood, searchFoods } from "@/lib/brio/catalog";
+import { useCatalog } from "@/lib/brio/use-catalog";
 import { useBrioStore } from "@/lib/brio/store";
-import { missingIngredients } from "@/lib/brio/selectors";
+import { missingIngredients } from "@/lib/brio/selectors-catalog";
 import { nf } from "@/lib/brio/format";
 import type { Food } from "@/lib/brio/types";
 import { cn } from "@/lib/utils";
 
 export function PantrySheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const catalogReady = useCatalog();
   const pantry = useBrioStore((s) => s.pantry);
   const toggle = useBrioStore((s) => s.togglePantry);
   const customFoods = useBrioStore((s) => s.customFoods);
@@ -16,18 +18,24 @@ export function PantrySheet({ open, onOpenChange }: { open: boolean; onOpenChang
   const [q, setQ] = useState("");
   const query = q.trim();
   const list = useMemo(() => {
+    if (!catalogReady) return [];
     const ctx = { customFoods, recipes };
-    if (!query) return pantry.map((id) => getFood(id, ctx)).filter((f): f is Food => !!f).slice(0, 40);
+    if (!query)
+      return pantry
+        .map((id) => getFood(id, ctx))
+        .filter((f): f is Food => !!f)
+        .slice(0, 40);
     return searchFoods(query, null, ctx, 40);
-  }, [query, pantry, customFoods, recipes]);
+  }, [query, pantry, customFoods, recipes, catalogReady]);
 
   const ready = useMemo(() => {
+    if (!catalogReady) return [];
     const s = { ...useBrioStore.getState(), pantry };
     return BASE_RECIPES.map((r) => ({ r, miss: missingIngredients(s, r).length }))
       .filter((x) => x.miss <= 3)
       .sort((a, b) => a.miss - b.miss)
       .slice(0, 8);
-  }, [pantry]);
+  }, [pantry, catalogReady]);
 
   const count = pantry.length;
 
@@ -75,11 +83,13 @@ export function PantrySheet({ open, onOpenChange }: { open: boolean; onOpenChang
 }
 
 export function ShoppingSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const catalogReady = useCatalog();
   const pantry = useBrioStore((s) => s.pantry);
   const favRecipes = useBrioStore((s) => s.favRecipes);
   const [picked, setPicked] = useState<string[]>(favRecipes.slice(0, 4));
   const items = useMemo(() => {
     const map = new Map<string, { name: string; g: number }>();
+    if (!catalogReady) return [];
     for (const id of picked) {
       const r = BASE_RECIPES.find((x) => x.id === id);
       if (!r) continue;
@@ -90,13 +100,13 @@ export function ShoppingSheet({ open, onOpenChange }: { open: boolean; onOpenCha
       }
     }
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
-  }, [picked, pantry]);
+  }, [picked, pantry, catalogReady]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Lista de la compra">
       <p className="mb-2 text-sm text-muted-foreground">Elige recetas; se omiten lo que ya tienes.</p>
       <div className="mb-3 flex flex-wrap gap-1">
-        {BASE_RECIPES.slice(0, 24).map((r) => (
+        {(catalogReady ? BASE_RECIPES : []).slice(0, 24).map((r) => (
           <button
             key={r.id}
             type="button"

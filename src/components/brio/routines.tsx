@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ROUTINES, ROUTINE_LEVELS, parseRestSeconds } from "@/lib/brio/catalog";
+import { useCatalog } from "@/lib/brio/use-catalog";
 import { useBrioStore } from "@/lib/brio/store";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ export function RoutinesSheet({
 }) {
   const purpose = useBrioStore((s) => s.profile.purpose);
   const addWorkout = useBrioStore((s) => s.addWorkout);
+  const catalogReady = useCatalog();
   const [id, setId] = useState<string | null>(null);
   const [session, setSession] = useState(0);
   const routine = ROUTINES.find((r) => r.id === id);
@@ -46,7 +48,10 @@ export function RoutinesSheet({
                 setSession(i);
                 setTimer(null);
               }}
-              className={cn("shrink-0 rounded-full px-3 py-1 text-xs", i === session ? "bg-primary text-primary-foreground" : "bg-muted")}
+              className={cn(
+                "shrink-0 rounded-full px-3 py-1 text-xs",
+                i === session ? "bg-primary text-primary-foreground" : "bg-muted",
+              )}
             >
               {s.name.split("·")[0]}
             </button>
@@ -67,7 +72,9 @@ export function RoutinesSheet({
             return (
               <li key={e.name} className="rounded-2xl bg-muted/50 p-3">
                 <div className="font-medium">{e.name}</div>
-                <div className="text-xs text-muted-foreground">{e.rx} · descanso {e.rest}</div>
+                <div className="text-xs text-muted-foreground">
+                  {e.rx} · descanso {e.rest}
+                </div>
                 {rest > 0 ? (
                   <Button size="sm" variant="secondary" className="mt-2" onClick={() => setTimer(rest)}>
                     Descanso {rest}s
@@ -89,20 +96,36 @@ export function RoutinesSheet({
         >
           Registrar sesión · {routine.minutes} min
         </Button>
-        <Button className="mt-2 w-full" variant="outline" onClick={() => { setId(null); setTimer(null); }}>
+        <Button
+          className="mt-2 w-full"
+          variant="outline"
+          onClick={() => {
+            setId(null);
+            setTimer(null);
+          }}
+        >
           Todas las rutinas
         </Button>
       </Sheet>
     );
   }
 
-  const sorted = [...ROUTINES].sort((a, b) => Number(b.purposes.includes(purpose)) - Number(a.purposes.includes(purpose)));
+  const sorted = (catalogReady ? [...ROUTINES] : []).sort(
+    (a, b) => Number(b.purposes.includes(purpose)) - Number(a.purposes.includes(purpose)),
+  );
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Rutinas">
       <ul className="space-y-2">
         {sorted.map((r) => (
           <li key={r.id}>
-            <button type="button" className="w-full rounded-2xl bg-muted/50 px-3 py-3 text-left" onClick={() => { setId(r.id); setSession(0); }}>
+            <button
+              type="button"
+              className="w-full rounded-2xl bg-muted/50 px-3 py-3 text-left"
+              onClick={() => {
+                setId(r.id);
+                setSession(0);
+              }}
+            >
               <div className="font-medium">{r.name}</div>
               <div className="text-xs text-muted-foreground">
                 {ROUTINE_LEVELS.find((l) => l.id === r.level)?.n} · {r.days} días · {r.minutes} min

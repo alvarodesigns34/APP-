@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { BASE_FOODS, buildRecipe } from "./catalog";
+import { beforeAll, describe, expect, it } from "vitest";
+import { BASE_FOODS, BASE_RECIPES, buildRecipe, ensureCatalog } from "./catalog";
 import type { RecipeSource } from "./types";
+
+beforeAll(async () => {
+  await ensureCatalog();
+});
 
 describe("buildRecipe", () => {
   it("returns null when an ingredient is missing", () => {
@@ -34,5 +38,12 @@ describe("buildRecipe", () => {
     expect(r!.totalG).toBe(200);
     expect(r!.servingG).toBe(100);
     expect(r!.perServing.kcal).toBeCloseTo(food.kcal, 5);
+  });
+});
+
+describe("catalog snapshot", () => {
+  it("loads every builtin food and recipe", () => {
+    expect(BASE_FOODS).toHaveLength(719);
+    expect(BASE_RECIPES).toHaveLength(211);
   });
 });
