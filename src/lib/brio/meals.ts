@@ -13,8 +13,8 @@ export type MealHabit = {
   names: string[];
 };
 
-export function mealSignature(entries: MealEntry[]): string {
-  return [...new Set(entries.map((e) => e.foodId))].sort().join("|");
+export function mealSignature(meal: MealId, entries: MealEntry[]): string {
+  return `${meal}:${[...new Set(entries.map((e) => e.foodId))].sort().join("|")}`;
 }
 
 export function habitTitle(names: string[]): string {
@@ -38,7 +38,7 @@ export function habitualMeals(s: PersistedState, limit = 6): MealHabit[] {
     for (const m of MEALS) {
       const entries = d.meals[m.id];
       if (!entries.length) continue;
-      const sig = mealSignature(entries);
+      const sig = mealSignature(m.id, entries);
       const prev = groups.get(sig);
       if (!prev) {
         groups.set(sig, {

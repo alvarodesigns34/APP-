@@ -17,6 +17,7 @@ import { uid, round } from "./format";
 import { getFood, scaleMacros } from "./catalog";
 import { addDays } from "./dates";
 import { kcalFromWorkout } from "./domain";
+import { latestWeight } from "./selectors";
 
 type Ctx = { customFoods: Food[]; recipes: UserRecipe[] };
 
@@ -323,7 +324,7 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
   },
   addWorkout: (key, type, min, intensity) => {
     const s = get();
-    const kg = s.weights.at(-1)?.kg ?? s.profile.weight;
+    const kg = latestWeight(s, key)?.kg ?? s.profile.weight;
     const kcal = kcalFromWorkout(type, min, intensity, kg);
     set({
       days: withDay(s, key, (d) =>
