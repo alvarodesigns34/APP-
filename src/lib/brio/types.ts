@@ -120,6 +120,18 @@ export type Profile = {
   purpose: PurposeId;
 };
 
+export type ReminderSettings = {
+  enabled: boolean;
+  meals: boolean;
+  water: boolean;
+  weight: boolean;
+  desayuno: string;
+  comida: string;
+  cena: string;
+  aguaEveryMin: number;
+  peso: string;
+};
+
 export type Settings = {
   theme: ThemePref;
   units: "met" | "imp";
@@ -129,6 +141,7 @@ export type Settings = {
   fasting: FastingId;
   macroPreset: MacroPresetId;
   macroPct: MacroPct;
+  reminders: ReminderSettings;
 };
 
 export type Goals = {

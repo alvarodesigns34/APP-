@@ -1,4 +1,5 @@
 import { DEFAULT_MACRO_PCT, clampMacroPct, isMacroPresetId, pctForPreset } from "./domain";
+import { DEFAULT_REMINDERS, parseReminders } from "./reminders";
 import {
   LEGACY_STORE_KEYS,
   MEALS,
@@ -50,6 +51,7 @@ export function defaultState(): PersistedState {
       fasting: "off",
       macroPreset: "equilibrado",
       macroPct: { ...DEFAULT_MACRO_PCT },
+      reminders: { ...DEFAULT_REMINDERS },
     },
     goals: {
       kcal: 2200,
@@ -188,6 +190,8 @@ export function migrate(raw: unknown): PersistedState {
   } else {
     settings.macroPct = pctForPreset(settings.macroPreset);
   }
+  const rawSettings = isObj(out.settings) ? out.settings : null;
+  settings.reminders = parseReminders(rawSettings ? rawSettings.reminders : undefined);
   const goals = { ...base.goals, ...(isObj(out.goals) ? out.goals : {}) } as Goals;
 
   const daysIn = isObj(out.days) ? out.days : {};

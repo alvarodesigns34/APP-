@@ -7,6 +7,7 @@ import { useBrioStore } from "@/lib/brio/store";
 import { todayKey } from "@/lib/brio/dates";
 import { HoySkeleton } from "@/components/brio/hoy-skeleton";
 import { Onboarding } from "@/components/brio/onboarding";
+import { RemindersBoot } from "@/components/brio/reminders-boot";
 import { ScrollRestore } from "@/components/layout/scroll-restore";
 
 const TABS = [
@@ -122,6 +123,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
       <ScrollRestore />
       <UndoHotkey />
+      <RemindersBoot />
       <Toaster position="top-center" richColors />
     </div>
   );
