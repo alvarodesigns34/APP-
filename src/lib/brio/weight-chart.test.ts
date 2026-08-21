@@ -110,4 +110,51 @@ describe("buildWeightChart", () => {
     expect(end.trend).toBeCloseTo(last.kg, 10);
     expect(end.trend).toBeCloseTo(first.kg + rate * days, 8);
   });
+
+  it("7 consecutive daily weights: last day's ma7 is the mean of those 7", () => {
+    const kgs = [70, 71, 70, 71, 70, 71, 70];
+    const weights: WeightEntry[] = kgs.map((kg, i) => ({
+      date: addDays("2026-01-01", i),
+      kg,
+    }));
+    const pts = buildWeightChart(weights, 70);
+    expect(pts).toHaveLength(7);
+    expect(pts[0].ma7).toBeNull();
+    const mean7 = kgs.reduce((a, b) => a + b, 0) / kgs.length;
+    expect(pts[pts.length - 1].ma7).toBeCloseTo(mean7, 10);
+    expect(pts[pts.length - 1].ma7).toBeCloseTo(70.4285714286, 8);
+  });
+
+  it("sparse: only 1 weigh-in in a 7-day window → ma7 null", () => {
+    const pts = buildWeightChart(
+      [
+        { date: "2026-01-01", kg: 80 },
+        { date: "2026-01-11", kg: 79 },
+      ],
+      75,
+    );
+    expect(pts.length).toBe(11);
+    expect(pts.every((p) => p.ma7 === null)).toBe(true);
+  });
+
+  it("a day without a weigh-in can still have ma7 if ≥2 measurements in [D-6,D]", () => {
+    const pts = buildWeightChart(
+      [
+        { date: "2026-01-01", kg: 80 },
+        { date: "2026-01-02", kg: 82 },
+        { date: "2026-01-05", kg: 81 },
+      ],
+      75,
+    );
+    const jan3 = pts.find((p) => p.date === "2026-01-03");
+    expect(jan3).toBeDefined();
+    expect(jan3!.kg).toBeNull();
+    expect(jan3!.ma7).toBeCloseTo((80 + 82) / 2, 10);
+    const jan4 = pts.find((p) => p.date === "2026-01-04");
+    expect(jan4!.kg).toBeNull();
+    expect(jan4!.ma7).toBeCloseTo((80 + 82) / 2, 10);
+    const jan5 = pts.find((p) => p.date === "2026-01-05");
+    expect(jan5!.kg).toBe(81);
+    expect(jan5!.ma7).toBeCloseTo((80 + 82 + 81) / 3, 10);
+  });
 });

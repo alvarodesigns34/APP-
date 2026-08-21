@@ -16,6 +16,8 @@ export type WeightChartPoint = {
   goal: number;
   bandLow: number;
   bandHigh: number;
+  /** Arithmetic mean of weigh-ins in [D-6, D]; null if fewer than 2. */
+  ma7: number | null;
 };
 
 function shortDate(key: string): string {
@@ -46,6 +48,20 @@ function keysInclusive(start: string, end: string): string[] {
     if (out.length > 4000) break;
   }
   return out;
+}
+
+/** Mean of kg values whose date falls in [start, end] inclusive; null if < 2. */
+function meanInWindow(weights: WeightEntry[], start: string, end: string): number | null {
+  let sum = 0;
+  let n = 0;
+  for (const w of weights) {
+    if (w.date >= start && w.date <= end) {
+      sum += w.kg;
+      n += 1;
+    }
+  }
+  if (n < 2) return null;
+  return sum / n;
 }
 
 /**
@@ -81,6 +97,7 @@ export function buildWeightChart(weights: WeightEntry[], goalKg: number): Weight
       goal: goalKg,
       bandLow: trend - half,
       bandHigh: trend + half,
+      ma7: meanInWindow(weights, addDays(date, -6), date),
     };
   });
 }
