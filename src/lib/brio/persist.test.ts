@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { migrate } from "./persist";
+import { DEFAULT_REMINDERS } from "./reminders";
 
 describe("migrate", () => {
   it("returns defaults for garbage input", () => {
@@ -59,5 +60,45 @@ describe("migrate", () => {
     expect(s.favRecipes).toEqual(["rec-1"]);
     expect(s.pantry).toEqual([]);
     expect(s.recents).toEqual(["a", "b"]);
+  });
+
+  it("fills reminder defaults when migrating an old save and keeps the rest", () => {
+    const s = migrate({
+      onboarded: true,
+      profile: {
+        name: "Ana",
+        sex: "m",
+        birth: "1990-01-01",
+        height: 160,
+        weight: 58,
+        activity: "mod",
+        purpose: "perder",
+      },
+      settings: { theme: "dark", units: "imp", glass: 300, pantryBasics: false },
+      goals: { kcal: 1800, water: 2200 },
+      weights: [{ date: "2026-08-20", kg: 58 }],
+      favorites: ["manzana"],
+    });
+    expect(s.onboarded).toBe(true);
+    expect(s.profile.name).toBe("Ana");
+    expect(s.profile.weight).toBe(58);
+    expect(s.settings.theme).toBe("dark");
+    expect(s.settings.units).toBe("imp");
+    expect(s.settings.glass).toBe(300);
+    expect(s.settings.pantryBasics).toBe(false);
+    expect(s.goals.kcal).toBe(1800);
+    expect(s.goals.water).toBe(2200);
+    expect(s.weights).toEqual([{ date: "2026-08-20", kg: 58 }]);
+    expect(s.favorites).toEqual(["manzana"]);
+    expect(s.settings.reminders).toEqual(DEFAULT_REMINDERS);
+    expect(s.settings.reminders.enabled).toBe(false);
+  });
+
+  it("replaces garbage reminders with defaults", () => {
+    const s = migrate({
+      settings: { theme: "light", reminders: "nope" },
+    });
+    expect(s.settings.theme).toBe("light");
+    expect(s.settings.reminders).toEqual(DEFAULT_REMINDERS);
   });
 });

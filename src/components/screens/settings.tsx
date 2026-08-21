@@ -25,6 +25,7 @@ import {
   type FastingId,
   type MacroPresetId,
   type PurposeId,
+  type ReminderSettings,
   type Sex,
   type ThemePref,
 } from "@/lib/brio/types";
@@ -107,6 +108,40 @@ export function SettingsScreen() {
   }
 
   const liveMacros = macrosFromKcal(goals.kcal, settings.macroPct);
+  const reminders = settings.reminders;
+
+  function patchReminders(patch: Partial<ReminderSettings>) {
+    patchSettings({ reminders: { ...reminders, ...patch } });
+  }
+
+  async function onToggleReminders(v: boolean) {
+    if (!v) {
+      patchReminders({ enabled: false });
+      return;
+    }
+    if (typeof Notification === "undefined") {
+      toast.error("Sin permiso de notificaciones");
+      return;
+    }
+    let perm: NotificationPermission = Notification.permission;
+    try {
+      perm = await Notification.requestPermission();
+    } catch {
+      toast.error("Sin permiso de notificaciones");
+      return;
+    }
+    if (perm !== "granted") {
+      toast.error("Sin permiso de notificaciones");
+      return;
+    }
+    patchReminders({ enabled: true });
+  }
+
+  function onReminderTime(field: "desayuno" | "comida" | "cena" | "peso", raw: string) {
+    const v = raw.slice(0, 5);
+    if (!v) return;
+    patchReminders({ [field]: v });
+  }
 
   return (
     <Screen>
@@ -335,6 +370,61 @@ export function SettingsScreen() {
           Sumar kcal de actividad al objetivo
           <Switch checked={settings.activityAdjust} onCheckedChange={(v) => patchSettings({ activityAdjust: v })} />
         </label>
+      </Card>
+
+      <SectionLabel>Recordatorios</SectionLabel>
+      <Card className="space-y-3">
+        <label className="flex items-center justify-between gap-3 text-sm">
+          Activar recordatorios
+          <Switch checked={reminders.enabled} onCheckedChange={(v) => void onToggleReminders(v)} />
+        </label>
+        <label className="flex items-center justify-between gap-3 text-sm">
+          Comidas
+          <Switch checked={reminders.meals} onCheckedChange={(v) => patchReminders({ meals: v })} />
+        </label>
+        <label className="flex items-center justify-between gap-3 text-sm">
+          Agua
+          <Switch checked={reminders.water} onCheckedChange={(v) => patchReminders({ water: v })} />
+        </label>
+        <label className="flex items-center justify-between gap-3 text-sm">
+          Peso
+          <Switch checked={reminders.weight} onCheckedChange={(v) => patchReminders({ weight: v })} />
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          <Field label="Desayuno">
+            <Input type="time" value={reminders.desayuno} onChange={(e) => onReminderTime("desayuno", e.target.value)} />
+          </Field>
+          <Field label="Comida">
+            <Input type="time" value={reminders.comida} onChange={(e) => onReminderTime("comida", e.target.value)} />
+          </Field>
+          <Field label="Cena">
+            <Input type="time" value={reminders.cena} onChange={(e) => onReminderTime("cena", e.target.value)} />
+          </Field>
+        </div>
+        <Field label="Peso">
+          <Input type="time" value={reminders.peso} onChange={(e) => onReminderTime("peso", e.target.value)} />
+        </Field>
+        <Field label="Avisar agua cada (min)">
+          <Input
+            inputMode="numeric"
+            type="number"
+            min={30}
+            max={360}
+            value={reminders.aguaEveryMin}
+            onChange={(e) => {
+              const n = parseNum(e.target.value);
+              if (!n) return;
+              patchReminders({ aguaEveryMin: n });
+            }}
+            onBlur={() => {
+              const n = Math.round(Number(reminders.aguaEveryMin));
+              patchReminders({ aguaEveryMin: Math.min(360, Math.max(30, Number.isFinite(n) && n > 0 ? n : 120)) });
+            }}
+          />
+        </Field>
+        <p className="text-xs text-muted-foreground">
+          Los avisos salen en este dispositivo, sin cuenta. Si cierras la app del todo, el sistema puede retrasarlos.
+        </p>
       </Card>
 
       <SectionLabel>Datos</SectionLabel>

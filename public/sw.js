@@ -51,3 +51,19 @@ self.addEventListener("fetch", (event) => {
     }),
   );
 });
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsArr) => {
+      for (const c of clientsArr) {
+        if ("focus" in c) {
+          if ("navigate" in c) c.navigate(url);
+          return c.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});
