@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
 import { useBrioStore } from "@/lib/brio/store";
 import { todayKey } from "@/lib/brio/dates";
+import { HoySkeleton } from "@/components/brio/hoy-skeleton";
 import { Onboarding } from "@/components/brio/onboarding";
 
 const TABS = [
@@ -74,7 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [hydrated, theme]);
 
   if (!hydrated) {
-    return <div className="min-h-dvh bg-background" aria-busy="true" />;
+    return <HoySkeleton />;
   }
 
   if (!onboarded) {
