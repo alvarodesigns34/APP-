@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, ScanBarcode, Star } from "lucide-react";
+import { Plus, ScanBarcode, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { getFood, searchFoods } from "@/lib/brio/catalog";
 import { useCatalog } from "@/lib/brio/use-catalog";
 import { useBrioStore } from "@/lib/brio/store";
 import { habitualFoodIds } from "@/lib/brio/selectors";
+import { loadSearchPrefs, rememberQuery, saveSearchPrefs } from "@/lib/brio/search-prefs";
 import { nf, parseNum, round } from "@/lib/brio/format";
 import {
   createBarcodeDetector,
@@ -61,6 +62,7 @@ export function FoodLogSheet({
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("buscar");
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
+  const [queries, setQueries] = useState<string[]>([]);
   const [meal, setMeal] = useState<MealId>(defaultMeal);
   const [picked, setPicked] = useState<Food | null>(null);
   const [grams, setGrams] = useState("100");
@@ -70,6 +72,8 @@ export function FoodLogSheet({
   const [createDraft, setCreateDraft] = useState<{ name: string; barcode: string } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [lookupBusy, setLookupBusy] = useState(false);
+  const prefsRef = useRef({ queries, cat });
+  prefsRef.current = { queries, cat };
 
   const editing = !!edit;
 
@@ -83,6 +87,10 @@ export function FoodLogSheet({
       return;
     }
     setMeal(edit?.meal ?? defaultMeal);
+    const prefs = loadSearchPrefs();
+    prefsRef.current = prefs;
+    setQueries(prefs.queries);
+    setCat(prefs.cat);
     if (edit) {
       const food = getFood(edit.entry.foodId, {
         customFoods: useBrioStore.getState().customFoods,
@@ -137,7 +145,29 @@ export function FoodLogSheet({
     setQty(String(round(n / unitG, 2)));
   }
 
+  function commitPrefs(patch: { queries?: string[]; cat?: string | null }) {
+    const next = { ...prefsRef.current, ...patch };
+    prefsRef.current = next;
+    setQueries(next.queries);
+    setCat(next.cat);
+    saveSearchPrefs(next);
+  }
+
+  function rememberCurrentQuery() {
+    if (q.trim().length < 2) return;
+    commitPrefs({ queries: rememberQuery(prefsRef.current.queries, q) });
+  }
+
+  function applyCat(next: string | null) {
+    commitPrefs({ cat: next });
+  }
+
+  function dropQuery(query: string) {
+    commitPrefs({ queries: prefsRef.current.queries.filter((item) => item !== query) });
+  }
+
   function pick(f: Food) {
+    rememberCurrentQuery();
     const unit = f.units[0];
     setPicked(f);
     if (unit) {
@@ -366,6 +396,7 @@ export function FoodLogSheet({
                     placeholder="Buscar alimento o receta"
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
+                    onBlur={rememberCurrentQuery}
                   />
                   <Button
                     type="button"
@@ -378,12 +409,38 @@ export function FoodLogSheet({
                     <ScanBarcode className="size-5" />
                   </Button>
                 </div>
+                {queries.length ? (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">Búsquedas recientes</p>
+                    <div className="flex gap-1 overflow-x-auto pb-1">
+                      {queries.map((query) => (
+                        <span key={query} className="flex shrink-0 items-center rounded-full bg-muted">
+                          <button
+                            type="button"
+                            className="min-h-11 max-w-40 truncate rounded-l-full pl-3 pr-1 text-xs"
+                            onClick={() => setQ(query)}
+                          >
+                            {query}
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Quitar búsqueda"
+                            className="grid size-11 place-items-center text-muted-foreground"
+                            onClick={() => dropQuery(query)}
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="flex gap-1 overflow-x-auto pb-1">
-                  <Chip on={cat === null} onClick={() => setCat(null)}>
+                  <Chip on={cat === null} onClick={() => applyCat(null)}>
                     Todas
                   </Chip>
                   {CATEGORIES.filter((c) => !["propio", "receta", "receta_base"].includes(c.id)).map((c) => (
-                    <Chip key={c.id} on={cat === c.id} onClick={() => setCat(c.id)}>
+                    <Chip key={c.id} on={cat === c.id} onClick={() => applyCat(c.id)}>
                       {c.n}
                     </Chip>
                   ))}
