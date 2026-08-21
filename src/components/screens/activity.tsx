@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { toast } from "sonner";
 import { DateNav } from "@/components/brio/date-nav";
 import { Card, Screen, SectionLabel, Title } from "@/components/brio/section";
@@ -15,10 +16,29 @@ import { useBrioStore } from "@/lib/brio/store";
 import { fmtVolume, fmtWeight } from "@/lib/brio/units";
 
 export function ActivityScreen() {
-  const s = useBrioStore();
-  const key = s.viewDate || todayKey();
-  const d = s.days[key];
-  const units = s.settings.units;
+  const snap = useBrioStore(
+    useShallow((s) => ({
+      days: s.days,
+      goals: s.goals,
+      profile: s.profile,
+      settings: s.settings,
+      weights: s.weights,
+      customFoods: s.customFoods,
+      recipes: s.recipes,
+      pantry: s.pantry,
+      favorites: s.favorites,
+      favRecipes: s.favRecipes,
+      recents: s.recents,
+      schema: s.schema,
+      onboarded: s.onboarded,
+    })),
+  );
+  const viewDate = useBrioStore((s) => s.viewDate);
+  const removeWorkout = useBrioStore((s) => s.removeWorkout);
+  const restoreWorkout = useBrioStore((s) => s.restoreWorkout);
+  const key = viewDate || todayKey();
+  const d = snap.days[key];
+  const units = snap.settings.units;
   const [steps, setSteps] = useState(false);
   const [wo, setWo] = useState(false);
   const [water, setWater] = useState(false);
@@ -26,13 +46,14 @@ export function ActivityScreen() {
   const [wg, setWg] = useState(false);
   const [routines, setRoutines] = useState(false);
   const [hist, setHist] = useState(false);
-  const kg = currentWeightKg(s);
-  const km = distanceFromSteps(d?.steps || 0, s.profile.sex, s.profile.height);
-  const b = bmi(kg, s.profile.height);
+  const kg = useMemo(() => currentWeightKg(snap), [snap]);
+  const km = distanceFromSteps(d?.steps || 0, snap.profile.sex, snap.profile.height);
+  const b = bmi(kg, snap.profile.height);
   const cat = bmiCategory(b);
-  const wt = waterTotal(s, key);
-  const glassesEst = s.settings.glass ? Math.round(wt / s.settings.glass) : 0;
+  const wt = useMemo(() => waterTotal(snap, key), [snap, key]);
+  const glassesEst = snap.settings.glass ? Math.round(wt / snap.settings.glass) : 0;
   const dayLabel = fmtDateRelative(key).toLowerCase();
+  const woMin = useMemo(() => workoutMinTotal(snap, key), [snap, key]);
 
   return (
     <Screen>
@@ -45,8 +66,8 @@ export function ActivityScreen() {
           <Button size="sm" variant="ghost" onClick={() => setSteps(true)}>Editar</Button>
         </div>
         <div className="font-display text-3xl tabular-nums">{nf(d?.steps || 0)}</div>
-        <p className="mb-2 text-xs text-muted-foreground">{nf(km, 2)} km · objetivo {nf(s.goals.steps)}</p>
-        <Bar pct={s.goals.steps ? ((d?.steps || 0) / s.goals.steps) * 100 : 0} color="var(--brio-steps)" />
+        <p className="mb-2 text-xs text-muted-foreground">{nf(km, 2)} km · objetivo {nf(snap.goals.steps)}</p>
+        <Bar pct={snap.goals.steps ? ((d?.steps || 0) / snap.goals.steps) * 100 : 0} color="var(--brio-steps)" />
       </Card>
 
       <SectionLabel>Entrenamiento</SectionLabel>
@@ -66,10 +87,10 @@ export function ActivityScreen() {
                   aria-label="Quitar entrenamiento"
                   className="min-h-11 px-2 text-xs text-muted-foreground"
                   onClick={() => {
-                    const removed = s.removeWorkout(key, w.id);
+                    const removed = removeWorkout(key, w.id);
                     toast("Eliminado", {
                       action: removed
-                        ? { label: "Deshacer", onClick: () => s.restoreWorkout(key, removed) }
+                        ? { label: "Deshacer", onClick: () => restoreWorkout(key, removed) }
                         : undefined,
                     });
                   }}
@@ -80,7 +101,7 @@ export function ActivityScreen() {
             ))}
           </ul>
         )}
-        <p className="mt-2 text-xs text-muted-foreground">{workoutMinTotal(s, key)} min {dayLabel}</p>
+        <p className="mt-2 text-xs text-muted-foreground">{woMin} min {dayLabel}</p>
         <div className="mt-3 flex gap-2">
           <Button className="flex-1" variant="secondary" onClick={() => setWo(true)}>Registrar</Button>
           <Button className="flex-1" variant="outline" onClick={() => setRoutines(true)}>Rutinas</Button>
@@ -93,9 +114,9 @@ export function ActivityScreen() {
         <div className="mb-2 font-medium">Agua</div>
         <div className="font-display text-2xl tabular-nums">{fmtVolume(wt, units)}</div>
         <p className="mb-2 text-xs text-muted-foreground">
-          {glassesEst} {glassesEst === 1 ? "vaso" : "vasos"} de {fmtVolume(s.settings.glass, units)}
+          {glassesEst} {glassesEst === 1 ? "vaso" : "vasos"} de {fmtVolume(snap.settings.glass, units)}
         </p>
-        <Bar pct={s.goals.water ? (wt / s.goals.water) * 100 : 0} color="var(--brio-water)" />
+        <Bar pct={snap.goals.water ? (wt / snap.goals.water) * 100 : 0} color="var(--brio-water)" />
       </Card>
 
       <Card className="mb-3" onClick={() => setSleep(true)}>
@@ -103,7 +124,7 @@ export function ActivityScreen() {
         {d?.sleep ? (
           <p className="text-sm">
             {minutesToHM(sleepDuration(d.sleep.bed, d.sleep.wake))}
-            <span className="block text-xs text-muted-foreground">objetivo {minutesToHM(s.goals.sleep)}</span>
+            <span className="block text-xs text-muted-foreground">objetivo {minutesToHM(snap.goals.sleep)}</span>
           </p>
         ) : (
           <p className="text-sm text-muted-foreground">Toca para registrar la noche.</p>
@@ -114,7 +135,7 @@ export function ActivityScreen() {
         <div className="mb-1 font-medium">Peso</div>
         <div className="font-display text-2xl tabular-nums">{fmtWeight(kg, units)}</div>
         <p className="text-xs text-muted-foreground">
-          IMC {nf(b, 1)} · {cat.n} · meta {fmtWeight(s.goals.weight, units)}
+          IMC {nf(b, 1)} · {cat.n} · meta {fmtWeight(snap.goals.weight, units)}
         </p>
       </Card>
 

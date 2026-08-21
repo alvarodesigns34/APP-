@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Dumbbell, Droplets, Flame, Footprints, Moon, Pencil, Scale, Utensils, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { DateNav } from "@/components/brio/date-nav";
@@ -31,28 +32,53 @@ import { RECIPE_BY_ID } from "@/lib/brio/catalog";
 import { RecipeDetail } from "@/components/brio/recipe-browser";
 
 export function TodayScreen() {
-  const s = useBrioStore();
-  const key = s.viewDate || todayKey();
+  const snap = useBrioStore(
+    useShallow((s) => ({
+      days: s.days,
+      goals: s.goals,
+      profile: s.profile,
+      settings: s.settings,
+      weights: s.weights,
+      customFoods: s.customFoods,
+      recipes: s.recipes,
+      pantry: s.pantry,
+      favorites: s.favorites,
+      favRecipes: s.favRecipes,
+      recents: s.recents,
+      schema: s.schema,
+      onboarded: s.onboarded,
+    })),
+  );
+  const viewDate = useBrioStore((s) => s.viewDate);
+  const setViewDate = useBrioStore((s) => s.setViewDate);
+  const setNoteFn = useBrioStore((s) => s.setNote);
+  const key = viewDate || todayKey();
   const isToday = key === todayKey();
   const isFuture = key > todayKey();
-  const t = dayFoodTotals(s, key);
-  const g = s.goals;
-  const d = s.days[key];
-  const kg = kcalGoalFor(s, key);
+  const t = useMemo(() => dayFoodTotals(snap, key), [snap, key]);
+  const g = snap.goals;
+  const d = snap.days[key];
+  const kg = useMemo(() => kcalGoalFor(snap, key), [snap, key]);
   const remaining = kg - t.kcal;
+  const move = useMemo(() => moveGoal(snap), [snap]);
+  const woMin = useMemo(() => workoutMinTotal(snap, key), [snap, key]);
   const rv = {
     kcal: kg ? t.kcal / kg : 0,
     steps: g.steps ? (d?.steps || 0) / g.steps : 0,
-    move: moveGoal(s) ? workoutMinTotal(s, key) / moveGoal(s) : 0,
+    move: move ? woMin / move : 0,
   };
-  const met = goalsMet(s, key);
-  const streak = currentStreak(s);
-  const water = waterTotal(s, key);
-  const sug = isToday && remaining > 120 ? suggestRecipes(s, key, 3) : { list: [], remKcal: remaining, remProt: 0 };
-  const name = s.profile.name ? `, ${s.profile.name.split(" ")[0]}` : "";
+  const met = useMemo(() => goalsMet(snap, key), [snap, key]);
+  const streak = useMemo(() => currentStreak(snap), [snap]);
+  const water = useMemo(() => waterTotal(snap, key), [snap, key]);
+  const sug = useMemo(
+    () => (isToday && remaining > 120 ? suggestRecipes(snap, key, 3) : { list: [] as ReturnType<typeof suggestRecipes>["list"], remKcal: remaining, remProt: 0 }),
+    [isToday, remaining, snap, key],
+  );
+  const name = snap.profile.name ? `, ${snap.profile.name.split(" ")[0]}` : "";
   const last7 = rangeKeys(todayKey(), 7);
   const workouts = d?.workouts;
   const sleep = d?.sleep;
+  const actKcal = useMemo(() => activityKcal(snap, key), [snap, key]);
 
   const [foodOpen, setFoodOpen] = useState(false);
   const [waterOpen, setWaterOpen] = useState(false);
@@ -80,7 +106,7 @@ export function TodayScreen() {
         <Title sub={capitalize(fmtDateLong(key))}>Día futuro</Title>
         <DateNav />
         <p className="text-sm text-muted-foreground">Todavía no puedes registrar un día que no ha llegado.</p>
-        <Button className="mt-4" onClick={() => s.setViewDate(todayKey())}>
+        <Button className="mt-4" onClick={() => setViewDate(todayKey())}>
           Volver a hoy
         </Button>
       </Screen>
@@ -100,8 +126,8 @@ export function TodayScreen() {
             <LegendRow label="Pasos" value={nf(d?.steps || 0)} hint={`/ ${nf(g.steps)}`} color="var(--brio-steps)" />
             <LegendRow
               label="Ejercicio"
-              value={`${nf(workoutMinTotal(s, key))}`}
-              hint={`/ ${nf(moveGoal(s))} min`}
+              value={`${nf(woMin)}`}
+              hint={`/ ${nf(move)} min`}
               color="var(--brio-move)"
             />
           </div>
@@ -118,7 +144,7 @@ export function TodayScreen() {
             </div>
             <div className="mt-2 flex gap-1">
               {last7.map((k) => {
-                const c = goalsMet(s, k).count;
+                const c = goalsMet(snap, k).count;
                 return (
                   <i
                     key={k}
@@ -219,8 +245,8 @@ export function TodayScreen() {
             color="var(--brio-move)"
           />
         </div>
-        {s.settings.activityAdjust && activityKcal(s, key) > 0 ? (
-          <p className="mt-3 text-xs text-muted-foreground">Incluye {nf(activityKcal(s, key))} kcal de actividad.</p>
+        {snap.settings.activityAdjust && actKcal > 0 ? (
+          <p className="mt-3 text-xs text-muted-foreground">Incluye {nf(actKcal)} kcal de actividad.</p>
         ) : null}
       </Card>
       <Card>
@@ -274,7 +300,7 @@ export function TodayScreen() {
           <Button
             className="w-full"
             onClick={() => {
-              s.setNote(key, note);
+              setNoteFn(key, note);
               setNoteOpen(false);
               toast.success("Nota guardada");
             }}

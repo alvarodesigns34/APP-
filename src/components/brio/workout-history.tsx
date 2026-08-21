@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Bar } from "@/components/brio/rings";
 import { Card, Empty, SectionLabel } from "@/components/brio/section";
 import { Button } from "@/components/ui/button";
@@ -11,12 +13,28 @@ import { activityOf } from "@/lib/brio/domain";
 import { cn } from "@/lib/utils";
 
 export function WorkoutWeekCard({ onOpen }: { onOpen: () => void }) {
-  const s = useBrioStore();
-  const week = weekWorkoutMin(s);
-  const goal = s.goals.activityMin;
-  const marks = sportMarks(s);
+  const snap = useBrioStore(
+    useShallow((s) => ({
+      days: s.days,
+      goals: s.goals,
+      profile: s.profile,
+      settings: s.settings,
+      weights: s.weights,
+      customFoods: s.customFoods,
+      recipes: s.recipes,
+      pantry: s.pantry,
+      favorites: s.favorites,
+      favRecipes: s.favRecipes,
+      recents: s.recents,
+      schema: s.schema,
+      onboarded: s.onboarded,
+    })),
+  );
+  const week = useMemo(() => weekWorkoutMin(snap), [snap]);
+  const goal = snap.goals.activityMin;
+  const marks = useMemo(() => sportMarks(snap), [snap]);
   const best = marks[0];
-  const sessions = allSessions(s);
+  const sessions = useMemo(() => allSessions(snap), [snap]);
   if (sessions.length === 0) {
     return (
       <>
@@ -58,12 +76,28 @@ export function WorkoutHistorySheet({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const s = useBrioStore();
+  const snap = useBrioStore(
+    useShallow((s) => ({
+      days: s.days,
+      goals: s.goals,
+      profile: s.profile,
+      settings: s.settings,
+      weights: s.weights,
+      customFoods: s.customFoods,
+      recipes: s.recipes,
+      pantry: s.pantry,
+      favorites: s.favorites,
+      favRecipes: s.favRecipes,
+      recents: s.recents,
+      schema: s.schema,
+      onboarded: s.onboarded,
+    })),
+  );
   const setViewDate = useBrioStore((st) => st.setViewDate);
-  const week = weekWorkoutMin(s);
-  const goal = s.goals.activityMin;
-  const marks = sportMarks(s);
-  const sessions = allSessions(s).slice(0, 20);
+  const week = useMemo(() => weekWorkoutMin(snap), [snap]);
+  const goal = snap.goals.activityMin;
+  const marks = useMemo(() => sportMarks(snap), [snap]);
+  const sessions = useMemo(() => allSessions(snap).slice(0, 20), [snap]);
   const bars = rangeKeys(todayKey(), 14);
 
   return (
@@ -98,7 +132,7 @@ export function WorkoutHistorySheet({
       <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Volumen 14 días</h3>
       <div className="mb-4 flex h-8 items-end gap-1">
         {bars.map((k) => {
-          const min = s.days[k]?.workouts.reduce((a, w) => a + w.min, 0) ?? 0;
+          const min = snap.days[k]?.workouts.reduce((a, w) => a + w.min, 0) ?? 0;
           const h = Math.min(100, (min / 90) * 100);
           return (
             <i
