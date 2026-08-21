@@ -6,10 +6,12 @@ import { habitualFoodIds, slotForQuickAdd } from "@/lib/brio/selectors";
 import { lastPortion } from "@/lib/brio/selectors-catalog";
 import { useBrioStore } from "@/lib/brio/store";
 import { useCatalog } from "@/lib/brio/use-catalog";
+import { CatalogInlineNotice } from "@/components/brio/catalog-state";
 import { MEALS, type Food } from "@/lib/brio/types";
 
 export function QuickAddStrip({ date }: { date: string }) {
-  const ready = useCatalog();
+  const catalog = useCatalog();
+  const ready = catalog.ready;
   const favorites = useBrioStore((s) => s.favorites);
   const recents = useBrioStore((s) => s.recents);
   const days = useBrioStore((s) => s.days);
@@ -29,6 +31,15 @@ export function QuickAddStrip({ date }: { date: string }) {
   const foods = ready ? ids.map((id) => getFood(id, ctx)).filter((f): f is Food => !!f) : [];
   const meal = slotForQuickAdd(date);
   const mealName = MEALS.find((m) => m.id === meal)?.n.toLowerCase() ?? "comida";
+
+  if (!ready) {
+    return (
+      <>
+        <SectionLabel>Al vuelo</SectionLabel>
+        <CatalogInlineNotice state={catalog} loadingText="Cargando tus alimentos…" />
+      </>
+    );
+  }
 
   if (foods.length === 0) {
     return (

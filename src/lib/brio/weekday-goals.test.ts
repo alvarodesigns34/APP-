@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultState, emptyDay } from "./persist";
 import { kcalGoalFor } from "./selectors";
-import { DEFAULT_WEEKDAY_PLAN, kcalForWeekday, parseWeekdayPlan } from "./weekday-goals";
+import { DEFAULT_WEEKDAY_PLAN, MIN_DAY_KCAL, kcalForWeekday, parseWeekdayPlan } from "./weekday-goals";
 
 const MON_FRI: boolean[] = [false, true, true, true, true, true, false];
 
@@ -40,10 +40,13 @@ describe("kcalForWeekday", () => {
     const base = 2010;
     const trainingKcal = Math.round(base * 1.12);
     const restTotal = 7 * base - 5 * trainingKcal;
-    const restKcal = Math.round(restTotal / 2);
     expect(kcalForWeekday(base, MON_FRI, 1)).toBe(trainingKcal);
-    expect(kcalForWeekday(base, MON_FRI, 0)).toBe(restKcal);
-    expect(kcalForWeekday(base, MON_FRI, 6)).toBe(restTotal - restKcal);
+    const sunday = kcalForWeekday(base, MON_FRI, 0);
+    const saturday = kcalForWeekday(base, MON_FRI, 6);
+    // Rest days split `restTotal`; the remainder lands on Saturday, so it is the
+    // larger of the two and the pair still adds up exactly.
+    expect(saturday).toBeGreaterThanOrEqual(sunday);
+    expect(sunday + saturday).toBe(restTotal);
     expect(weekSum(base, MON_FRI)).toBe(7 * base);
   });
 
@@ -52,10 +55,26 @@ describe("kcalForWeekday", () => {
     expect(kcalForWeekday(2200, [], 0)).toBe(2200);
   });
 
-  it("prefers the weekly sum over the 1000 kcal floor when clamp would invent energy", () => {
-    const base = 1100;
-    const rest = kcalForWeekday(base, MON_FRI, 0);
-    expect(rest).toBeLessThan(1000);
+  it("keeps every day at or above the floor without breaking the weekly sum", () => {
+    // Previously the split was allowed to push rest days under the floor to keep
+    // the weekly total exact. Shrinking the training bonus satisfies both.
+    for (const base of [1000, 1100, 1200, 1350, 1500]) {
+      const days = [0, 1, 2, 3, 4, 5, 6].map((d) => kcalForWeekday(base, MON_FRI, d));
+      expect(Math.min(...days)).toBeGreaterThanOrEqual(MIN_DAY_KCAL);
+      expect(weekSum(base, MON_FRI)).toBe(7 * base);
+    }
+  });
+
+  it("holds the floor even when almost every day is a training day", () => {
+    const SIX_TRAINING: boolean[] = [true, true, true, true, true, true, false];
+    const days = [0, 1, 2, 3, 4, 5, 6].map((d) => kcalForWeekday(1000, SIX_TRAINING, d));
+    expect(Math.min(...days)).toBeGreaterThanOrEqual(MIN_DAY_KCAL);
+    expect(weekSum(1000, SIX_TRAINING)).toBe(7000);
+  });
+
+  it("flattens instead of amplifying when the base is already under the floor", () => {
+    const base = 900;
+    for (let d = 0; d < 7; d++) expect(kcalForWeekday(base, MON_FRI, d)).toBe(base);
     expect(weekSum(base, MON_FRI)).toBe(7 * base);
   });
 });

@@ -13,7 +13,7 @@ import type {
   WorkoutEntry,
 } from "./types";
 import { MEALS, NOTE_MAX } from "./types";
-import { defaultState, emptyDay, isEmptyDay, loadState, migrate, saveState } from "./persist";
+import { clearAuxStorage, defaultState, emptyDay, isEmptyDay, loadState, migrate, saveState } from "./persist";
 import { uid, round } from "./format";
 import { scaleMacros } from "./scale-macros";
 import { addDays } from "./dates";
@@ -497,6 +497,8 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
   },
   resetAll: () => {
     clearUndo();
+    // Side keys are not covered by `persist()`, which only rewrites STORE_KEY.
+    clearAuxStorage();
     set({ ...defaultState(), hydrated: true, viewDate: get().viewDate });
     get().persist();
   },

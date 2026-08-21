@@ -1,4 +1,7 @@
-export const SEARCH_PREFS_KEY = "brio.search-prefs";
+import { AUX_STORE_KEYS } from "./types";
+
+/** Single source of truth so `clearAuxStorage` and this module cannot drift. */
+export const SEARCH_PREFS_KEY = AUX_STORE_KEYS[0];
 
 export type SearchPrefs = { queries: string[]; cat: string | null };
 

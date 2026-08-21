@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BASE_RECIPES, RECIPE_CATS, RECIPE_FILTERS, filterName, recipeAsFood } from "@/lib/brio/catalog";
 import { useCatalog } from "@/lib/brio/use-catalog";
+import { CatalogNotice } from "@/components/brio/catalog-state";
 import type { Recipe } from "@/lib/brio/types";
 import { MEALS, type MealId } from "@/lib/brio/types";
 import { missingIngredients } from "@/lib/brio/selectors-catalog";
@@ -24,7 +25,8 @@ export function RecipeBrowser({
   date: string;
 }) {
   const favRecipes = useBrioStore((s) => s.favRecipes);
-  const catalogReady = useCatalog();
+  const catalog = useCatalog();
+  const catalogReady = catalog.ready;
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
   const [filter, setFilter] = useState<string | null>(null);
@@ -76,6 +78,7 @@ export function RecipeBrowser({
           </Chip>
         ))}
       </div>
+      {!catalogReady ? <CatalogNotice state={catalog} loadingText="Cargando recetas…" /> : null}
       <ul className="space-y-2">
         {list.map((r) => (
           <li key={r.id}>
@@ -168,8 +171,8 @@ export function RecipeDetail({
         ))}
       </div>
       <p className="mb-3 text-sm text-muted-foreground">
-        {recipe.minutes} min · {recipe.servings} raciones · {nf(scaled.macros.kcal)} kcal · {nf(scaled.macros.prot, 1)} g
-        prot · {nf(scaled.macros.carb, 1)} g carb · {nf(scaled.macros.fat, 1)} g grasa
+        {recipe.minutes} min · {recipe.servings} raciones · {nf(scaled.macros.kcal)} kcal · {nf(scaled.macros.prot, 1)}{" "}
+        g prot · {nf(scaled.macros.carb, 1)} g carb · {nf(scaled.macros.fat, 1)} g grasa
       </p>
       <div className="mb-3 flex items-center justify-between rounded-2xl bg-muted/50 px-3 py-2">
         <span className="text-sm font-medium">Raciones</span>

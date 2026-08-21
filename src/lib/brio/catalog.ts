@@ -284,21 +284,62 @@ export function parseRestSeconds(rest: string): number {
   return sec ? Number(sec[1]) : 0;
 }
 
+/** `idle` before the first attempt; `error` keeps the last failure retryable. */
+export type CatalogStatus = "idle" | "loading" | "ready" | "error";
+
 let catalogPromise: Promise<void> | null = null;
 let catalogReady = false;
+let catalogStatus: CatalogStatus = "idle";
+
+const statusListeners = new Set<() => void>();
+
+function setStatus(next: CatalogStatus) {
+  if (catalogStatus === next) return;
+  catalogStatus = next;
+  for (const fn of [...statusListeners]) fn();
+}
 
 export function isCatalogReady(): boolean {
   return catalogReady;
 }
 
+export function getCatalogStatus(): CatalogStatus {
+  return catalogStatus;
+}
+
+/**
+ * Subscribe to catalog status changes. Every consumer sees the same status, so a
+ * retry from one screen clears the error everywhere.
+ */
+export function subscribeCatalog(fn: () => void): () => void {
+  statusListeners.add(fn);
+  return () => {
+    statusListeners.delete(fn);
+  };
+}
+
 export function ensureCatalog(): Promise<void> {
   if (!catalogPromise) {
-    catalogPromise = loadCatalog().catch((err) => {
-      catalogPromise = null;
-      throw err;
-    });
+    setStatus("loading");
+    catalogPromise = loadCatalog()
+      .then(() => {
+        setStatus("ready");
+      })
+      .catch((err) => {
+        // Drop the cached promise so the next call retries instead of replaying
+        // the rejection forever.
+        catalogPromise = null;
+        setStatus("error");
+        throw err;
+      });
   }
   return catalogPromise;
+}
+
+/** Discards a failed attempt so the next `ensureCatalog()` refetches. */
+export function retryCatalog(): Promise<void> {
+  if (!catalogReady) catalogPromise = null;
+  return ensureCatalog();
 }
 
 async function fetchJson<T>(path: string): Promise<T> {

@@ -18,7 +18,8 @@ export function FoodDetailSheet({
   onOpenChange: (v: boolean) => void;
   food: Food;
 }) {
-  const catalogReady = useCatalog();
+  const catalog = useCatalog();
+  const catalogReady = catalog.ready;
   const days = useBrioStore((s) => s.days);
   const catLabel = CATEGORIES.find((c) => c.id === food.cat)?.n;
   const split = useMemo(() => energySplit(food), [food]);

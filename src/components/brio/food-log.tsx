@@ -9,6 +9,7 @@ import { FoodDetailSheet } from "@/components/brio/food-detail";
 import { CATEGORIES, MEALS, type Food, type MealEntry, type MealId } from "@/lib/brio/types";
 import { getFood, searchFoods } from "@/lib/brio/catalog";
 import { useCatalog } from "@/lib/brio/use-catalog";
+import { CatalogNotice } from "@/components/brio/catalog-state";
 import { useBrioStore } from "@/lib/brio/store";
 import { habitualFoodIds } from "@/lib/brio/selectors";
 import { loadSearchPrefs, rememberQuery, saveSearchPrefs } from "@/lib/brio/search-prefs";
@@ -56,7 +57,8 @@ export function FoodLogSheet({
   const toggleFavorite = useBrioStore((s) => s.toggleFavorite);
   const addCustomFood = useBrioStore((s) => s.addCustomFood);
   const days = useBrioStore((s) => s.days);
-  const catalogReady = useCatalog();
+  const catalog = useCatalog();
+  const catalogReady = catalog.ready;
 
   const habitual = useMemo(() => habitualFoodIds({ ...useBrioStore.getState(), recents, days }), [recents, days]);
 
@@ -470,7 +472,11 @@ export function FoodLogSheet({
               Crear alimento
             </Button>
             <ul className="divide-y divide-border">
-              {list.length === 0 ? (
+              {!catalogReady ? (
+                <li>
+                  <CatalogNotice state={catalog} loadingText="Cargando alimentos…" />
+                </li>
+              ) : list.length === 0 ? (
                 <li className="py-8 text-center text-sm text-muted-foreground">No hay resultados.</li>
               ) : (
                 list.map((f) => {
