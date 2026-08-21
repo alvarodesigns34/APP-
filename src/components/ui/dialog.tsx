@@ -23,8 +23,8 @@ export function ConfirmDialog({
   return (
     <Alert.Root open={open} onOpenChange={onOpenChange}>
       <Alert.Portal>
-        <Alert.Overlay className="fixed inset-0 z-50 bg-foreground/40" />
-        <Alert.Content className="fixed left-1/2 top-1/2 z-50 w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-card p-5 text-card-foreground shadow-lg">
+        <Alert.Overlay className="fixed inset-0 z-50 bg-foreground/40 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in data-[state=closed]:fade-out duration-200" />
+        <Alert.Content className="fixed left-1/2 top-1/2 z-50 w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-card p-5 text-card-foreground shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in data-[state=closed]:fade-out data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-1/2 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-1/2">
           <Alert.Title className="font-display text-xl tracking-tight">{title}</Alert.Title>
           <Alert.Description className="mt-2 text-sm text-muted-foreground">{body}</Alert.Description>
           <div className="mt-5 flex gap-2">

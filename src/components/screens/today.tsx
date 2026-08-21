@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Dumbbell, Droplets, Flame, Footprints, Moon, Pencil, Scale, Utensils, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -71,7 +71,10 @@ export function TodayScreen() {
   const streak = useMemo(() => currentStreak(snap), [snap]);
   const water = useMemo(() => waterTotal(snap, key), [snap, key]);
   const sug = useMemo(
-    () => (isToday && remaining > 120 ? suggestRecipes(snap, key, 3) : { list: [] as ReturnType<typeof suggestRecipes>["list"], remKcal: remaining, remProt: 0 }),
+    () =>
+      isToday && remaining > 120
+        ? suggestRecipes(snap, key, 3)
+        : { list: [] as ReturnType<typeof suggestRecipes>["list"], remKcal: remaining, remProt: 0 },
     [isToday, remaining, snap, key],
   );
   const name = snap.profile.name ? `, ${snap.profile.name.split(" ")[0]}` : "";
@@ -89,7 +92,13 @@ export function TodayScreen() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [streakOpen, setStreakOpen] = useState(false);
   const [recipeId, setRecipeId] = useState<string | null>(null);
+  const [recipeOpen, setRecipeOpen] = useState(false);
   const [note, setNote] = useState(d?.note ?? "");
+  const recipe = recipeId ? RECIPE_BY_ID[recipeId] : undefined;
+
+  useEffect(() => {
+    if (recipeId) setRecipeOpen(true);
+  }, [recipeId]);
 
   const actions: { n: string; Icon: LucideIcon; color: string; onOpen: () => void }[] = [
     { n: "Comida", Icon: Utensils, color: "text-kcal", onOpen: () => setFoodOpen(true) },
@@ -115,7 +124,9 @@ export function TodayScreen() {
 
   return (
     <Screen>
-      <Title sub={capitalize(fmtDateLong(key))}>{isToday ? `${greeting()}${name}` : capitalize(fmtDateLong(key).split(",")[0] || "")}</Title>
+      <Title sub={capitalize(fmtDateLong(key))}>
+        {isToday ? `${greeting()}${name}` : capitalize(fmtDateLong(key).split(",")[0] || "")}
+      </Title>
       <DateNav subtitle={`${met.count} de ${met.total} objetivos cumplidos`} />
 
       <Card className="mb-4">
@@ -124,12 +135,7 @@ export function TodayScreen() {
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <LegendRow label="Calorías" value={nf(t.kcal)} hint={`/ ${nf(kg)}`} color="var(--brio-kcal)" />
             <LegendRow label="Pasos" value={nf(d?.steps || 0)} hint={`/ ${nf(g.steps)}`} color="var(--brio-steps)" />
-            <LegendRow
-              label="Ejercicio"
-              value={`${nf(woMin)}`}
-              hint={`/ ${nf(move)} min`}
-              color="var(--brio-move)"
-            />
+            <LegendRow label="Ejercicio" value={`${nf(woMin)}`} hint={`/ ${nf(move)} min`} color="var(--brio-move)" />
           </div>
         </div>
       </Card>
@@ -138,7 +144,9 @@ export function TodayScreen() {
         <div className="flex items-center gap-3">
           <Flame className={cn("size-6", streak > 0 ? "text-move" : "text-muted-foreground")} />
           <div className="min-w-0 flex-1">
-            <div className="font-medium">{streak > 0 ? `${streak} ${streak === 1 ? "día seguido" : "días seguidos"}` : "Sin racha en marcha"}</div>
+            <div className="font-medium">
+              {streak > 0 ? `${streak} ${streak === 1 ? "día seguido" : "días seguidos"}` : "Sin racha en marcha"}
+            </div>
             <div className="text-xs text-muted-foreground">
               {streak > 0 ? "Tres o más objetivos al día" : "Cumple tres objetivos hoy para empezar"}
             </div>
@@ -177,7 +185,10 @@ export function TodayScreen() {
                   key={r.id}
                   type="button"
                   className="flex w-full items-center justify-between rounded-2xl bg-muted/60 px-3 py-2 text-left"
-                  onClick={() => setRecipeId(r.id)}
+                  onClick={() => {
+                    if (recipeId === r.id) setRecipeOpen(true);
+                    else setRecipeId(r.id);
+                  }}
                 >
                   <span>
                     <span className="block font-medium">{r.name}</span>
@@ -204,7 +215,12 @@ export function TodayScreen() {
       </div>
 
       <SectionLabel>Nota del día</SectionLabel>
-      <Card onClick={() => { setNote(d?.note ?? ""); setNoteOpen(true); }}>
+      <Card
+        onClick={() => {
+          setNote(d?.note ?? "");
+          setNoteOpen(true);
+        }}
+      >
         <div className="flex items-start gap-2 text-sm">
           <Pencil className="mt-0.5 size-4 text-muted-foreground" />
           <span className={d?.note ? "text-foreground" : "text-muted-foreground"}>
@@ -285,13 +301,13 @@ export function TodayScreen() {
         ) : null}
       </Card>
 
-      {foodOpen ? <FoodLogSheet open={foodOpen} onOpenChange={setFoodOpen} date={key} /> : null}
-      {waterOpen ? <WaterSheet open={waterOpen} onOpenChange={setWaterOpen} date={key} /> : null}
-      {stepsOpen ? <StepsSheet open={stepsOpen} onOpenChange={setStepsOpen} date={key} /> : null}
-      {sleepOpen ? <SleepSheet open={sleepOpen} onOpenChange={setSleepOpen} date={key} /> : null}
-      {woOpen ? <WorkoutSheet open={woOpen} onOpenChange={setWoOpen} date={key} /> : null}
-      {wgOpen ? <WeightSheet open={wgOpen} onOpenChange={setWgOpen} date={key} /> : null}
-      {streakOpen ? <StreakSheet open={streakOpen} onOpenChange={setStreakOpen} /> : null}
+      <FoodLogSheet open={foodOpen} onOpenChange={setFoodOpen} date={key} />
+      <WaterSheet open={waterOpen} onOpenChange={setWaterOpen} date={key} />
+      <StepsSheet open={stepsOpen} onOpenChange={setStepsOpen} date={key} />
+      <SleepSheet open={sleepOpen} onOpenChange={setSleepOpen} date={key} />
+      <WorkoutSheet open={woOpen} onOpenChange={setWoOpen} date={key} />
+      <WeightSheet open={wgOpen} onOpenChange={setWgOpen} date={key} />
+      <StreakSheet open={streakOpen} onOpenChange={setStreakOpen} />
       <Sheet
         open={noteOpen}
         onOpenChange={setNoteOpen}
@@ -316,14 +332,7 @@ export function TodayScreen() {
           maxLength={600}
         />
       </Sheet>
-      {recipeId && RECIPE_BY_ID[recipeId] ? (
-        <RecipeDetail
-          open={!!recipeId}
-          onOpenChange={(v) => !v && setRecipeId(null)}
-          recipe={RECIPE_BY_ID[recipeId]}
-          date={key}
-        />
-      ) : null}
+      {recipe ? <RecipeDetail open={recipeOpen} onOpenChange={setRecipeOpen} recipe={recipe} date={key} /> : null}
     </Screen>
   );
 }
