@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-function Ring({
+export function Ring({
   r,
   pct,
   color,
@@ -10,21 +10,54 @@ function Ring({
   color: string;
 }) {
   const c = 2 * Math.PI * r;
-  const p = Math.max(0, Math.min(1.05, pct));
+  const p = Math.max(0, pct);
+  const fill = Math.min(1, p);
+  const extra = Math.max(0, Math.min(1, p - 1));
+  const over = p > 1;
   return (
-    <circle
-      cx="70"
-      cy="70"
-      r={r}
-      fill="none"
-      stroke={color}
-      strokeWidth="9"
-      strokeLinecap="round"
-      strokeDasharray={c}
-      strokeDashoffset={c * (1 - Math.min(1, p))}
-      transform="rotate(-90 70 70)"
-      className="transition-[stroke-dashoffset] duration-500 ease-out"
-    />
+    <g data-overflow={over ? "true" : "false"}>
+      <circle
+        cx="70"
+        cy="70"
+        r={r}
+        fill="none"
+        stroke={over ? `color-mix(in oklab, ${color} 60%, var(--brio-warn))` : color}
+        strokeWidth="9"
+        strokeLinecap="round"
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - fill)}
+        transform="rotate(-90 70 70)"
+        className="transition-[stroke-dashoffset] duration-500 ease-out"
+      />
+      {over ? (
+        <circle
+          data-overflow-arc=""
+          cx="70"
+          cy="70"
+          r={r}
+          fill="none"
+          stroke="var(--brio-bad)"
+          strokeWidth="9"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - extra)}
+          transform="rotate(-90 70 70)"
+          className="transition-[stroke-dashoffset] duration-500 ease-out"
+        />
+      ) : null}
+      {over ? (
+        <line
+          data-overflow-tick=""
+          x1="70"
+          y1={70 - r - 6}
+          x2="70"
+          y2={70 - r + 4}
+          stroke="var(--brio-fg)"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+        />
+      ) : null}
+    </g>
   );
 }
 
