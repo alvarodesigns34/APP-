@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -8,19 +8,35 @@ import { useBrioStore } from "@/lib/brio/store";
 import { latestWeight } from "@/lib/brio/selectors";
 import { parseNum } from "@/lib/brio/format";
 import { clockToMinutes, fmtDateRelative, minutesToClock, minutesToHM, sleepDuration } from "@/lib/brio/dates";
-import {
-  displayToKg,
-  displayToMl,
-  fmtVolume,
-  fmtWeight,
-  kgToDisplay,
-  volumeUnit,
-  weightUnit,
-} from "@/lib/brio/units";
+import { displayToKg, displayToMl, fmtVolume, fmtWeight, kgToDisplay, volumeUnit, weightUnit } from "@/lib/brio/units";
 import type { IntensityId } from "@/lib/brio/types";
 import { cn } from "@/lib/utils";
 
-export function WaterSheet({ open, onOpenChange, date }: { open: boolean; onOpenChange: (v: boolean) => void; date: string }) {
+/** Focus a quick-log input after vaul has painted. Delayed so iOS does not fight the keyboard. */
+function useOpenFocus(open: boolean, select = false) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const id = window.setTimeout(() => {
+      const el = ref.current;
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      if (select) el.select();
+    }, 180);
+    return () => window.clearTimeout(id);
+  }, [open, select]);
+  return ref;
+}
+
+export function WaterSheet({
+  open,
+  onOpenChange,
+  date,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  date: string;
+}) {
   const add = useBrioStore((s) => s.addWater);
   const remove = useBrioStore((s) => s.removeWater);
   const glass = useBrioStore((s) => s.settings.glass);
@@ -30,6 +46,7 @@ export function WaterSheet({ open, onOpenChange, date }: { open: boolean; onOpen
   const glasses = day?.water;
   const total = glasses ? glasses.reduce((a, w) => a + w.ml, 0) : 0;
   const [custom, setCustom] = useState("");
+  const customRef = useOpenFocus(open);
 
   function addAmount(ml: number) {
     add(date, ml);
@@ -45,7 +62,12 @@ export function WaterSheet({ open, onOpenChange, date }: { open: boolean; onOpen
           {glasses.map((w) => (
             <li key={w.id} className="flex items-center justify-between py-2 text-sm">
               <span>{fmtVolume(w.ml, units)}</span>
-              <button type="button" aria-label="Quitar vaso" className="min-h-11 px-2 text-xs text-muted-foreground" onClick={() => remove(date, w.id)}>
+              <button
+                type="button"
+                aria-label="Quitar vaso"
+                className="min-h-11 px-2 text-xs text-muted-foreground"
+                onClick={() => remove(date, w.id)}
+              >
                 Quitar
               </button>
             </li>
@@ -63,6 +85,7 @@ export function WaterSheet({ open, onOpenChange, date }: { open: boolean; onOpen
       </div>
       <div className="mt-4 flex gap-2">
         <Input
+          ref={customRef}
           inputMode="decimal"
           placeholder={`Otra cantidad (${volumeUnit(units)})`}
           value={custom}
@@ -84,10 +107,19 @@ export function WaterSheet({ open, onOpenChange, date }: { open: boolean; onOpen
   );
 }
 
-export function StepsSheet({ open, onOpenChange, date }: { open: boolean; onOpenChange: (v: boolean) => void; date: string }) {
+export function StepsSheet({
+  open,
+  onOpenChange,
+  date,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  date: string;
+}) {
   const steps = useBrioStore((s) => s.days[date]?.steps ?? 0);
   const setSteps = useBrioStore((s) => s.setSteps);
   const [v, setV] = useState(String(steps));
+  const inputRef = useOpenFocus(open, true);
   useEffect(() => {
     if (open) setV(String(steps));
   }, [open, steps, date]);
@@ -109,12 +141,20 @@ export function StepsSheet({ open, onOpenChange, date }: { open: boolean; onOpen
         </Button>
       }
     >
-      <Input inputMode="numeric" value={v} onChange={(e) => setV(e.target.value)} />
+      <Input ref={inputRef} inputMode="numeric" value={v} onChange={(e) => setV(e.target.value)} />
     </Sheet>
   );
 }
 
-export function SleepSheet({ open, onOpenChange, date }: { open: boolean; onOpenChange: (v: boolean) => void; date: string }) {
+export function SleepSheet({
+  open,
+  onOpenChange,
+  date,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  date: string;
+}) {
   const sleep = useBrioStore((s) => s.days[date]?.sleep);
   const setSleep = useBrioStore((s) => s.setSleep);
   const goal = useBrioStore((s) => s.goals.sleep);
@@ -172,7 +212,15 @@ export function SleepSheet({ open, onOpenChange, date }: { open: boolean; onOpen
   );
 }
 
-export function WorkoutSheet({ open, onOpenChange, date }: { open: boolean; onOpenChange: (v: boolean) => void; date: string }) {
+export function WorkoutSheet({
+  open,
+  onOpenChange,
+  date,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  date: string;
+}) {
   const add = useBrioStore((s) => s.addWorkout);
   const [type, setType] = useState(ACTIVITIES[0].id);
   const [min, setMin] = useState("45");
@@ -224,7 +272,12 @@ export function WorkoutSheet({ open, onOpenChange, date }: { open: boolean; onOp
       <Input className="mb-3" inputMode="numeric" value={min} onChange={(e) => setMin(e.target.value)} />
       <div className="flex gap-2">
         {INTENSITIES.map((i) => (
-          <Button key={i.id} variant={intensity === i.id ? "default" : "secondary"} size="sm" onClick={() => setIntensity(i.id)}>
+          <Button
+            key={i.id}
+            variant={intensity === i.id ? "default" : "secondary"}
+            size="sm"
+            onClick={() => setIntensity(i.id)}
+          >
             {i.n}
           </Button>
         ))}
@@ -233,7 +286,15 @@ export function WorkoutSheet({ open, onOpenChange, date }: { open: boolean; onOp
   );
 }
 
-export function WeightSheet({ open, onOpenChange, date }: { open: boolean; onOpenChange: (v: boolean) => void; date: string }) {
+export function WeightSheet({
+  open,
+  onOpenChange,
+  date,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  date: string;
+}) {
   const upsert = useBrioStore((s) => s.upsertWeight);
   const del = useBrioStore((s) => s.deleteWeight);
   const patchProfile = useBrioStore((s) => s.patchProfile);
@@ -243,6 +304,7 @@ export function WeightSheet({ open, onOpenChange, date }: { open: boolean; onOpe
   const state = useBrioStore.getState();
   const current = weights.find((w) => w.date === date)?.kg ?? latestWeight(state, date)?.kg ?? profileWeight;
   const [v, setV] = useState(String(kgToDisplay(current, units)));
+  const inputRef = useOpenFocus(open, true);
 
   useEffect(() => {
     if (open) setV(String(kgToDisplay(current, units)));
@@ -272,22 +334,30 @@ export function WeightSheet({ open, onOpenChange, date }: { open: boolean; onOpe
       }
     >
       <label className="text-sm font-medium">Peso ({weightUnit(units)})</label>
-      <Input className="mb-4" inputMode="decimal" value={v} onChange={(e) => setV(e.target.value)} />
+      <Input ref={inputRef} className="mb-4" inputMode="decimal" value={v} onChange={(e) => setV(e.target.value)} />
       {weights.length === 0 ? (
         <p className="text-sm text-muted-foreground">Sin registros de peso.</p>
       ) : (
         <ul className="divide-y divide-border">
-          {weights.slice(start).reverse().map((w) => (
-            <li key={w.date} className="flex items-center justify-between py-2 text-sm">
-              <span>
-                {fmtDateRelative(w.date)}
-                <span className="block text-xs text-muted-foreground">{fmtWeight(w.kg, units)}</span>
-              </span>
-              <button type="button" aria-label="Quitar peso" className="min-h-11 px-2 text-xs text-muted-foreground" onClick={() => del(w.date)}>
-                Quitar
-              </button>
-            </li>
-          ))}
+          {weights
+            .slice(start)
+            .reverse()
+            .map((w) => (
+              <li key={w.date} className="flex items-center justify-between py-2 text-sm">
+                <span>
+                  {fmtDateRelative(w.date)}
+                  <span className="block text-xs text-muted-foreground">{fmtWeight(w.kg, units)}</span>
+                </span>
+                <button
+                  type="button"
+                  aria-label="Quitar peso"
+                  className="min-h-11 px-2 text-xs text-muted-foreground"
+                  onClick={() => del(w.date)}
+                >
+                  Quitar
+                </button>
+              </li>
+            ))}
         </ul>
       )}
     </Sheet>
