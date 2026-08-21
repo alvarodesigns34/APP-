@@ -1,3 +1,4 @@
+import { DEFAULT_MACRO_PCT, clampMacroPct, isMacroPresetId, pctForPreset } from "./domain";
 import {
   LEGACY_STORE_KEYS,
   MEALS,
@@ -46,6 +47,8 @@ export function defaultState(): PersistedState {
       pantryBasics: true,
       activityAdjust: true,
       fasting: "off",
+      macroPreset: "equilibrado",
+      macroPct: { ...DEFAULT_MACRO_PCT },
     },
     goals: {
       kcal: 2200,
@@ -166,6 +169,22 @@ export function migrate(raw: unknown): PersistedState {
     settings.fasting = "off";
   }
   if (settings.units !== "met" && settings.units !== "imp") settings.units = "met";
+  if (!isMacroPresetId(settings.macroPreset)) {
+    settings.macroPreset = "equilibrado";
+    settings.macroPct = { ...DEFAULT_MACRO_PCT };
+  } else if (settings.macroPreset === "custom") {
+    const p = isObj(settings.macroPct) ? settings.macroPct : null;
+    const prot = p ? Number(p.prot) : NaN;
+    const carb = p ? Number(p.carb) : NaN;
+    const fat = p ? Number(p.fat) : NaN;
+    if (![prot, carb, fat].every(Number.isFinite)) {
+      settings.macroPct = { ...DEFAULT_MACRO_PCT };
+    } else {
+      settings.macroPct = clampMacroPct({ prot, carb, fat });
+    }
+  } else {
+    settings.macroPct = pctForPreset(settings.macroPreset);
+  }
   const goals = { ...base.goals, ...(isObj(out.goals) ? out.goals : {}) } as Goals;
 
   const daysIn = isObj(out.days) ? out.days : {};
@@ -176,7 +195,9 @@ export function migrate(raw: unknown): PersistedState {
     const meals = isObj(v.meals) ? v.meals : {};
     for (const m of MEALS) {
       const arr = meals[m.id];
-      d.meals[m.id] = Array.isArray(arr) ? (arr.filter((e) => e && typeof e === "object") as DayLog["meals"][MealId]) : [];
+      d.meals[m.id] = Array.isArray(arr)
+        ? (arr.filter((e) => e && typeof e === "object") as DayLog["meals"][MealId])
+        : [];
     }
     d.water = Array.isArray(v.water)
       ? v.water.map((w, i) => {
