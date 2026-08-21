@@ -1,17 +1,55 @@
 import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Card, Empty, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { rangeKeys, sleepDuration, todayKey } from "@/lib/brio/dates";
 import { nf } from "@/lib/brio/format";
-import { dayFoodTotals, goalsMet, waterTotal, weeklyInsights, weightTrend, workoutMinTotal } from "@/lib/brio/selectors";
+import {
+  dayFoodTotals,
+  goalsMet,
+  waterTotal,
+  weeklyInsights,
+  weightTrend,
+  workoutMinTotal,
+} from "@/lib/brio/selectors";
 import { useBrioStore } from "@/lib/brio/store";
 import { cn } from "@/lib/utils";
-import { fmtWeight } from "@/lib/brio/units";
+import { fmtWeight, kgToDisplay } from "@/lib/brio/units";
+import { buildWeightChart } from "@/lib/brio/weight-chart";
 
 function shortDate(key: string) {
   const parts = key.split("-");
   return `${Number(parts[2])}/${Number(parts[1])}`;
+}
+
+function pesoYDomain(
+  pts: { kg: number | null; trend: number; goal: number; bandLow: number; bandHigh: number }[],
+): [number, number] {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const p of pts) {
+    for (const v of [p.kg, p.trend, p.goal, p.bandLow, p.bandHigh]) {
+      if (v != null && Number.isFinite(v)) {
+        min = Math.min(min, v);
+        max = Math.max(max, v);
+      }
+    }
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 1];
+  const pad = Math.max(0.4, (max - min) * 0.08);
+  return [min - pad, max + pad];
 }
 
 export function TrendsScreen() {
@@ -52,7 +90,11 @@ export function TrendsScreen() {
   const week = rangeKeys(todayKey(), 7);
   const heat = rangeKeys(todayKey(), 84);
   const insights = useMemo(() => weeklyInsights(snap), [snap]);
-  const wData = snap.weights.slice(-30).map((w) => ({ d: shortDate(w.date), kg: w.kg }));
+  const wChart = useMemo(() => {
+    const pts = buildWeightChart(snap.weights, snap.goals.weight);
+    return pts.map((p) => ({ ...p, bandSpan: p.bandHigh - p.bandLow }));
+  }, [snap.weights, snap.goals.weight]);
+  const pesoDomain = useMemo(() => pesoYDomain(wChart), [wChart]);
   const trend = useMemo(() => weightTrend(snap), [snap]);
   const units = snap.settings.units;
 
@@ -197,18 +239,96 @@ export function TrendsScreen() {
         </ResponsiveContainer>
       </Card>
 
-      {wData.length > 1 ? (
+      {wChart.length > 0 ? (
         <>
           <SectionLabel>Peso</SectionLabel>
-          <Card className="h-44 p-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={wData}>
-                <XAxis dataKey="d" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} width={36} domain={["auto", "auto"]} />
-                <Tooltip formatter={(v) => [`${v} kg`, "Peso"]} />
-                <Line type="monotone" dataKey="kg" stroke="var(--brio-move)" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
+          <Card className="p-2">
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={wChart} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--brio-border)" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} minTickGap={16} />
+                  <YAxis
+                    tick={{ fontSize: 10 }}
+                    width={40}
+                    domain={pesoDomain}
+                    tickFormatter={(v) => nf(kgToDisplay(Number(v), units), 1)}
+                  />
+                  <Tooltip
+                    formatter={(v, name) => {
+                      const n = typeof v === "number" ? v : Number(v);
+                      if (!Number.isFinite(n)) return ["—", String(name)];
+                      return [fmtWeight(n, units), String(name)];
+                    }}
+                  />
+                  <Area
+                    type="linear"
+                    dataKey="bandLow"
+                    stackId="band"
+                    stroke="none"
+                    fill="none"
+                    legendType="none"
+                    tooltipType="none"
+                  />
+                  <Area
+                    type="linear"
+                    dataKey="bandSpan"
+                    stackId="band"
+                    stroke="none"
+                    fill="var(--brio-move)"
+                    fillOpacity={0.15}
+                    name="Incertidumbre"
+                    legendType="none"
+                    tooltipType="none"
+                  />
+                  <Line
+                    type="linear"
+                    dataKey="goal"
+                    name="Meta"
+                    stroke="var(--brio-muted-fg)"
+                    strokeWidth={1.5}
+                    strokeDasharray="2 4"
+                    dot={false}
+                  />
+                  <Line
+                    type="linear"
+                    dataKey="trend"
+                    name="Tendencia"
+                    stroke="var(--brio-move)"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    dot={false}
+                  />
+                  <Line
+                    type="linear"
+                    dataKey="kg"
+                    name="Real"
+                    stroke="var(--brio-move)"
+                    strokeWidth={2}
+                    connectNulls={false}
+                    dot={{ r: 3, fill: "var(--brio-move)" }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+            <ul className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 px-1 text-[11px] text-muted-foreground">
+              <li className="flex items-center gap-1.5">
+                <span className="h-0.5 w-3 rounded-full bg-[var(--brio-move)]" />
+                Real
+              </li>
+              <li className="flex items-center gap-1.5">
+                <span className="w-3 border-t-2 border-dashed border-[var(--brio-move)]" />
+                Tendencia
+              </li>
+              <li className="flex items-center gap-1.5">
+                <span className="w-3 border-t border-dotted border-[var(--brio-muted-fg)]" />
+                Meta
+              </li>
+              <li className="flex items-center gap-1.5">
+                <span className="h-2 w-3 rounded-sm bg-[var(--brio-move)]/20" />
+                Incertidumbre
+              </li>
+            </ul>
           </Card>
         </>
       ) : null}
