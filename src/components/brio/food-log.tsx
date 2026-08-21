@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { CustomFoodSheet } from "@/components/brio/custom-food";
 import { CATEGORIES, MEALS, type Food, type MealEntry, type MealId } from "@/lib/brio/types";
 import { getFood, searchFoods } from "@/lib/brio/catalog";
+import { useCatalog } from "@/lib/brio/use-catalog";
 import { useBrioStore } from "@/lib/brio/store";
 import { habitualFoodIds } from "@/lib/brio/selectors";
 import { nf, parseNum, round } from "@/lib/brio/format";
@@ -53,6 +54,7 @@ export function FoodLogSheet({
   const toggleFavorite = useBrioStore((s) => s.toggleFavorite);
   const addCustomFood = useBrioStore((s) => s.addCustomFood);
   const days = useBrioStore((s) => s.days);
+  const catalogReady = useCatalog();
 
   const habitual = useMemo(() => habitualFoodIds({ ...useBrioStore.getState(), recents, days }), [recents, days]);
 
@@ -96,15 +98,16 @@ export function FoodLogSheet({
       setGrams("100");
       setUnitName("g");
     }
-  }, [open, edit, defaultMeal]);
+  }, [open, edit, defaultMeal, catalogReady]);
 
   const list = useMemo(() => {
     if (picked || editing) return [];
+    if (!catalogReady) return [];
     const catalogCtx = { customFoods, recipes };
     if (tab === "buscar") return searchFoods(q, cat, catalogCtx, 60);
     const ids = tab === "recientes" ? recents : tab === "favoritos" ? favorites : habitual;
     return ids.map((id) => getFood(id, catalogCtx)).filter((f): f is Food => !!f);
-  }, [tab, q, cat, recents, favorites, habitual, customFoods, recipes, picked, editing]);
+  }, [tab, q, cat, recents, favorites, habitual, customFoods, recipes, picked, editing, catalogReady]);
 
   const unitG = useMemo(() => {
     if (!picked) {
@@ -214,11 +217,11 @@ export function FoodLogSheet({
     const qn = parseNum(qty);
     if (!g || g <= 0 || !qn || qn <= 0) return;
     if (edit) {
-      updateMeal(date, edit.meal, edit.entry.id, g, qn, unitName);
+      updateMeal(date, edit.meal, edit.entry.id, g, qn, unitName, picked ?? undefined);
       toast.success("Registro actualizado");
     } else {
       if (!picked) return;
-      addMeal(date, meal, picked.id, g, qn, unitName);
+      addMeal(date, meal, picked, g, qn, unitName);
     }
     setPicked(null);
     onOpenChange(false);

@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Dumbbell, Droplets, Flame, Footprints, Moon, Pencil, Scale, Utensils, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { DateNav } from "@/components/brio/date-nav";
 import { FastingCard } from "@/components/brio/fasting";
-import { FoodLogSheet } from "@/components/brio/food-log";
-import { QuickAddStrip } from "@/components/brio/quick-add";
 import { Bar, LabeledBar, LegendRow, Rings } from "@/components/brio/rings";
 import { Card, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { Button } from "@/components/ui/button";
@@ -19,7 +17,6 @@ import {
   goalsMet,
   kcalGoalFor,
   moveGoal,
-  suggestRecipes,
   waterTotal,
   workoutMinTotal,
 } from "@/lib/brio/selectors";
@@ -28,8 +25,12 @@ import { useBrioStore } from "@/lib/brio/store";
 import { WaterSheet, StepsSheet, SleepSheet, WorkoutSheet, WeightSheet } from "@/components/brio/log-sheets";
 import { StreakSheet } from "@/components/brio/streak-sheet";
 import { cn } from "@/lib/utils";
-import { RECIPE_BY_ID } from "@/lib/brio/catalog";
-import { RecipeDetail } from "@/components/brio/recipe-browser";
+
+const QuickAddStrip = lazy(() => import("@/components/brio/quick-add").then((m) => ({ default: m.QuickAddStrip })));
+const FoodLogSheet = lazy(() => import("@/components/brio/food-log").then((m) => ({ default: m.FoodLogSheet })));
+const TodaySuggestions = lazy(() =>
+  import("@/components/brio/today-suggestions").then((m) => ({ default: m.TodaySuggestions })),
+);
 
 export function TodayScreen() {
   const snap = useBrioStore(
@@ -70,13 +71,6 @@ export function TodayScreen() {
   const met = useMemo(() => goalsMet(snap, key), [snap, key]);
   const streak = useMemo(() => currentStreak(snap), [snap]);
   const water = useMemo(() => waterTotal(snap, key), [snap, key]);
-  const sug = useMemo(
-    () =>
-      isToday && remaining > 120
-        ? suggestRecipes(snap, key, 3)
-        : { list: [] as ReturnType<typeof suggestRecipes>["list"], remKcal: remaining, remProt: 0 },
-    [isToday, remaining, snap, key],
-  );
   const name = snap.profile.name ? `, ${snap.profile.name.split(" ")[0]}` : "";
   const last7 = rangeKeys(todayKey(), 7);
   const workouts = d?.workouts;
@@ -84,6 +78,7 @@ export function TodayScreen() {
   const actKcal = useMemo(() => activityKcal(snap, key), [snap, key]);
 
   const [foodOpen, setFoodOpen] = useState(false);
+  const [foodMounted, setFoodMounted] = useState(false);
   const [waterOpen, setWaterOpen] = useState(false);
   const [stepsOpen, setStepsOpen] = useState(false);
   const [sleepOpen, setSleepOpen] = useState(false);
@@ -91,14 +86,11 @@ export function TodayScreen() {
   const [wgOpen, setWgOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [streakOpen, setStreakOpen] = useState(false);
-  const [recipeId, setRecipeId] = useState<string | null>(null);
-  const [recipeOpen, setRecipeOpen] = useState(false);
   const [note, setNote] = useState(d?.note ?? "");
-  const recipe = recipeId ? RECIPE_BY_ID[recipeId] : undefined;
 
   useEffect(() => {
-    if (recipeId) setRecipeOpen(true);
-  }, [recipeId]);
+    if (foodOpen) setFoodMounted(true);
+  }, [foodOpen]);
 
   const actions: { n: string; Icon: LucideIcon; color: string; onOpen: () => void }[] = [
     { n: "Comida", Icon: Utensils, color: "text-kcal", onOpen: () => setFoodOpen(true) },
@@ -169,40 +161,22 @@ export function TodayScreen() {
       </Card>
 
       {isToday ? <FastingCard /> : null}
-      <QuickAddStrip date={key} />
+      <Suspense
+        fallback={
+          <>
+            <SectionLabel>Al vuelo</SectionLabel>
+            <div className="h-16" aria-hidden />
+          </>
+        }
+      >
+        <QuickAddStrip date={key} />
+      </Suspense>
 
-      {sug.list.length > 0 && (
-        <>
-          <SectionLabel>Te encaja para lo que queda</SectionLabel>
-          <Card>
-            <p className="mb-3 text-sm text-muted-foreground">
-              Te quedan <span className="font-medium text-foreground">{nf(sug.remKcal)} kcal</span>
-              {sug.remProt > 0 ? ` y ${nf(sug.remProt)} g de proteína` : ""}.
-            </p>
-            <div className="space-y-2">
-              {sug.list.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  className="flex w-full items-center justify-between rounded-2xl bg-muted/60 px-3 py-2 text-left"
-                  onClick={() => {
-                    if (recipeId === r.id) setRecipeOpen(true);
-                    else setRecipeId(r.id);
-                  }}
-                >
-                  <span>
-                    <span className="block font-medium">{r.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {r.minutes} min · {nf(r.perServing.prot)} g prot
-                    </span>
-                  </span>
-                  <span className="tabular-nums text-sm">{nf(r.perServing.kcal)} kcal</span>
-                </button>
-              ))}
-            </div>
-          </Card>
-        </>
-      )}
+      {isToday && remaining > 120 ? (
+        <Suspense fallback={null}>
+          <TodaySuggestions date={key} />
+        </Suspense>
+      ) : null}
 
       <SectionLabel>Registro rápido</SectionLabel>
       <div className="grid grid-cols-3 gap-2">
@@ -301,7 +275,11 @@ export function TodayScreen() {
         ) : null}
       </Card>
 
-      <FoodLogSheet open={foodOpen} onOpenChange={setFoodOpen} date={key} />
+      {foodMounted ? (
+        <Suspense fallback={null}>
+          <FoodLogSheet open={foodOpen} onOpenChange={setFoodOpen} date={key} />
+        </Suspense>
+      ) : null}
       <WaterSheet open={waterOpen} onOpenChange={setWaterOpen} date={key} />
       <StepsSheet open={stepsOpen} onOpenChange={setStepsOpen} date={key} />
       <SleepSheet open={sleepOpen} onOpenChange={setSleepOpen} date={key} />
@@ -332,7 +310,6 @@ export function TodayScreen() {
           maxLength={600}
         />
       </Sheet>
-      {recipe ? <RecipeDetail open={recipeOpen} onOpenChange={setRecipeOpen} recipe={recipe} date={key} /> : null}
     </Screen>
   );
 }

@@ -3,7 +3,7 @@ import { addDays, todayKey } from "./dates";
 import { bmr, macrosFromKcal, targetKcal, tdee } from "./domain";
 import { defaultState, emptyDay } from "./persist";
 import { fastingStatus, latestWeight, weeklyInsights } from "./selectors";
-import { scaleMacros } from "./catalog";
+import { scaleMacros } from "./scale-macros";
 import type { Food } from "./types";
 
 describe("weeklyInsights water average", () => {

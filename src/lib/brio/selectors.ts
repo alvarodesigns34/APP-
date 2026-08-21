@@ -1,8 +1,7 @@
-import { BASE_RECIPES, defaultServing, getFood, isPantryBasic } from "./catalog";
 import { addDays, dateOf, mealForHour, nowMinutes, rangeKeys, sleepDuration, todayKey } from "./dates";
 import { kcalFromSteps } from "./domain";
 import { emptyDay } from "./persist";
-import type { DayLog, FastingId, MealEntry, MealId, PersistedState, Recipe } from "./types";
+import type { DayLog, FastingId, MealEntry, MealId, PersistedState } from "./types";
 import { FASTING_PRESETS, MEALS } from "./types";
 
 export function dayOf(s: PersistedState, key: string): DayLog {
@@ -105,8 +104,7 @@ export function goalsMet(s: PersistedState, key: string): GoalFlags {
   const kcal = ratio >= 0.85 && ratio <= 1.15 && food.kcal > 0;
   const steps = s.goals.steps > 0 && d.steps >= s.goals.steps;
   const water = s.goals.water > 0 && waterTotal(s, key) >= s.goals.water;
-  const sleep =
-    !!d.sleep && s.goals.sleep > 0 && sleepDuration(d.sleep.bed, d.sleep.wake) >= s.goals.sleep * 0.9;
+  const sleep = !!d.sleep && s.goals.sleep > 0 && sleepDuration(d.sleep.bed, d.sleep.wake) >= s.goals.sleep * 0.9;
   const move = workoutMinTotal(s, key) >= moveGoal(s);
   const flags = { kcal, steps, water, sleep, move };
   const count = Object.values(flags).filter(Boolean).length;
@@ -126,32 +124,6 @@ export function currentStreak(s: PersistedState): number {
   return n;
 }
 
-export function suggestRecipes(s: PersistedState, key: string, limit = 3) {
-  const food = dayFoodTotals(s, key);
-  const remKcal = kcalGoalFor(s, key) - food.kcal;
-  const remProt = s.goals.prot - food.prot;
-  if (remKcal < 120) return { remKcal, remProt, list: [] as Recipe[] };
-  const list = BASE_RECIPES.filter((r) => {
-    const k = r.perServing.kcal;
-    if (k < 80 || k > remKcal + 80) return false;
-    if (remProt > 15 && r.perServing.prot < 12) return false;
-    return true;
-  })
-    .sort((a, b) => b.perServing.prot - a.perServing.prot)
-    .slice(0, limit);
-  return { remKcal, remProt, list };
-}
-
-export function missingIngredients(s: PersistedState, recipe: Recipe): string[] {
-  return recipe.ing
-    .filter((i) => {
-      if (s.pantry.includes(i.id)) return false;
-      if (!s.settings.pantryBasics) return true;
-      return !isPantryBasic(getFood(i.id, { customFoods: s.customFoods, recipes: s.recipes }));
-    })
-    .map((i) => i.name);
-}
-
 export function habitualFoodIds(s: PersistedState, limit = 12): string[] {
   const counts = new Map<string, number>();
   for (const k of rangeKeys(todayKey(), 21)) {
@@ -165,32 +137,6 @@ export function habitualFoodIds(s: PersistedState, limit = 12): string[] {
     .sort((a, b) => b[1] - a[1])
     .map(([id]) => id)
     .slice(0, limit);
-}
-
-export type LastPortion = { grams: number; qty: number; unitName: string; meal: MealId; kcal: number };
-
-export function lastPortion(s: PersistedState, foodId: string): LastPortion | null {
-  const keys = rangeKeys(todayKey(), 60).reverse();
-  for (const k of keys) {
-    const d = s.days[k];
-    if (!d) continue;
-    for (const m of [...MEALS].reverse()) {
-      const found = [...d.meals[m.id]].reverse().find((e) => e.foodId === foodId);
-      if (found) {
-        return { grams: found.grams, qty: found.qty, unitName: found.unitName, meal: m.id, kcal: found.kcal };
-      }
-    }
-  }
-  const food = getFood(foodId, { customFoods: s.customFoods, recipes: s.recipes });
-  if (!food) return null;
-  const serve = defaultServing(food);
-  return {
-    grams: serve.grams,
-    qty: serve.qty,
-    unitName: serve.unitName,
-    meal: mealForHour(),
-    kcal: Math.round((food.kcal * serve.grams) / 100),
-  };
 }
 
 export function slotForQuickAdd(viewDate: string): MealId {

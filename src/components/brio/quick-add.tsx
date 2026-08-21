@@ -2,11 +2,14 @@ import { Star } from "lucide-react";
 import { Empty, SectionLabel } from "@/components/brio/section";
 import { getFood } from "@/lib/brio/catalog";
 import { nf } from "@/lib/brio/format";
-import { habitualFoodIds, lastPortion, slotForQuickAdd } from "@/lib/brio/selectors";
+import { habitualFoodIds, slotForQuickAdd } from "@/lib/brio/selectors";
+import { lastPortion } from "@/lib/brio/selectors-catalog";
 import { useBrioStore } from "@/lib/brio/store";
+import { useCatalog } from "@/lib/brio/use-catalog";
 import { MEALS, type Food } from "@/lib/brio/types";
 
 export function QuickAddStrip({ date }: { date: string }) {
+  const ready = useCatalog();
   const favorites = useBrioStore((s) => s.favorites);
   const recents = useBrioStore((s) => s.recents);
   const days = useBrioStore((s) => s.days);
@@ -17,11 +20,13 @@ export function QuickAddStrip({ date }: { date: string }) {
 
   const ctx = { customFoods, recipes };
   const ids: string[] = [];
-  for (const id of [...favorites, ...recents, ...habitualFoodIds(snapshot, 8)]) {
-    if (!ids.includes(id)) ids.push(id);
-    if (ids.length >= 8) break;
+  if (ready) {
+    for (const id of [...favorites, ...recents, ...habitualFoodIds(snapshot, 8)]) {
+      if (!ids.includes(id)) ids.push(id);
+      if (ids.length >= 8) break;
+    }
   }
-  const foods = ids.map((id) => getFood(id, ctx)).filter((f): f is Food => !!f);
+  const foods = ready ? ids.map((id) => getFood(id, ctx)).filter((f): f is Food => !!f) : [];
   const meal = slotForQuickAdd(date);
   const mealName = MEALS.find((m) => m.id === meal)?.n.toLowerCase() ?? "comida";
 
@@ -51,7 +56,7 @@ export function QuickAddStrip({ date }: { date: string }) {
               type="button"
               className="min-h-16 shrink-0 rounded-2xl bg-card px-3 py-2 text-left shadow-[0_1px_2px_rgba(28,27,22,0.04)]"
               onClick={() => {
-                addMeal(date, slot, f.id, portion.grams, portion.qty, portion.unitName);
+                addMeal(date, slot, f, portion.grams, portion.qty, portion.unitName);
               }}
             >
               <span className="flex items-center gap-1">
@@ -59,7 +64,9 @@ export function QuickAddStrip({ date }: { date: string }) {
                 <span className="block max-w-[9.5rem] truncate text-sm font-medium">{f.name}</span>
               </span>
               <span className="text-[11px] tabular-nums text-muted-foreground">
-                {portion.qty === 1 ? portion.unitName : `${nf(portion.qty, portion.qty % 1 === 0 ? 0 : 2)} ${portion.unitName}`}
+                {portion.qty === 1
+                  ? portion.unitName
+                  : `${nf(portion.qty, portion.qty % 1 === 0 ? 0 : 2)} ${portion.unitName}`}
                 {" · "}
                 {nf(portion.kcal)} kcal
               </span>
