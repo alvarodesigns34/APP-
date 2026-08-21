@@ -1,0 +1,31 @@
+Brío — resumen de chunks (zlib.gzipSync, mismo criterio que Vite)
+Generado: 2026-08-21T22:18:40.782Z
+
+| archivo | bytes disco | gzip | kB Vite | gzip kB |
+|---|---:|---:|---:|---:|
+| actividad-BtOFKG8L.js | 11604 | 3679 | 11.60 | 3.68 |
+| ajustes-BzG8PaJg.js | 16928 | 6081 | 16.93 | 6.08 |
+| comida-CsDOcmPM.js | 10838 | 3771 | 10.84 | 3.77 |
+| index-BLmed83q.js | 39279 | 13244 | 39.28 | 13.24 |
+| index-CCg0vhvZ.js | 15864 | 5329 | 15.86 | 5.33 |
+| index-DY-DmR-y.css | 29694 | 6282 | 29.69 | 6.28 |
+| index-DcNC132d.js | 384791 | 90223 | 384.79 | 90.22 |
+| log-sheets-DVHhzw1_.js | 5766 | 2063 | 5.77 | 2.06 |
+| react-vendor-CEDpW-Gg.js | 194398 | 60781 | 194.40 | 60.78 |
+| recipe-browser-Djlm9CX8.js | 20820 | 6750 | 20.82 | 6.75 |
+| router-vendor-_3H3I-rZ.js | 82117 | 28495 | 82.12 | 28.50 |
+| section-BuD2iRzF.js | 1106 | 490 | 1.11 | 0.49 |
+| sheet-Cjbjj97r.js | 31567 | 9816 | 31.57 | 9.82 |
+| tendencias-CkSJToZ_.js | 424942 | 114913 | 424.94 | 114.91 |
+| units-CSP6Gcnu.js | 1705 | 739 | 1.71 | 0.74 |
+
+Total JS: 1241725 B disco / 346374 B gzip
+
+Carga inicial (referencias en dist/index.html):
+- index-DcNC132d.js: 384791 B / gzip 90223 B
+- react-vendor-CEDpW-Gg.js: 194398 B / gzip 60781 B
+- router-vendor-_3H3I-rZ.js: 82117 B / gzip 28495 B
+- index-DY-DmR-y.css: 29694 B / gzip 6282 B
+Suma inicial: 691000 B disco / 185781 B gzip
+
+stats.html (treemap de rollup-plugin-visualizer) queda en dist/ y no se commitea.
