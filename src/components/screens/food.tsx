@@ -13,6 +13,7 @@ import { mealEntryCount, recentDaysWithMeals } from "@/lib/brio/meals";
 import { sumEntries } from "@/lib/brio/selectors";
 import { useBrioStore } from "@/lib/brio/store";
 import { MEALS, type MealEntry, type MealId } from "@/lib/brio/types";
+import { QUICK_LOG_EVENT } from "@/lib/brio/hotkeys";
 import { applyUndo } from "@/lib/brio/undo";
 import { PantrySheet, ShoppingSheet } from "@/components/brio/pantry-shop";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,18 @@ export function FoodScreen() {
     setMeal(m);
     setLogOpen(true);
   }
+
+  useEffect(() => {
+    function onQuick(e: Event) {
+      const kind = (e as CustomEvent).detail;
+      if (kind !== "food") return;
+      setEdit(null);
+      setMeal("comida");
+      setLogOpen(true);
+    }
+    window.addEventListener(QUICK_LOG_EVENT, onQuick);
+    return () => window.removeEventListener(QUICK_LOG_EVENT, onQuick);
+  }, []);
 
   function openEdit(m: MealId, entry: MealEntry) {
     setMeal(m);

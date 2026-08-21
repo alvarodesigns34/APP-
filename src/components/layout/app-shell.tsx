@@ -1,14 +1,16 @@
-import { useEffect, useLayoutEffect, type ReactNode } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Activity, Home, Settings2, TrendingUp, Utensils } from "lucide-react";
 import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
 import { useBrioStore } from "@/lib/brio/store";
 import { todayKey } from "@/lib/brio/dates";
+import { emitQuickLog, isTypingTarget, resolveHotkey } from "@/lib/brio/hotkeys";
 import { HoySkeleton } from "@/components/brio/hoy-skeleton";
 import { Onboarding } from "@/components/brio/onboarding";
 import { RemindersBoot } from "@/components/brio/reminders-boot";
 import { ScrollRestore } from "@/components/layout/scroll-restore";
+import { Button } from "@/components/ui/button";
 
 const TABS = [
   { to: "/", n: "Hoy", icon: Home },
@@ -18,34 +20,85 @@ const TABS = [
   { to: "/ajustes", n: "Ajustes", icon: Settings2 },
 ] as const;
 
+type TabTo = (typeof TABS)[number]["to"];
+
 function applyTheme(pref: "auto" | "light" | "dark") {
   const dark = pref === "dark" || (pref === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.classList.toggle("dark", dark);
 }
 
-function isTypingTarget(el: EventTarget | null): boolean {
-  if (!(el instanceof HTMLElement)) return false;
-  if (el.isContentEditable) return true;
-  const tag = el.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-}
-
-function UndoHotkey() {
-  const undoLast = useBrioStore((s) => s.undoLast);
-
+function HotkeyHelp({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   useEffect(() => {
+    if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
-      if (e.key !== "z" && e.key !== "Z") return;
-      if (isTypingTarget(e.target)) return;
+      if (e.key !== "Escape") return;
       e.preventDefault();
-      undoLast();
+      onOpenChange(false);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undoLast]);
+  }, [open, onOpenChange]);
 
-  return null;
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4"
+      onClick={() => onOpenChange(false)}
+      role="presentation"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="hotkey-help-title"
+        className="w-[min(22rem,calc(100vw-2rem))] rounded-3xl bg-card p-5 text-card-foreground shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="hotkey-help-title" className="font-display text-xl tracking-tight">
+          Atajos de teclado
+        </h2>
+        <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+          <li>1 Hoy · 2 Comida · 3 Actividad · 4 Tendencias · 5 Ajustes</li>
+          <li>N Registrar comida</li>
+          <li>Ctrl+Z Deshacer</li>
+          <li>? Esta ayuda</li>
+        </ul>
+        <Button className="mt-5 w-full" onClick={() => onOpenChange(false)}>
+          Entendido
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function Hotkeys() {
+  const undoLast = useBrioStore((s) => s.undoLast);
+  const navigate = useNavigate();
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const action = resolveHotkey(e, isTypingTarget(e.target));
+      if (!action) return;
+      e.preventDefault();
+      if (action.type === "undo") {
+        setHelpOpen(false);
+        undoLast();
+      } else if (action.type === "tab") {
+        setHelpOpen(false);
+        navigate({ to: action.to as TabTo });
+      } else if (action.type === "quick") {
+        setHelpOpen(false);
+        emitQuickLog(action.kind);
+      } else {
+        setHelpOpen(true);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undoLast, navigate]);
+
+  return <HotkeyHelp open={helpOpen} onOpenChange={setHelpOpen} />;
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -83,7 +136,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     return (
       <div className="min-h-dvh bg-background text-foreground">
         <Onboarding />
-        <UndoHotkey />
+        <Hotkeys />
         <Toaster position="top-center" richColors />
       </div>
     );
@@ -122,7 +175,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
       </div>
       <ScrollRestore />
-      <UndoHotkey />
+      <Hotkeys />
       <RemindersBoot />
       <Toaster position="top-center" richColors />
     </div>
