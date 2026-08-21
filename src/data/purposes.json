@@ -1,0 +1,6 @@
+[
+  { "id": "perder", "n": "Perder grasa", "adj": -0.18 },
+  { "id": "recomp", "n": "Recomposición", "adj": -0.05 },
+  { "id": "mantener", "n": "Mantener peso", "adj": 0 },
+  { "id": "ganar", "n": "Ganar masa", "adj": 0.15 }
+]
