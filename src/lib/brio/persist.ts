@@ -15,6 +15,7 @@ import {
   type Goals,
   type UserRecipe,
 } from "./types";
+import { normalizeEan } from "./barcode";
 
 export function emptyDay(): DayLog {
   return {
@@ -108,6 +109,7 @@ function parseFood(v: unknown): Food | null {
     const n = Number(x);
     return Number.isFinite(n) ? n : null;
   };
+  const barcode = typeof v.barcode === "string" ? normalizeEan(v.barcode) : "";
   return {
     id: v.id,
     name: v.name,
@@ -123,6 +125,7 @@ function parseFood(v: unknown): Food | null {
     units,
     base: v.base,
     custom: true,
+    ...(barcode ? { barcode } : {}),
   };
 }
 

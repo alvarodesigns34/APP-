@@ -30,6 +30,7 @@ describe("migrate", () => {
           sod: null,
           units: [{ name: "unidad", g: 125 }],
           base: "g",
+          barcode: " 3017 6204 2200 3 ",
         },
       ],
       recipes: [
@@ -51,6 +52,7 @@ describe("migrate", () => {
     });
     expect(s.customFoods).toHaveLength(1);
     expect(s.customFoods[0].id).toBe("ok");
+    expect(s.customFoods[0].barcode).toBe("3017620422003");
     expect(s.recipes).toHaveLength(1);
     expect(s.recipes[0].id).toBe("r-ok");
     expect(s.favorites).toEqual(["f1"]);

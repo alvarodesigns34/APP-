@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Plus, Star } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Plus, ScanBarcode, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,18 @@ import { getFood, searchFoods } from "@/lib/brio/catalog";
 import { useBrioStore } from "@/lib/brio/store";
 import { habitualFoodIds } from "@/lib/brio/selectors";
 import { nf, parseNum, round } from "@/lib/brio/format";
+import {
+  createBarcodeDetector,
+  detectBarcodeFromImage,
+  fetchOffProduct,
+  findFoodByBarcode,
+  foodDraftHasMacros,
+  hasBarcodeDetector,
+  isValidEan,
+  mapOffProduct,
+  normalizeEan,
+  pickDetectedCode,
+} from "@/lib/brio/barcode";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -39,12 +51,10 @@ export function FoodLogSheet({
   const addMeal = useBrioStore((s) => s.addMeal);
   const updateMeal = useBrioStore((s) => s.updateMeal);
   const toggleFavorite = useBrioStore((s) => s.toggleFavorite);
+  const addCustomFood = useBrioStore((s) => s.addCustomFood);
   const days = useBrioStore((s) => s.days);
 
-  const habitual = useMemo(
-    () => habitualFoodIds({ ...useBrioStore.getState(), recents, days }),
-    [recents, days],
-  );
+  const habitual = useMemo(() => habitualFoodIds({ ...useBrioStore.getState(), recents, days }), [recents, days]);
 
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("buscar");
   const [q, setQ] = useState("");
@@ -55,6 +65,9 @@ export function FoodLogSheet({
   const [qty, setQty] = useState("1");
   const [unitName, setUnitName] = useState("g");
   const [createOpen, setCreateOpen] = useState(false);
+  const [createDraft, setCreateDraft] = useState<{ name: string; barcode: string } | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [lookupBusy, setLookupBusy] = useState(false);
 
   const editing = !!edit;
 
@@ -63,6 +76,8 @@ export function FoodLogSheet({
       setPicked(null);
       setQ("");
       setCreateOpen(false);
+      setCreateDraft(null);
+      setScanOpen(false);
       return;
     }
     setMeal(edit?.meal ?? defaultMeal);
@@ -133,6 +148,61 @@ export function FoodLogSheet({
     }
   }
 
+  function openManualCreate(name: string, barcode: string) {
+    setScanOpen(false);
+    setCreateDraft({ name, barcode });
+    setCreateOpen(true);
+  }
+
+  async function handleBarcode(raw: string) {
+    const ean = pickDetectedCode(raw);
+    if (!ean) {
+      toast.error("Código no válido");
+      return;
+    }
+    setScanOpen(false);
+    const local = findFoodByBarcode(ean, customFoods);
+    if (local) {
+      pick(local);
+      toast.success(local.name);
+      return;
+    }
+    setLookupBusy(true);
+    toast.loading("Buscando producto…", { id: "off-lookup" });
+    try {
+      const payload = await fetchOffProduct(ean);
+      const draft = mapOffProduct(payload, ean);
+      if (draft && foodDraftHasMacros(draft)) {
+        const id = addCustomFood({
+          name: draft.name,
+          kcal: draft.kcal,
+          prot: draft.prot,
+          carb: draft.carb,
+          fat: draft.fat,
+          fib: draft.fib,
+          sug: draft.sug,
+          sat: draft.sat,
+          sod: draft.sod,
+          units: draft.units,
+          base: draft.base,
+          barcode: draft.barcode || ean,
+        });
+        const st = useBrioStore.getState();
+        const f = getFood(id, { customFoods: st.customFoods, recipes: st.recipes });
+        if (f) pick(f);
+        toast.success(draft.name, { id: "off-lookup" });
+        return;
+      }
+      toast.error("No está en el catálogo", { id: "off-lookup" });
+      openManualCreate(draft?.name || ean, ean);
+    } catch {
+      toast.error("No está en el catálogo", { id: "off-lookup" });
+      openManualCreate(ean, ean);
+    } finally {
+      setLookupBusy(false);
+    }
+  }
+
   function pickUnit(name: string, g: number) {
     setUnitName(name);
     setQty("1");
@@ -165,7 +235,7 @@ export function FoodLogSheet({
       <Sheet
         open={open}
         onOpenChange={(v) => {
-          if (!v && createOpen) return;
+          if (!v && (createOpen || scanOpen)) return;
           if (!v) setPicked(null);
           onOpenChange(v);
         }}
@@ -230,23 +300,13 @@ export function FoodLogSheet({
               <label className="mb-1 block text-sm font-medium" htmlFor="food-qty">
                 Cantidad ({unitName})
               </label>
-              <Input
-                id="food-qty"
-                inputMode="decimal"
-                value={qty}
-                onChange={(e) => applyQty(e.target.value)}
-              />
+              <Input id="food-qty" inputMode="decimal" value={qty} onChange={(e) => applyQty(e.target.value)} />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium" htmlFor="food-grams">
                 {picked?.base === "ml" ? "Mililitros" : "Gramos"}
               </label>
-              <Input
-                id="food-grams"
-                inputMode="decimal"
-                value={grams}
-                onChange={(e) => applyGrams(e.target.value)}
-              />
+              <Input id="food-grams" inputMode="decimal" value={grams} onChange={(e) => applyGrams(e.target.value)} />
             </div>
             <div className="flex gap-2">
               {[-10, -5, 5, 10].map((n) => (
@@ -297,7 +357,24 @@ export function FoodLogSheet({
             </div>
             {tab === "buscar" ? (
               <>
-                <Input placeholder="Buscar alimento o receta" value={q} onChange={(e) => setQ(e.target.value)} />
+                <div className="flex gap-2">
+                  <Input
+                    className="flex-1"
+                    placeholder="Buscar alimento o receta"
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    aria-label="Escanear código de barras"
+                    disabled={lookupBusy}
+                    onClick={() => setScanOpen(true)}
+                  >
+                    <ScanBarcode className="size-5" />
+                  </Button>
+                </div>
                 <div className="flex gap-1 overflow-x-auto pb-1">
                   <Chip on={cat === null} onClick={() => setCat(null)}>
                     Todas
@@ -310,7 +387,15 @@ export function FoodLogSheet({
                 </div>
               </>
             ) : null}
-            <Button type="button" variant="secondary" className="w-full" onClick={() => setCreateOpen(true)}>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              onClick={() => {
+                setCreateDraft(null);
+                setCreateOpen(true);
+              }}
+            >
               <Plus className="size-4" />
               Crear alimento
             </Button>
@@ -345,9 +430,15 @@ export function FoodLogSheet({
           </div>
         )}
       </Sheet>
+      <BarcodeScanSheet open={scanOpen} onOpenChange={setScanOpen} onDetected={handleBarcode} busy={lookupBusy} />
       <CustomFoodSheet
         open={createOpen}
-        onOpenChange={setCreateOpen}
+        onOpenChange={(v) => {
+          setCreateOpen(v);
+          if (!v) setCreateDraft(null);
+        }}
+        initialName={createDraft?.name ?? ""}
+        barcode={createDraft?.barcode}
         onSaved={(id) => {
           const st = useBrioStore.getState();
           const f = getFood(id, { customFoods: st.customFoods, recipes: st.recipes });
@@ -355,6 +446,229 @@ export function FoodLogSheet({
         }}
       />
     </>
+  );
+}
+
+function BarcodeScanSheet({
+  open,
+  onOpenChange,
+  onDetected,
+  busy,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onDetected: (ean: string) => void;
+  busy?: boolean;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const onDetectedRef = useRef(onDetected);
+  onDetectedRef.current = onDetected;
+  const [cam, setCam] = useState<"pending" | "live" | "denied" | "unsupported">("pending");
+  const [manual, setManual] = useState("");
+  const [reading, setReading] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setCam("pending");
+      setManual("");
+      setReading(false);
+      return;
+    }
+
+    let stream: MediaStream | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    let emitted = false;
+    const videoEl = videoRef.current;
+
+    function emit(code: string) {
+      if (emitted || cancelled) return;
+      emitted = true;
+      onDetectedRef.current(code);
+    }
+
+    async function tick(detector: NonNullable<Awaited<ReturnType<typeof createBarcodeDetector>>>) {
+      if (cancelled || emitted) return;
+      const video = videoEl ?? videoRef.current;
+      if (video && video.readyState >= 2) {
+        try {
+          const codes = await detector.detect(video);
+          for (const code of codes) {
+            const ean = pickDetectedCode(code.rawValue);
+            if (ean) {
+              emit(ean);
+              return;
+            }
+          }
+        } catch {
+          /* frame dropped */
+        }
+      }
+      timer = setTimeout(() => {
+        void tick(detector);
+      }, 280);
+    }
+
+    async function start() {
+      if (!hasBarcodeDetector()) {
+        setCam("unsupported");
+        return;
+      }
+      const detector = await createBarcodeDetector();
+      if (cancelled) return;
+      if (!detector) {
+        setCam("unsupported");
+        return;
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCam("denied");
+        return;
+      }
+      try {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" } },
+            audio: false,
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        const video = videoEl ?? videoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          await video.play();
+        }
+        if (cancelled) return;
+        setCam("live");
+        void tick(detector);
+      } catch {
+        if (!cancelled) setCam("denied");
+      }
+    }
+
+    void start();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      stream?.getTracks().forEach((t) => t.stop());
+      if (videoEl) videoEl.srcObject = null;
+    };
+  }, [open]);
+
+  function submitManual() {
+    const ean = normalizeEan(manual);
+    if (!isValidEan(ean)) {
+      toast.error("Código no válido");
+      return;
+    }
+    onDetected(ean);
+  }
+
+  async function onFile(file: File | undefined) {
+    if (!file) return;
+    setReading(true);
+    try {
+      if (hasBarcodeDetector()) {
+        const bitmap = await createImageBitmap(file);
+        try {
+          const ean = await detectBarcodeFromImage(bitmap);
+          if (ean) {
+            onDetected(ean);
+            return;
+          }
+        } finally {
+          bitmap.close();
+        }
+        toast.error("No se ha podido leer el código. Escríbelo a mano.");
+      } else {
+        toast.error("Este navegador no lee códigos en fotos. Escribe el número.");
+      }
+    } catch {
+      toast.error("No se ha podido leer el código. Escríbelo a mano.");
+    } finally {
+      setReading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  const blocked = busy || reading;
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title="Escanear código">
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Brío usará la cámara solo para leer el código de barras. No se guarda ninguna foto.
+        </p>
+        <video
+          ref={videoRef}
+          className={cn("aspect-[4/3] w-full rounded-2xl bg-black object-cover", cam === "live" ? "block" : "hidden")}
+          playsInline
+          muted
+          autoPlay
+        />
+        {cam === "pending" && hasBarcodeDetector() ? (
+          <p className="text-sm text-muted-foreground">Pidiendo acceso a la cámara…</p>
+        ) : null}
+        {cam === "denied" ? (
+          <p className="text-sm text-muted-foreground">No hay acceso a la cámara. Escribe el código o haz una foto.</p>
+        ) : null}
+        {cam === "unsupported" ? (
+          <p className="text-sm text-muted-foreground">
+            Este navegador no lee códigos en vivo. Escribe el EAN o haz una foto.
+          </p>
+        ) : null}
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="ean-manual">
+            O escribe el código (EAN / UPC)
+          </label>
+          <div className="flex gap-2">
+            <Input
+              id="ean-manual"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="8412345678901"
+              value={manual}
+              disabled={blocked}
+              onChange={(e) => setManual(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  submitManual();
+                }
+              }}
+            />
+            <Button type="button" variant="secondary" disabled={blocked} onClick={submitManual}>
+              Buscar
+            </Button>
+          </div>
+        </div>
+        <div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="sr-only"
+            onChange={(e) => void onFile(e.target.files?.[0])}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            disabled={blocked}
+            onClick={() => fileRef.current?.click()}
+          >
+            Hacer foto
+          </Button>
+        </div>
+      </div>
+    </Sheet>
   );
 }
 
