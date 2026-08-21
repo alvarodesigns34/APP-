@@ -35,6 +35,7 @@ export type Food = {
   custom?: boolean;
   recipe?: boolean;
   builtinRecipe?: boolean;
+  barcode?: string;
 };
 
 export type RecipeItem = { foodId: string; grams: number };

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useBrioStore } from "@/lib/brio/store";
 import { parseNum } from "@/lib/brio/format";
+import { normalizeEan } from "@/lib/brio/barcode";
 import type { FoodBase, FoodUnit } from "@/lib/brio/types";
 import { cn } from "@/lib/utils";
 
@@ -22,10 +23,14 @@ export function CustomFoodSheet({
   open,
   onOpenChange,
   onSaved,
+  initialName = "",
+  barcode,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSaved?: (id: string) => void;
+  initialName?: string;
+  barcode?: string;
 }) {
   const addCustomFood = useBrioStore((s) => s.addCustomFood);
   const [name, setName] = useState("");
@@ -40,16 +45,17 @@ export function CustomFoodSheet({
   const [unitName, setUnitName] = useState("");
   const [unitG, setUnitG] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const code = barcode ? normalizeEan(barcode) : "";
 
   useEffect(() => {
     if (!open) return;
-    setName("");
+    setName(initialName);
     setBase("g");
     setVals({ kcal: "", prot: "", carb: "", fat: "", fib: "" });
     setUnitName("");
     setUnitG("");
     setError(null);
-  }, [open]);
+  }, [open, initialName]);
 
   function setField(key: FieldKey, value: string) {
     setVals((prev) => ({ ...prev, [key]: value }));
@@ -95,6 +101,7 @@ export function CustomFoodSheet({
       sod: null,
       units,
       base,
+      ...(code ? { barcode: code } : {}),
     });
     toast.success("Alimento guardado");
     onOpenChange(false);
@@ -125,6 +132,11 @@ export function CustomFoodSheet({
             autoComplete="off"
           />
         </div>
+        {code ? (
+          <p className="text-sm text-muted-foreground">
+            Código de barras {code}. Completa los valores por 100 {base} para guardarlo.
+          </p>
+        ) : null}
         <div>
           <p className="mb-1 text-sm font-medium">Base</p>
           <div className="flex gap-2">
@@ -163,7 +175,11 @@ export function CustomFoodSheet({
         <div>
           <p className="mb-1 text-sm font-medium">Unidad casera (opcional)</p>
           <div className="grid grid-cols-2 gap-3">
-            <Input placeholder="Nombre (taza, unidad…)" value={unitName} onChange={(e) => setUnitName(e.target.value)} />
+            <Input
+              placeholder="Nombre (taza, unidad…)"
+              value={unitName}
+              onChange={(e) => setUnitName(e.target.value)}
+            />
             <Input
               inputMode="decimal"
               placeholder="Gramos por unidad"
