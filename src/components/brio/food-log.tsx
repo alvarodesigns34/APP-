@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, ScanBarcode, Star, X } from "lucide-react";
+import { Info, Plus, ScanBarcode, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomFoodSheet } from "@/components/brio/custom-food";
+import { FoodDetailSheet } from "@/components/brio/food-detail";
 import { CATEGORIES, MEALS, type Food, type MealEntry, type MealId } from "@/lib/brio/types";
 import { getFood, searchFoods } from "@/lib/brio/catalog";
 import { useCatalog } from "@/lib/brio/use-catalog";
@@ -72,6 +73,7 @@ export function FoodLogSheet({
   const [createDraft, setCreateDraft] = useState<{ name: string; barcode: string } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [lookupBusy, setLookupBusy] = useState(false);
+  const [detailFood, setDetailFood] = useState<Food | null>(null);
   const prefsRef = useRef({ queries, cat });
   prefsRef.current = { queries, cat };
 
@@ -84,6 +86,7 @@ export function FoodLogSheet({
       setCreateOpen(false);
       setCreateDraft(null);
       setScanOpen(false);
+      setDetailFood(null);
       return;
     }
     setMeal(edit?.meal ?? defaultMeal);
@@ -268,7 +271,7 @@ export function FoodLogSheet({
       <Sheet
         open={open}
         onOpenChange={(v) => {
-          if (!v && (createOpen || scanOpen)) return;
+          if (!v && (createOpen || scanOpen || detailFood)) return;
           if (!v) setPicked(null);
           onOpenChange(v);
         }}
@@ -283,11 +286,18 @@ export function FoodLogSheet({
       >
         {showQty ? (
           <div className="space-y-4">
-            {!editing ? (
-              <Button type="button" variant="ghost" size="sm" onClick={() => setPicked(null)}>
-                Atrás
-              </Button>
-            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {!editing ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setPicked(null)}>
+                  Atrás
+                </Button>
+              ) : null}
+              {picked ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setDetailFood(picked)}>
+                  Ver ficha
+                </Button>
+              ) : null}
+            </div>
             {picked ? (
               <p className="text-sm text-muted-foreground">
                 {nf(picked.kcal)} kcal · {nf(picked.prot, 1)} g prot / 100 {picked.base}
@@ -476,6 +486,14 @@ export function FoodLogSheet({
                       </button>
                       <button
                         type="button"
+                        aria-label="Ver ficha"
+                        onClick={() => setDetailFood(f)}
+                        className="grid size-11 place-items-center"
+                      >
+                        <Info className="size-4 text-muted-foreground" />
+                      </button>
+                      <button
+                        type="button"
                         aria-label={fav ? "Quitar de favoritos" : "Añadir a favoritos"}
                         onClick={() => toggleFavorite(f.id)}
                         className="grid size-11 place-items-center"
@@ -505,6 +523,15 @@ export function FoodLogSheet({
           if (f) pick(f);
         }}
       />
+      {detailFood ? (
+        <FoodDetailSheet
+          open
+          onOpenChange={(v) => {
+            if (!v) setDetailFood(null);
+          }}
+          food={detailFood}
+        />
+      ) : null}
     </>
   );
 }
