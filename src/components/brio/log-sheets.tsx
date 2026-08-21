@@ -32,10 +32,7 @@ export function WaterSheet({ open, onOpenChange, date }: { open: boolean; onOpen
   const [custom, setCustom] = useState("");
 
   function addAmount(ml: number) {
-    const id = add(date, ml);
-    toast.success(`+${fmtVolume(ml, units)}`, {
-      action: { label: "Deshacer", onClick: () => remove(date, id) },
-    });
+    add(date, ml);
   }
 
   return (
@@ -76,11 +73,8 @@ export function WaterSheet({ open, onOpenChange, date }: { open: boolean; onOpen
             const n = parseNum(custom);
             if (!n) return;
             const ml = displayToMl(n, units);
-            const id = add(date, ml);
+            add(date, ml);
             setCustom("");
-            toast.success(`+${fmtVolume(ml, units)}`, {
-              action: { label: "Deshacer", onClick: () => remove(date, id) },
-            });
           }}
         >
           Añadir
@@ -200,7 +194,6 @@ export function WorkoutSheet({ open, onOpenChange, date }: { open: boolean; onOp
           onClick={() => {
             add(date, type, parseNum(min) || 30, intensity);
             onOpenChange(false);
-            toast.success("Entreno registrado");
           }}
         >
           Guardar
@@ -272,7 +265,6 @@ export function WeightSheet({ open, onOpenChange, date }: { open: boolean; onOpe
             upsert(date, kg);
             patchProfile({ weight: kg });
             onOpenChange(false);
-            toast.success("Peso guardado");
           }}
         >
           Guardar

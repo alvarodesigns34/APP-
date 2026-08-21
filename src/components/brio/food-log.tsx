@@ -149,7 +149,6 @@ export function FoodLogSheet({
     } else {
       if (!picked) return;
       addMeal(date, meal, picked.id, g, qn, unitName);
-      toast.success(`Añadido a ${MEALS.find((m) => m.id === meal)?.n.toLowerCase()}`);
     }
     setPicked(null);
     onOpenChange(false);
