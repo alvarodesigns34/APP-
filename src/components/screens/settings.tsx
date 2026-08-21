@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { ACTIVITY_FACTORS, PURPOSES, bmi, bmiCategory, computeGoals } from "@/lib/brio/domain";
 import { APP_NAME, APP_VERSION, FASTING_PRESETS, type ActivityId, type FastingId, type PurposeId, type Sex, type ThemePref } from "@/lib/brio/types";
 import { useBrioStore } from "@/lib/brio/store";
+import { combinedCsv } from "@/lib/brio/export-csv";
 import { nf, parseNum } from "@/lib/brio/format";
 import {
   cmToDisplay,
@@ -256,6 +257,19 @@ export function SettingsScreen() {
           }}
         >
           Exportar JSON
+        </Button>
+        <Button
+          variant="secondary"
+          className="w-full"
+          onClick={() => {
+            const blob = new Blob([combinedCsv(exportSlice)], { type: "text/csv;charset=utf-8" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `brio-${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+          }}
+        >
+          Exportar CSV
         </Button>
         <Button variant="outline" className="w-full" onClick={() => fileRef.current?.click()}>
           Importar JSON
