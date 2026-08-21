@@ -2,12 +2,7 @@
 
 App de salud y fitness: nutrición, movimiento, agua, sueño y peso. Los datos viven en el dispositivo (sin cuentas).
 
-## Estado
-
-- **v4.1 (actual):** código React en `src/` — catálogo, pantallas, persistencia local.
-- **v3 (legado):** `index.html` monolito original, conservado como referencia.
-
-## Qué hay
+## v4.1
 
 - 719 alimentos, 211 recetas, 12 rutinas
 - Registro de comidas (editar, duplicar, mover), recetas, despensa y lista de compra
