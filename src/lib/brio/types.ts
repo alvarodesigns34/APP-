@@ -13,6 +13,8 @@ export type ThemePref = "auto" | "light" | "dark";
 export type IntensityId = "suave" | "media" | "alta";
 export type FoodBase = "g" | "ml";
 export type FastingId = "off" | "12-12" | "14-10" | "16-8" | "18-6";
+export type MacroPresetId = "equilibrado" | "alto-prot" | "keto" | "custom";
+export type MacroPct = { prot: number; carb: number; fat: number };
 
 export type FoodUnit = { name: string; g: number };
 
@@ -124,6 +126,8 @@ export type Settings = {
   pantryBasics: boolean;
   activityAdjust: boolean;
   fasting: FastingId;
+  macroPreset: MacroPresetId;
+  macroPct: MacroPct;
 };
 
 export type Goals = {

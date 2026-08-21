@@ -1,4 +1,4 @@
-import type { ActivityId, IntensityId, PurposeId, Sex } from "./types";
+import type { ActivityId, IntensityId, MacroPct, MacroPresetId, PurposeId, Sex } from "./types";
 import { ageFrom, clamp, round } from "./format";
 import activitiesJson from "@/data/activities.json";
 
@@ -22,6 +22,45 @@ export const INTENSITIES: { id: IntensityId; n: string; f: number }[] = [
   { id: "media", n: "Media", f: 1 },
   { id: "alta", n: "Alta", f: 1.2 },
 ];
+
+export const DEFAULT_MACRO_PCT: MacroPct = { prot: 25, carb: 45, fat: 30 };
+
+export const MACRO_PRESETS: { id: MacroPresetId; n: string; pct: MacroPct }[] = [
+  { id: "equilibrado", n: "Equilibrado", pct: { prot: 25, carb: 45, fat: 30 } },
+  { id: "alto-prot", n: "Alta proteína", pct: { prot: 40, carb: 35, fat: 25 } },
+  { id: "keto", n: "Keto", pct: { prot: 20, carb: 5, fat: 75 } },
+  { id: "custom", n: "Personalizado", pct: { prot: 25, carb: 45, fat: 30 } },
+];
+
+export function isMacroPresetId(v: unknown): v is MacroPresetId {
+  return v === "equilibrado" || v === "alto-prot" || v === "keto" || v === "custom";
+}
+
+export function pctForPreset(id: MacroPresetId): MacroPct {
+  const found = MACRO_PRESETS.find((p) => p.id === id);
+  return { ...(found?.pct ?? DEFAULT_MACRO_PCT) };
+}
+
+/** Clamp each % to 0–100 and make them sum to 100. Carbs absorb the remainder unless `edited` is carb. */
+export function clampMacroPct(
+  pct: { prot: number; carb: number; fat: number },
+  edited: "prot" | "carb" | "fat" = "prot",
+): MacroPct {
+  let prot = clamp(Math.round(Number(pct.prot) || 0), 0, 100);
+  let carb = clamp(Math.round(Number(pct.carb) || 0), 0, 100);
+  let fat = clamp(Math.round(Number(pct.fat) || 0), 0, 100);
+  if (edited === "prot") {
+    fat = clamp(fat, 0, 100 - prot);
+    carb = 100 - prot - fat;
+  } else if (edited === "fat") {
+    prot = clamp(prot, 0, 100 - fat);
+    carb = 100 - prot - fat;
+  } else {
+    prot = clamp(prot, 0, 100 - carb);
+    fat = 100 - prot - carb;
+  }
+  return { prot, carb, fat };
+}
 
 export const ACTIVITY_GROUPS = [
   { id: "fuerza", n: "Fuerza y gimnasio" },
@@ -82,7 +121,7 @@ export function targetKcal(tdeeVal: number, purpose: PurposeId, sex: Sex) {
   return { kcal: Math.max(raw, floor), raw, floored: raw < floor, floor };
 }
 
-export function macrosFromKcal(kcal: number, pct = { prot: 25, carb: 45, fat: 30 }) {
+export function macrosFromKcal(kcal: number, pct: MacroPct = DEFAULT_MACRO_PCT) {
   return {
     prot: Math.round((kcal * (pct.prot / 100)) / 4),
     carb: Math.round((kcal * (pct.carb / 100)) / 4),
@@ -133,12 +172,13 @@ export function computeGoals(input: {
   weight: number;
   activity: ActivityId;
   purpose: PurposeId;
+  pct?: MacroPct;
 }) {
   const age = input.birth ? ageFrom(input.birth) : 30;
   const b = bmr(input.sex, input.weight, input.height, age);
   const t = tdee(b, input.activity);
   const k = targetKcal(t, input.purpose, input.sex);
-  const macros = macrosFromKcal(k.kcal);
+  const macros = macrosFromKcal(k.kcal, input.pct);
   const water = Math.round(clamp(input.weight * 35, 1500, 4000) / 50) * 50;
   let weightGoal = input.weight;
   if (input.purpose === "perder") weightGoal = round(input.weight * 0.95, 1);

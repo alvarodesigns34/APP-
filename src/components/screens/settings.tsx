@@ -6,8 +6,28 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { ACTIVITY_FACTORS, PURPOSES, bmi, bmiCategory, computeGoals } from "@/lib/brio/domain";
-import { APP_NAME, APP_VERSION, FASTING_PRESETS, type ActivityId, type FastingId, type PurposeId, type Sex, type ThemePref } from "@/lib/brio/types";
+import {
+  ACTIVITY_FACTORS,
+  MACRO_PRESETS,
+  PURPOSES,
+  bmi,
+  bmiCategory,
+  clampMacroPct,
+  computeGoals,
+  macrosFromKcal,
+  pctForPreset,
+} from "@/lib/brio/domain";
+import {
+  APP_NAME,
+  APP_VERSION,
+  FASTING_PRESETS,
+  type ActivityId,
+  type FastingId,
+  type MacroPresetId,
+  type PurposeId,
+  type Sex,
+  type ThemePref,
+} from "@/lib/brio/types";
 import { useBrioStore } from "@/lib/brio/store";
 import { combinedCsv } from "@/lib/brio/export-csv";
 import { nf, parseNum } from "@/lib/brio/format";
@@ -59,7 +79,7 @@ export function SettingsScreen() {
   const [wipeOpen, setWipeOpen] = useState(false);
 
   function recalc() {
-    const g = computeGoals(profile);
+    const g = computeGoals({ ...profile, pct: settings.macroPct });
     patchGoals({
       kcal: g.kcal,
       prot: g.prot,
@@ -70,6 +90,23 @@ export function SettingsScreen() {
     });
     toast.success("Objetivos recalculados");
   }
+
+  function applySplit(preset: MacroPresetId, pct: { prot: number; carb: number; fat: number }) {
+    const macros = macrosFromKcal(goals.kcal, pct);
+    patchSettings({ macroPreset: preset, macroPct: pct });
+    patchGoals({ prot: macros.prot, carb: macros.carb, fat: macros.fat });
+  }
+
+  function selectPreset(id: MacroPresetId) {
+    const pct = id === "custom" ? settings.macroPct : pctForPreset(id);
+    applySplit(id, pct);
+  }
+
+  function onCustomPct(field: "prot" | "carb" | "fat", raw: number) {
+    applySplit("custom", clampMacroPct({ ...settings.macroPct, [field]: raw }, field));
+  }
+
+  const liveMacros = macrosFromKcal(goals.kcal, settings.macroPct);
 
   return (
     <Screen>
@@ -84,12 +121,21 @@ export function SettingsScreen() {
           <Input type="date" value={profile.birth} onChange={(e) => patchProfile({ birth: e.target.value })} />
         </Field>
         <div className="grid grid-cols-3 gap-2">
-          {([["h", "Hombre"], ["m", "Mujer"], ["nb", "Otro"]] as const).map(([id, n]) => (
+          {(
+            [
+              ["h", "Hombre"],
+              ["m", "Mujer"],
+              ["nb", "Otro"],
+            ] as const
+          ).map(([id, n]) => (
             <button
               key={id}
               type="button"
               onClick={() => patchProfile({ sex: id as Sex })}
-              className={cn("h-10 rounded-xl text-xs", profile.sex === id ? "bg-primary text-primary-foreground" : "bg-muted")}
+              className={cn(
+                "h-10 rounded-xl text-xs",
+                profile.sex === id ? "bg-primary text-primary-foreground" : "bg-muted",
+              )}
             >
               {n}
             </button>
@@ -132,7 +178,10 @@ export function SettingsScreen() {
             key={a.id}
             type="button"
             onClick={() => patchProfile({ activity: a.id as ActivityId })}
-            className={cn("w-full rounded-2xl px-3 py-2 text-left text-sm", profile.activity === a.id ? "bg-primary/10 text-primary" : "bg-muted/40")}
+            className={cn(
+              "w-full rounded-2xl px-3 py-2 text-left text-sm",
+              profile.activity === a.id ? "bg-primary/10 text-primary" : "bg-muted/40",
+            )}
           >
             {a.n}
           </button>
@@ -143,7 +192,10 @@ export function SettingsScreen() {
               key={p.id}
               type="button"
               onClick={() => patchProfile({ purpose: p.id as PurposeId })}
-              className={cn("h-10 rounded-xl text-xs", profile.purpose === p.id ? "bg-primary text-primary-foreground" : "bg-muted")}
+              className={cn(
+                "h-10 rounded-xl text-xs",
+                profile.purpose === p.id ? "bg-primary text-primary-foreground" : "bg-muted",
+              )}
             >
               {p.n}
             </button>
@@ -172,6 +224,45 @@ export function SettingsScreen() {
             />
           </Field>
         ))}
+        <div className="pt-1">
+          <p className="mb-2 text-sm text-muted-foreground">Reparto de macros</p>
+          <div className="flex flex-wrap gap-2">
+            {MACRO_PRESETS.map((p) => (
+              <Button
+                key={p.id}
+                size="sm"
+                variant={settings.macroPreset === p.id ? "default" : "secondary"}
+                onClick={() => selectPreset(p.id)}
+              >
+                {p.n}
+              </Button>
+            ))}
+          </div>
+        </div>
+        {settings.macroPreset === "custom" ? (
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                ["prot", "Prot %"],
+                ["carb", "Carb %"],
+                ["fat", "Grasa %"],
+              ] as const
+            ).map(([k, n]) => (
+              <Field key={k} label={n}>
+                <Input
+                  inputMode="numeric"
+                  value={settings.macroPct[k]}
+                  onChange={(e) => onCustomPct(k, parseNum(e.target.value) || 0)}
+                />
+                <span className="mt-1 block text-xs text-muted-foreground">{liveMacros[k]} g</span>
+              </Field>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            {liveMacros.prot} g prot · {liveMacros.carb} g carb · {liveMacros.fat} g grasa
+          </p>
+        )}
         <Button className="w-full" variant="secondary" onClick={recalc}>
           Recalcular desde el perfil
         </Button>
@@ -192,9 +283,7 @@ export function SettingsScreen() {
             </Button>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">
-          {FASTING_PRESETS.find((p) => p.id === settings.fasting)?.hint}
-        </p>
+        <p className="text-xs text-muted-foreground">{FASTING_PRESETS.find((p) => p.id === settings.fasting)?.hint}</p>
       </Card>
 
       <SectionLabel>Unidades</SectionLabel>
@@ -232,7 +321,12 @@ export function SettingsScreen() {
       <Card>
         <div className="flex gap-2">
           {(["auto", "light", "dark"] as ThemePref[]).map((t) => (
-            <Button key={t} variant={settings.theme === t ? "default" : "secondary"} size="sm" onClick={() => patchSettings({ theme: t })}>
+            <Button
+              key={t}
+              variant={settings.theme === t ? "default" : "secondary"}
+              size="sm"
+              onClick={() => patchSettings({ theme: t })}
+            >
               {t === "auto" ? "Auto" : t === "light" ? "Claro" : "Oscuro"}
             </Button>
           ))}
