@@ -1,6 +1,6 @@
 import { rangeKeys, todayKey, addDays } from "./dates";
 import { sumEntries } from "./selectors";
-import type { MealEntry, MealId, PersistedState } from "./types";
+import type { DayLog, MealEntry, MealId, PersistedState } from "./types";
 import { MEALS } from "./types";
 
 export type MealHabit = {
@@ -22,6 +22,34 @@ export function habitTitle(names: string[]): string {
   if (names.length === 1) return names[0];
   if (names.length <= 3) return names.join(" · ");
   return `${names[0]} · ${names[1]} y más`;
+}
+
+export function dayHasMeals(day: DayLog | undefined | null): boolean {
+  if (!day) return false;
+  return MEALS.some((m) => (day.meals[m.id]?.length ?? 0) > 0);
+}
+
+export function mealEntryCount(day: DayLog | undefined | null): number {
+  if (!day) return 0;
+  let n = 0;
+  for (const m of MEALS) n += day.meals[m.id]?.length ?? 0;
+  return n;
+}
+
+/** Calendar days in `(endKey − n, endKey]` that have meals, newest first. */
+export function recentDaysWithMeals(
+  days: Record<string, DayLog>,
+  endKey: string,
+  n = 14,
+  excludeKey?: string,
+): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const k = addDays(endKey, -i);
+    if (excludeKey && k === excludeKey) continue;
+    if (dayHasMeals(days[k])) out.push(k);
+  }
+  return out;
 }
 
 export function habitualMeals(s: PersistedState, limit = 6): MealHabit[] {
