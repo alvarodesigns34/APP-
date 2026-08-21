@@ -5,13 +5,18 @@ import { MealHabits } from "@/components/brio/meal-habits";
 import { RecipeBrowser } from "@/components/brio/recipe-browser";
 import { Card, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { Button } from "@/components/ui/button";
-import { addDays, todayKey } from "@/lib/brio/dates";
+import { Input } from "@/components/ui/input";
+import { Sheet } from "@/components/ui/sheet";
+import { addDays, fmtDateRelative, todayKey } from "@/lib/brio/dates";
 import { nf } from "@/lib/brio/format";
+import { mealEntryCount, recentDaysWithMeals } from "@/lib/brio/meals";
 import { sumEntries } from "@/lib/brio/selectors";
 import { useBrioStore } from "@/lib/brio/store";
 import { MEALS, type MealEntry, type MealId } from "@/lib/brio/types";
+import { applyUndo } from "@/lib/brio/undo";
 import { PantrySheet, ShoppingSheet } from "@/components/brio/pantry-shop";
-import { useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
+import { useEffect, useMemo, useState } from "react";
 
 export function FoodScreen() {
   const days = useBrioStore((s) => s.days);
@@ -39,6 +44,7 @@ export function FoodScreen() {
   const [recipes, setRecipes] = useState(false);
   const [pantry, setPantry] = useState(false);
   const [shop, setShop] = useState(false);
+  const [copyOpen, setCopyOpen] = useState(false);
   const [edit, setEdit] = useState<{ meal: MealId; entry: MealEntry } | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
   const yesterday = addDays(key, -1);
@@ -82,18 +88,23 @@ export function FoodScreen() {
           Recetas
         </Button>
       </div>
-      {hasYesterday ? (
-        <Button
-          variant="outline"
-          className="mb-4 w-full"
-          onClick={() => {
-            const n = copyDayMeals(yesterday, key);
-            toast.success(n ? `Copiados ${n} registros de ayer` : "Ayer no tenía comidas");
-          }}
-        >
-          Copiar ayer
+      <div className="mb-4 flex gap-2">
+        {hasYesterday ? (
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => {
+              const n = copyDayMeals(yesterday, key);
+              toast.success(n ? `Copiados ${n} registros de ayer` : "Ayer no tenía comidas");
+            }}
+          >
+            Copiar ayer
+          </Button>
+        ) : null}
+        <Button variant="outline" className={hasYesterday ? "flex-1" : "w-full"} onClick={() => setCopyOpen(true)}>
+          Copiar otro día
         </Button>
-      ) : null}
+      </div>
 
       <MealHabits date={key} />
 
@@ -231,6 +242,124 @@ export function FoodScreen() {
       <RecipeBrowser open={recipes} onOpenChange={setRecipes} date={key} />
       <PantrySheet open={pantry} onOpenChange={setPantry} />
       <ShoppingSheet open={shop} onOpenChange={setShop} />
+      <CopyOtherDaySheet open={copyOpen} onOpenChange={setCopyOpen} targetKey={key} />
     </Screen>
+  );
+}
+
+function CopyOtherDaySheet({
+  open,
+  onOpenChange,
+  targetKey,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  targetKey: string;
+}) {
+  const days = useBrioStore((s) => s.days);
+  const copyDayMeals = useBrioStore((s) => s.copyDayMeals);
+  const removeMeal = useBrioStore((s) => s.removeMeal);
+  const sources = useMemo(() => recentDaysWithMeals(days, todayKey(), 14, targetKey), [days, targetKey]);
+  const [fromKey, setFromKey] = useState("");
+
+  useEffect(() => {
+    if (!open) setFromKey("");
+  }, [open]);
+
+  const n = fromKey && fromKey !== targetKey ? mealEntryCount(days[fromKey]) : 0;
+  const canCopy = !!fromKey && fromKey !== targetKey;
+
+  function confirm() {
+    if (!canCopy) return;
+    const before = new Set(
+      MEALS.flatMap((m) => (useBrioStore.getState().days[targetKey]?.meals[m.id] ?? []).map((e) => e.id)),
+    );
+    const copied = copyDayMeals(fromKey, targetKey);
+    onOpenChange(false);
+    if (!copied) {
+      toast.success("Ese día no tenía comidas");
+      return;
+    }
+    const after = useBrioStore.getState().days[targetKey];
+    const added: { meal: MealId; id: string }[] = [];
+    for (const m of MEALS) {
+      for (const e of after?.meals[m.id] ?? []) {
+        if (!before.has(e.id)) added.push({ meal: m.id, id: e.id });
+      }
+    }
+    const rel = fmtDateRelative(fromKey).toLowerCase();
+    toast.success(`Copiados ${copied} registros de ${rel}`, {
+      action: {
+        label: "Deshacer",
+        onClick: () => {
+          applyUndo({
+            label: "Deshacer copia",
+            apply: () => {
+              for (const x of added) removeMeal(targetKey, x.meal, x.id);
+            },
+          });
+        },
+      },
+    });
+  }
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Copiar otro día"
+      footer={
+        <Button className="w-full" disabled={!canCopy} onClick={confirm}>
+          {n ? `Copiar ${n} ${n === 1 ? "registro" : "registros"}` : "Copiar"}
+        </Button>
+      }
+    >
+      <p className="mb-3 text-sm text-muted-foreground">
+        Se añadirán a {fmtDateRelative(targetKey).toLowerCase()}. No sustituye lo que ya hay.
+      </p>
+
+      <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Últimos 14 días</p>
+      {sources.length === 0 ? (
+        <p className="mb-4 text-sm text-muted-foreground">No hay comidas en los últimos 14 días. Elige una fecha.</p>
+      ) : (
+        <ul className="mb-4 space-y-2">
+          {sources.map((k) => {
+            const count = mealEntryCount(days[k]);
+            const kcal = MEALS.reduce((acc, m) => acc + sumEntries(days[k]?.meals[m.id] ?? []).kcal, 0);
+            return (
+              <li key={k}>
+                <button
+                  type="button"
+                  onClick={() => setFromKey(k)}
+                  className={cn(
+                    "flex min-h-11 w-full items-center justify-between gap-2 rounded-2xl px-3 py-2 text-left",
+                    fromKey === k ? "bg-primary text-primary-foreground" : "bg-muted",
+                  )}
+                >
+                  <span className="font-medium">{fmtDateRelative(k)}</span>
+                  <span className={cn("text-xs tabular-nums", fromKey === k ? "opacity-90" : "text-muted-foreground")}>
+                    {count} {count === 1 ? "alimento" : "alimentos"} · {nf(kcal)} kcal
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-muted-foreground" htmlFor="copy-day-date">
+        O elige una fecha
+      </label>
+      <Input
+        id="copy-day-date"
+        type="date"
+        max={todayKey()}
+        value={fromKey}
+        onChange={(e) => setFromKey(e.target.value)}
+      />
+      {fromKey === targetKey ? (
+        <p className="mt-2 text-xs text-muted-foreground">Elige un día distinto al que estás viendo.</p>
+      ) : null}
+    </Sheet>
   );
 }
