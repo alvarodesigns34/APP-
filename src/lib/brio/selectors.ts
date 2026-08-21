@@ -86,8 +86,19 @@ export type GoalFlags = {
   total: number;
 };
 
+const EMPTY_GOALS: GoalFlags = {
+  kcal: false,
+  steps: false,
+  water: false,
+  sleep: false,
+  move: false,
+  count: 0,
+  total: 5,
+};
+
 export function goalsMet(s: PersistedState, key: string): GoalFlags {
-  const d = dayOf(s, key);
+  const d = s.days[key];
+  if (!d) return EMPTY_GOALS;
   const food = dayFoodTotals(s, key);
   const kg = kcalGoalFor(s, key);
   const ratio = kg ? food.kcal / kg : 0;
@@ -197,10 +208,9 @@ export type FastingStatus = {
   progress: number;
 };
 
-export function fastingStatus(id: FastingId): FastingStatus | null {
+export function fastingStatus(id: FastingId, now = nowMinutes()): FastingStatus | null {
   const preset = FASTING_PRESETS.find((p) => p.id === id);
   if (!preset || preset.id === "off") return null;
-  const now = nowMinutes();
   const eating = now >= preset.start && now < preset.end;
   const windowLen = Math.max(1, preset.end - preset.start);
   const fastLen = 1440 - windowLen;
@@ -237,10 +247,8 @@ export function weightTrend(s: PersistedState) {
   const current = last.kg;
   const goal = s.goals.weight;
   const remaining = goal - current;
-  const toward = remaining === 0 || remaining * rate < 0 || Math.abs(remaining) < 0.15;
   const daysNeeded = Math.abs(rate) < 0.004 ? null : remaining / rate;
-  const eta =
-    daysNeeded != null && daysNeeded > 0 && toward && daysNeeded < 400 ? Math.round(daysNeeded) : null;
+  const eta = daysNeeded != null && daysNeeded > 0 && daysNeeded < 400 ? Math.round(daysNeeded) : null;
   return { rate, current, goal, remaining, eta, weeks: eta != null ? eta / 7 : null };
 }
 
@@ -250,6 +258,7 @@ export function weeklyInsights(s: PersistedState): string[] {
   let kcal = 0,
     prot = 0,
     water = 0,
+    waterDays = 0,
     daysLogged = 0,
     sleepN = 0,
     sleepMin = 0,
@@ -263,7 +272,11 @@ export function weeklyInsights(s: PersistedState): string[] {
       kcal += t.kcal;
       prot += t.prot;
     }
-    water += waterTotal(s, k);
+    const w = waterTotal(s, k);
+    if (w > 0) {
+      water += w;
+      waterDays += 1;
+    }
     const sl = dayOf(s, k).sleep;
     if (sl) {
       sleepN += 1;
@@ -292,12 +305,12 @@ export function weeklyInsights(s: PersistedState): string[] {
     const h = sleepMin / sleepN / 60;
     insights.push(`Has dormido de media ${h.toFixed(1)} h.`);
   }
-  if (water > 0) {
-    const avgW = Math.round(water / 7);
+  if (waterDays) {
+    const avgW = Math.round(water / waterDays);
     insights.push(
       avgW >= s.goals.water
-        ? `Agua media ${avgW} ml, por encima de la meta.`
-        : `Agua media ${avgW} ml al día.`,
+        ? `Agua media ${avgW} ml en los días con registro, por encima de la meta.`
+        : `Agua media ${avgW} ml al día en los días con registro.`,
     );
   }
   if (stepDays) {

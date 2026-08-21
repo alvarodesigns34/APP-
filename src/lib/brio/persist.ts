@@ -6,11 +6,13 @@ import {
   STORE_KEY,
   type DayLog,
   type Food,
+  type FoodUnit,
   type MealId,
   type PersistedState,
   type Profile,
   type Settings,
   type Goals,
+  type UserRecipe,
 } from "./types";
 
 export function emptyDay(): DayLog {
@@ -76,6 +78,82 @@ function num(v: unknown, d = 0): number {
   return Number.isFinite(n) ? n : d;
 }
 
+function strIds(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((x): x is string => typeof x === "string" && x.length > 0);
+}
+
+function isFoodUnit(v: unknown): v is FoodUnit {
+  return isObj(v) && typeof v.name === "string" && Number.isFinite(Number(v.g)) && Number(v.g) > 0;
+}
+
+function parseFood(v: unknown): Food | null {
+  if (!isObj(v)) return null;
+  if (typeof v.id !== "string" || !v.id) return null;
+  if (typeof v.name !== "string" || !v.name) return null;
+  if (typeof v.cat !== "string" || !v.cat) return null;
+  if (v.base !== "g" && v.base !== "ml") return null;
+  const kcal = Number(v.kcal);
+  const prot = Number(v.prot);
+  const carb = Number(v.carb);
+  const fat = Number(v.fat);
+  const fib = Number(v.fib);
+  if (![kcal, prot, carb, fat, fib].every(Number.isFinite)) return null;
+  const units = Array.isArray(v.units) ? v.units.filter(isFoodUnit) : [];
+  const opt = (x: unknown): number | null => {
+    if (x == null) return null;
+    const n = Number(x);
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    id: v.id,
+    name: v.name,
+    cat: v.cat,
+    kcal,
+    prot,
+    carb,
+    fat,
+    fib,
+    sug: opt(v.sug),
+    sat: opt(v.sat),
+    sod: opt(v.sod),
+    units,
+    base: v.base,
+    custom: true,
+  };
+}
+
+function parseUserRecipe(v: unknown): UserRecipe | null {
+  if (!isObj(v)) return null;
+  if (typeof v.id !== "string" || !v.id) return null;
+  if (typeof v.name !== "string" || !v.name) return null;
+  if (!Array.isArray(v.items)) return null;
+  const servings = Number(v.servings);
+  const servingG = Number(v.servingG);
+  if (!Number.isFinite(servings) || servings <= 0) return null;
+  if (!Number.isFinite(servingG) || servingG < 0) return null;
+  const items = v.items.filter((it): it is { foodId: string; grams: number } => {
+    if (!isObj(it)) return false;
+    const grams = Number(it.grams);
+    return typeof it.foodId === "string" && it.foodId.length > 0 && Number.isFinite(grams) && grams > 0;
+  });
+  const per = isObj(v.per100) ? v.per100 : {};
+  return {
+    id: v.id,
+    name: v.name,
+    items,
+    servings,
+    servingG,
+    per100: {
+      kcal: num(per.kcal),
+      prot: num(per.prot),
+      carb: num(per.carb),
+      fat: num(per.fat),
+      fib: num(per.fib),
+    },
+  };
+}
+
 export function migrate(raw: unknown): PersistedState {
   const base = defaultState();
   const out = isObj(raw) ? raw : {};
@@ -87,6 +165,7 @@ export function migrate(raw: unknown): PersistedState {
   if (fasting !== "off" && fasting !== "12-12" && fasting !== "14-10" && fasting !== "16-8" && fasting !== "18-6") {
     settings.fasting = "off";
   }
+  if (settings.units !== "met" && settings.units !== "imp") settings.units = "met";
   const goals = { ...base.goals, ...(isObj(out.goals) ? out.goals : {}) } as Goals;
 
   const daysIn = isObj(out.days) ? out.days : {};
@@ -128,12 +207,16 @@ export function migrate(raw: unknown): PersistedState {
           .filter((w) => w && typeof w.date === "string" && typeof w.kg === "number")
           .sort((a, b) => (a.date < b.date ? -1 : 1))
       : [],
-    customFoods: Array.isArray(out.customFoods) ? (out.customFoods as Food[]) : [],
-    recipes: Array.isArray(out.recipes) ? (out.recipes as PersistedState["recipes"]) : [],
-    favorites: Array.isArray(out.favorites) ? (out.favorites as string[]) : [],
-    favRecipes: Array.isArray(out.favRecipes) ? (out.favRecipes as string[]) : [],
-    pantry: Array.isArray(out.pantry) ? (out.pantry as string[]) : [],
-    recents: Array.isArray(out.recents) ? (out.recents as string[]) : [],
+    customFoods: Array.isArray(out.customFoods)
+      ? out.customFoods.map(parseFood).filter((f): f is Food => f != null)
+      : [],
+    recipes: Array.isArray(out.recipes)
+      ? out.recipes.map(parseUserRecipe).filter((r): r is UserRecipe => r != null)
+      : [],
+    favorites: strIds(out.favorites),
+    favRecipes: strIds(out.favRecipes),
+    pantry: strIds(out.pantry),
+    recents: strIds(out.recents),
   };
 }
 
