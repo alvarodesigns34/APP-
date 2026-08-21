@@ -2,7 +2,8 @@ import foodsJson from "@/data/foods.json";
 import recipesJson from "@/data/recipes.json";
 import routinesJson from "@/data/routines.json";
 import type { Food, Macros, Recipe, RecipeSource, UserRecipe } from "./types";
-import { norm, round } from "./format";
+import { round } from "./format";
+import { buildFoodIndex, searchIndexed } from "./search";
 
 export const BASE_FOODS = foodsJson as Food[];
 
@@ -184,6 +185,8 @@ export function recipeAsFood(r: Recipe): Food {
 export const RECIPE_FOODS = BASE_RECIPES.map(recipeAsFood);
 for (const f of RECIPE_FOODS) FOOD_BY_ID[f.id] = f;
 
+const BUILTIN_INDEX = buildFoodIndex([...BASE_FOODS, ...RECIPE_FOODS]);
+
 export const RECIPE_CATS = [
   { id: "desayuno", n: "Desayunos" },
   { id: "principal", n: "Platos principales" },
@@ -223,7 +226,7 @@ export type CatalogContext = {
   recipes: UserRecipe[];
 };
 
-export function allFoods(ctx: CatalogContext): Food[] {
+function ctxFoods(ctx: CatalogContext): Food[] {
   const custom = ctx.customFoods.map((f) => ({ ...f, custom: true, cat: "propio" as const }));
   const userRecipes: Food[] = ctx.recipes.map((r) => ({
     id: r.id,
@@ -241,7 +244,11 @@ export function allFoods(ctx: CatalogContext): Food[] {
     units: [{ name: "ración", g: r.servingG }],
     base: "g" as const,
   }));
-  return [...BASE_FOODS, ...RECIPE_FOODS, ...custom, ...userRecipes];
+  return [...custom, ...userRecipes];
+}
+
+export function allFoods(ctx: CatalogContext): Food[] {
+  return [...BASE_FOODS, ...RECIPE_FOODS, ...ctxFoods(ctx)];
 }
 
 export function getFood(id: string, ctx: CatalogContext): Food | undefined {
@@ -276,23 +283,7 @@ export function defaultServing(food: Food): { grams: number; qty: number; unitNa
 }
 
 export function searchFoods(q: string, cat: string | null, ctx: CatalogContext, limit = 80): Food[] {
-  const all = allFoods(ctx);
-  const nq = norm(q).trim();
-  const scored: { f: Food; rank: number; idx: number }[] = [];
-  for (const f of all) {
-    if (cat && f.cat !== cat) continue;
-    const nn = norm(f.name);
-    if (!nq) {
-      scored.push({ f, rank: 2, idx: 0 });
-      continue;
-    }
-    const idx = nn.indexOf(nq);
-    if (idx < 0) continue;
-    const rank = idx === 0 ? 0 : nn.split(" ").some((w) => w.startsWith(nq)) ? 1 : 2;
-    scored.push({ f, rank, idx });
-  }
-  scored.sort((a, b) => a.rank - b.rank || a.idx - b.idx || a.f.name.length - b.f.name.length);
-  return scored.slice(0, limit).map((x) => x.f);
+  return searchIndexed(q, cat, BUILTIN_INDEX, ctxFoods(ctx), limit);
 }
 
 export function filterName(id: string): string {
