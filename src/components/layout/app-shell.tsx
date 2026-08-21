@@ -21,6 +21,31 @@ function applyTheme(pref: "auto" | "light" | "dark") {
   document.documentElement.classList.toggle("dark", dark);
 }
 
+function isTypingTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  if (el.isContentEditable) return true;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
+function UndoHotkey() {
+  const undoLast = useBrioStore((s) => s.undoLast);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+      if (e.key !== "z" && e.key !== "Z") return;
+      if (isTypingTarget(e.target)) return;
+      e.preventDefault();
+      undoLast();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undoLast]);
+
+  return null;
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const hydrate = useBrioStore((s) => s.hydrate);
   const hydrated = useBrioStore((s) => s.hydrated);
@@ -56,6 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     return (
       <div className="min-h-dvh bg-background text-foreground">
         <Onboarding />
+        <UndoHotkey />
         <Toaster position="top-center" richColors />
       </div>
     );
@@ -94,6 +120,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </ul>
         </nav>
       </div>
+      <UndoHotkey />
       <Toaster position="top-center" richColors />
     </div>
   );

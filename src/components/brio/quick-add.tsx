@@ -1,5 +1,4 @@
 import { Star } from "lucide-react";
-import { toast } from "sonner";
 import { Empty, SectionLabel } from "@/components/brio/section";
 import { getFood } from "@/lib/brio/catalog";
 import { nf } from "@/lib/brio/format";
@@ -14,7 +13,6 @@ export function QuickAddStrip({ date }: { date: string }) {
   const customFoods = useBrioStore((s) => s.customFoods);
   const recipes = useBrioStore((s) => s.recipes);
   const addMeal = useBrioStore((s) => s.addMeal);
-  const removeMeal = useBrioStore((s) => s.removeMeal);
   const snapshot = useBrioStore.getState();
 
   const ctx = { customFoods, recipes };
@@ -53,12 +51,7 @@ export function QuickAddStrip({ date }: { date: string }) {
               type="button"
               className="min-h-16 shrink-0 rounded-2xl bg-card px-3 py-2 text-left shadow-[0_1px_2px_rgba(28,27,22,0.04)]"
               onClick={() => {
-                const id = addMeal(date, slot, f.id, portion.grams, portion.qty, portion.unitName);
-                toast.success(`Añadido a ${mealName}`, {
-                  action: id
-                    ? { label: "Deshacer", onClick: () => removeMeal(date, slot, id) }
-                    : undefined,
-                });
+                addMeal(date, slot, f.id, portion.grams, portion.qty, portion.unitName);
               }}
             >
               <span className="flex items-center gap-1">
