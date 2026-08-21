@@ -1,7 +1,7 @@
 import { lazy, Suspense, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Card, Empty, Screen, SectionLabel, Title } from "@/components/brio/section";
-import { rangeKeys, sleepDuration, todayKey } from "@/lib/brio/dates";
+import { addDays, rangeKeys, sleepDuration, todayKey } from "@/lib/brio/dates";
 import { nf } from "@/lib/brio/format";
 import { buildMacroSeries } from "@/lib/brio/macro-series";
 import {
@@ -15,6 +15,7 @@ import {
 import { useBrioStore } from "@/lib/brio/store";
 import { cn } from "@/lib/utils";
 import { fmtWeight } from "@/lib/brio/units";
+import { compareWeeks, weekTotals, type WeekDelta, type WeekTotals } from "@/lib/brio/week-compare";
 import { buildWeightChart } from "@/lib/brio/weight-chart";
 
 const TrendsCharts = lazy(() => import("./trends-charts").then((m) => ({ default: m.TrendsCharts })));
@@ -87,6 +88,49 @@ function ChartSkeleton({ hasWeight }: { hasWeight: boolean }) {
   );
 }
 
+function signedDeltaLabel(d: WeekDelta, unit: string): string {
+  if (d.dir === "flat") return d.pct != null ? "0 %" : `0 ${unit}`;
+  const sign = d.dir === "up" ? "+" : "−";
+  if (d.pct != null) return `${sign}${Math.abs(d.pct)} %`;
+  return `${sign}${nf(Math.abs(d.abs))} ${unit}`;
+}
+
+function WeekCompareBlock({ curr, prev }: { curr: WeekTotals; prev: WeekTotals }) {
+  const d = compareWeeks(curr, prev);
+  const prevEmpty = prev.foodDays === 0 && prev.stepsAvg === 0 && prev.moveMin === 0;
+  const rows: { label: string; curr: number; prev: number; delta: WeekDelta; unit: string }[] = [
+    { label: "Calorías", curr: curr.kcalAvg, prev: prev.kcalAvg, delta: d.kcal, unit: "kcal" },
+    { label: "Proteína", curr: curr.protAvg, prev: prev.protAvg, delta: d.prot, unit: "g" },
+    { label: "Pasos", curr: curr.stepsAvg, prev: prev.stepsAvg, delta: d.steps, unit: "pasos" },
+    { label: "Ejercicio", curr: curr.moveMin, prev: prev.moveMin, delta: d.move, unit: "min" },
+  ];
+  return (
+    <div className="mt-4">
+      <p className="text-sm font-medium">Esta semana vs. la anterior</p>
+      {prevEmpty ? (
+        <p className="mt-2 text-sm text-muted-foreground">La semana anterior aún no tiene datos.</p>
+      ) : (
+        <ul className="mt-2 space-y-1.5">
+          {rows.map((r) => (
+            <li key={r.label} className="flex items-baseline justify-between gap-3 text-sm">
+              <span>{r.label}</span>
+              <span className="tabular-nums text-right">
+                {nf(r.curr)}
+                {" · "}
+                <span className="text-muted-foreground">{nf(r.prev)}</span>
+                {" · "}
+                <span className={r.delta.dir === "flat" ? "text-muted-foreground" : "text-foreground"}>
+                  {signedDeltaLabel(r.delta, r.unit)}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function TrendsScreen() {
   const snap = useBrioStore(
     useShallow((s) => ({
@@ -131,6 +175,7 @@ export function TrendsScreen() {
     });
   }, [snap]);
   const week = rangeKeys(todayKey(), 7);
+  const prevWeek = rangeKeys(addDays(todayKey(), -7), 7);
   const heat = rangeKeys(todayKey(), 84);
   const insights = useMemo(() => weeklyInsights(snap), [snap]);
   const wChart = useMemo(() => {
@@ -145,6 +190,11 @@ export function TrendsScreen() {
   const weekProt = week.reduce((a, k) => a + dayFoodTotals(snap, k).prot, 0);
   const logged = week.filter((k) => dayFoodTotals(snap, k).kcal > 0).length;
   const hasAny = logged > 0 || snap.weights.length > 0 || week.some((k) => (snap.days[k]?.steps || 0) > 0);
+  const foodOf = (k: string) => dayFoodTotals(snap, k);
+  const stepsOf = (k: string) => snap.days[k]?.steps || 0;
+  const moveOf = (k: string) => workoutMinTotal(snap, k);
+  const thisWeekTotals = weekTotals(snap.days, week, foodOf, stepsOf, moveOf);
+  const prevWeekTotals = weekTotals(snap.days, prevWeek, foodOf, stepsOf, moveOf);
 
   return (
     <Screen>
@@ -172,6 +222,7 @@ export function TrendsScreen() {
               <div className="text-[11px] text-muted-foreground">g prot media</div>
             </div>
           </div>
+          <WeekCompareBlock curr={thisWeekTotals} prev={prevWeekTotals} />
           <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
             {insights.map((i) => (
               <li key={i}>· {i}</li>
