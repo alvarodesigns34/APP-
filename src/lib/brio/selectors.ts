@@ -3,6 +3,7 @@ import { kcalFromSteps } from "./domain";
 import { emptyDay } from "./persist";
 import type { DayLog, FastingId, MealEntry, MealId, PersistedState } from "./types";
 import { FASTING_PRESETS, MEALS } from "./types";
+import { kcalForWeekday } from "./weekday-goals";
 
 export function dayOf(s: PersistedState, key: string): DayLog {
   return s.days[key] ?? emptyDay();
@@ -58,6 +59,9 @@ export function activityKcal(s: PersistedState, key: string): number {
 
 export function kcalGoalFor(s: PersistedState, key: string): number {
   let k = s.goals.kcal;
+  if (s.settings.weekdayPlan?.enabled) {
+    k = kcalForWeekday(k, s.settings.weekdayPlan.training, dateOf(key).getDay());
+  }
   if (s.settings.activityAdjust) k += activityKcal(s, key);
   return k;
 }

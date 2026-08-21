@@ -28,10 +28,12 @@ import {
   type ReminderSettings,
   type Sex,
   type ThemePref,
+  type WeekdayPlan,
 } from "@/lib/brio/types";
 import { useBrioStore } from "@/lib/brio/store";
 import { combinedCsv } from "@/lib/brio/export-csv";
 import { nf, parseNum } from "@/lib/brio/format";
+import { DEFAULT_WEEKDAY_PLAN, kcalForWeekday } from "@/lib/brio/weekday-goals";
 import {
   cmToDisplay,
   displayToCm,
@@ -109,9 +111,19 @@ export function SettingsScreen() {
 
   const liveMacros = macrosFromKcal(goals.kcal, settings.macroPct);
   const reminders = settings.reminders;
+  const weekdayPlan = settings.weekdayPlan ?? DEFAULT_WEEKDAY_PLAN;
 
   function patchReminders(patch: Partial<ReminderSettings>) {
     patchSettings({ reminders: { ...reminders, ...patch } });
+  }
+
+  function patchWeekdayPlan(patch: Partial<WeekdayPlan>) {
+    patchSettings({ weekdayPlan: { ...weekdayPlan, ...patch } });
+  }
+
+  function toggleTrainingDay(jsDay: number) {
+    const training = weekdayPlan.training.map((v, i) => (i === jsDay ? !v : v));
+    patchWeekdayPlan({ training });
   }
 
   async function onToggleReminders(v: boolean) {
@@ -370,6 +382,47 @@ export function SettingsScreen() {
           Sumar kcal de actividad al objetivo
           <Switch checked={settings.activityAdjust} onCheckedChange={(v) => patchSettings({ activityAdjust: v })} />
         </label>
+      </Card>
+
+      <SectionLabel>Objetivos por día</SectionLabel>
+      <Card className="space-y-3">
+        <label className="flex items-center justify-between gap-3 text-sm">
+          Distinguir días de entreno y de descanso
+          <Switch checked={weekdayPlan.enabled} onCheckedChange={(v) => patchWeekdayPlan({ enabled: v })} />
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ["L", 1],
+              ["M", 2],
+              ["X", 3],
+              ["J", 4],
+              ["V", 5],
+              ["S", 6],
+              ["D", 0],
+            ] as const
+          ).map(([label, day]) => (
+            <button
+              key={day}
+              type="button"
+              onClick={() => toggleTrainingDay(day)}
+              className={cn(
+                "h-10 min-w-10 rounded-xl px-2 text-xs font-medium",
+                weekdayPlan.training[day] ? "bg-primary text-primary-foreground" : "bg-muted",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Lunes {kcalForWeekday(goals.kcal, weekdayPlan.training, 1)} kcal · Domingo{" "}
+          {kcalForWeekday(goals.kcal, weekdayPlan.training, 0)} kcal
+        </p>
+        <p className="text-xs text-muted-foreground">
+          La media de la semana sigue siendo tu objetivo. Las kcal de actividad se siguen sumando si lo tienes
+          activado.
+        </p>
       </Card>
 
       <SectionLabel>Recordatorios</SectionLabel>

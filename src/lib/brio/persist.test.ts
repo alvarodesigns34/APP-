@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { migrate } from "./persist";
 import { DEFAULT_REMINDERS } from "./reminders";
+import { DEFAULT_WEEKDAY_PLAN } from "./weekday-goals";
 
 describe("migrate", () => {
   it("returns defaults for garbage input", () => {
@@ -100,5 +101,32 @@ describe("migrate", () => {
     });
     expect(s.settings.theme).toBe("light");
     expect(s.settings.reminders).toEqual(DEFAULT_REMINDERS);
+  });
+
+  it("fills weekdayPlan defaults when migrating an old save", () => {
+    const s = migrate({
+      onboarded: true,
+      settings: { theme: "dark" },
+    });
+    expect(s.settings.weekdayPlan).toEqual(DEFAULT_WEEKDAY_PLAN);
+    expect(s.settings.weekdayPlan.enabled).toBe(false);
+    expect(s.settings.weekdayPlan.training).toEqual([false, true, true, true, true, true, false]);
+  });
+
+  it("parses weekdayPlan from a save", () => {
+    const training = [true, false, false, false, false, false, true];
+    const s = migrate({
+      settings: { weekdayPlan: { enabled: true, training } },
+    });
+    expect(s.settings.weekdayPlan.enabled).toBe(true);
+    expect(s.settings.weekdayPlan.training).toEqual(training);
+  });
+
+  it("replaces garbage weekdayPlan with defaults", () => {
+    const s = migrate({
+      settings: { theme: "light", weekdayPlan: "nope" },
+    });
+    expect(s.settings.theme).toBe("light");
+    expect(s.settings.weekdayPlan).toEqual(DEFAULT_WEEKDAY_PLAN);
   });
 });
