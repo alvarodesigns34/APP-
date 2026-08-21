@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Sheet } from "@/components/ui/sheet";
 import { currentStreak, goalsMet } from "@/lib/brio/selectors";
 import { rangeKeys, todayKey } from "@/lib/brio/dates";
@@ -12,8 +14,24 @@ const MILESTONES = [
 ];
 
 export function StreakSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const s = useBrioStore();
-  const streak = currentStreak(s);
+  const snap = useBrioStore(
+    useShallow((s) => ({
+      days: s.days,
+      goals: s.goals,
+      profile: s.profile,
+      settings: s.settings,
+      weights: s.weights,
+      customFoods: s.customFoods,
+      recipes: s.recipes,
+      pantry: s.pantry,
+      favorites: s.favorites,
+      favRecipes: s.favRecipes,
+      recents: s.recents,
+      schema: s.schema,
+      onboarded: s.onboarded,
+    })),
+  );
+  const streak = useMemo(() => currentStreak(snap), [snap]);
   const last14 = rangeKeys(todayKey(), 14);
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Racha">
@@ -23,7 +41,7 @@ export function StreakSheet({ open, onOpenChange }: { open: boolean; onOpenChang
       </p>
       <div className="mb-6 grid grid-cols-7 gap-1">
         {last14.map((k) => {
-          const c = goalsMet(s, k).count;
+          const c = goalsMet(snap, k).count;
           return (
             <div
               key={k}

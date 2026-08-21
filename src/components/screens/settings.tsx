@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { toast } from "sonner";
 import { Card, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
   displayToCm,
   displayToKg,
   displayToMl,
+  fmtHeight,
   heightUnit,
   kgToDisplay,
   mlToDisplay,
@@ -24,16 +26,40 @@ import {
 import { cn } from "@/lib/utils";
 
 export function SettingsScreen() {
-  const s = useBrioStore();
+  const profile = useBrioStore((s) => s.profile);
+  const settings = useBrioStore((s) => s.settings);
+  const goals = useBrioStore((s) => s.goals);
+  const patchProfile = useBrioStore((s) => s.patchProfile);
+  const patchGoals = useBrioStore((s) => s.patchGoals);
+  const patchSettings = useBrioStore((s) => s.patchSettings);
+  const importAll = useBrioStore((s) => s.importAll);
+  const resetAll = useBrioStore((s) => s.resetAll);
+  const exportSlice = useBrioStore(
+    useShallow((s) => ({
+      schema: s.schema,
+      onboarded: s.onboarded,
+      profile: s.profile,
+      settings: s.settings,
+      goals: s.goals,
+      days: s.days,
+      weights: s.weights,
+      customFoods: s.customFoods,
+      recipes: s.recipes,
+      favorites: s.favorites,
+      favRecipes: s.favRecipes,
+      pantry: s.pantry,
+      recents: s.recents,
+    })),
+  );
   const fileRef = useRef<HTMLInputElement>(null);
-  const units = s.settings.units;
-  const b = bmi(s.profile.weight, s.profile.height);
+  const units = settings.units;
+  const b = bmi(profile.weight, profile.height);
   const cat = bmiCategory(b);
   const [wipeOpen, setWipeOpen] = useState(false);
 
   function recalc() {
-    const g = computeGoals(s.profile);
-    s.patchGoals({
+    const g = computeGoals(profile);
+    patchGoals({
       kcal: g.kcal,
       prot: g.prot,
       carb: g.carb,
@@ -51,18 +77,18 @@ export function SettingsScreen() {
       <SectionLabel>Perfil</SectionLabel>
       <Card className="space-y-3">
         <Field label="Nombre">
-          <Input value={s.profile.name} onChange={(e) => s.patchProfile({ name: e.target.value })} />
+          <Input value={profile.name} onChange={(e) => patchProfile({ name: e.target.value })} />
         </Field>
         <Field label="Fecha de nacimiento">
-          <Input type="date" value={s.profile.birth} onChange={(e) => s.patchProfile({ birth: e.target.value })} />
+          <Input type="date" value={profile.birth} onChange={(e) => patchProfile({ birth: e.target.value })} />
         </Field>
         <div className="grid grid-cols-3 gap-2">
           {([["h", "Hombre"], ["m", "Mujer"], ["nb", "Otro"]] as const).map(([id, n]) => (
             <button
               key={id}
               type="button"
-              onClick={() => s.patchProfile({ sex: id as Sex })}
-              className={cn("h-10 rounded-xl text-xs", s.profile.sex === id ? "bg-primary text-primary-foreground" : "bg-muted")}
+              onClick={() => patchProfile({ sex: id as Sex })}
+              className={cn("h-10 rounded-xl text-xs", profile.sex === id ? "bg-primary text-primary-foreground" : "bg-muted")}
             >
               {n}
             </button>
@@ -72,27 +98,30 @@ export function SettingsScreen() {
           <Field label={`Altura ${heightUnit(units)}`}>
             <Input
               inputMode="decimal"
-              value={cmToDisplay(s.profile.height, units)}
+              value={cmToDisplay(profile.height, units)}
               onChange={(e) => {
                 const n = parseNum(e.target.value);
                 if (!n) return;
-                s.patchProfile({ height: displayToCm(n, units) });
+                patchProfile({ height: displayToCm(n, units) });
               }}
             />
           </Field>
           <Field label={`Peso ${weightUnit(units)}`}>
             <Input
               inputMode="decimal"
-              value={kgToDisplay(s.profile.weight, units)}
+              value={kgToDisplay(profile.weight, units)}
               onChange={(e) => {
                 const n = parseNum(e.target.value);
                 if (!n) return;
-                s.patchProfile({ weight: displayToKg(n, units) });
+                patchProfile({ weight: displayToKg(n, units) });
               }}
             />
           </Field>
         </div>
-        <p className="text-xs text-muted-foreground">IMC {nf(b, 1)} · {cat.n}</p>
+        <p className="text-xs text-muted-foreground">
+          IMC {nf(b, 1)} · {cat.n}
+          {units === "imp" ? ` · ${fmtHeight(profile.height, "imp")}` : ""}
+        </p>
       </Card>
 
       <SectionLabel>Actividad y propósito</SectionLabel>
@@ -101,8 +130,8 @@ export function SettingsScreen() {
           <button
             key={a.id}
             type="button"
-            onClick={() => s.patchProfile({ activity: a.id as ActivityId })}
-            className={cn("w-full rounded-2xl px-3 py-2 text-left text-sm", s.profile.activity === a.id ? "bg-primary/10 text-primary" : "bg-muted/40")}
+            onClick={() => patchProfile({ activity: a.id as ActivityId })}
+            className={cn("w-full rounded-2xl px-3 py-2 text-left text-sm", profile.activity === a.id ? "bg-primary/10 text-primary" : "bg-muted/40")}
           >
             {a.n}
           </button>
@@ -112,8 +141,8 @@ export function SettingsScreen() {
             <button
               key={p.id}
               type="button"
-              onClick={() => s.patchProfile({ purpose: p.id as PurposeId })}
-              className={cn("h-10 rounded-xl text-xs", s.profile.purpose === p.id ? "bg-primary text-primary-foreground" : "bg-muted")}
+              onClick={() => patchProfile({ purpose: p.id as PurposeId })}
+              className={cn("h-10 rounded-xl text-xs", profile.purpose === p.id ? "bg-primary text-primary-foreground" : "bg-muted")}
             >
               {p.n}
             </button>
@@ -125,10 +154,10 @@ export function SettingsScreen() {
       <Card className="space-y-2">
         {(
           [
-            ["kcal", "kcal", s.goals.kcal],
-            ["prot", "Proteína g", s.goals.prot],
-            ["steps", "Pasos", s.goals.steps],
-            ["water", `Agua ${volumeUnit(units)}`, s.goals.water],
+            ["kcal", "kcal", goals.kcal],
+            ["prot", "Proteína g", goals.prot],
+            ["steps", "Pasos", goals.steps],
+            ["water", `Agua ${volumeUnit(units)}`, goals.water],
           ] as const
         ).map(([k, n, v]) => (
           <Field key={k} label={n}>
@@ -137,7 +166,7 @@ export function SettingsScreen() {
               value={k === "water" ? mlToDisplay(v, units) : v}
               onChange={(e) => {
                 const n = parseNum(e.target.value) || 0;
-                s.patchGoals({ [k]: k === "water" ? displayToMl(n, units) : n });
+                patchGoals({ [k]: k === "water" ? displayToMl(n, units) : n });
               }}
             />
           </Field>
@@ -155,15 +184,15 @@ export function SettingsScreen() {
             <Button
               key={p.id}
               size="sm"
-              variant={s.settings.fasting === p.id ? "default" : "secondary"}
-              onClick={() => s.patchSettings({ fasting: p.id as FastingId })}
+              variant={settings.fasting === p.id ? "default" : "secondary"}
+              onClick={() => patchSettings({ fasting: p.id as FastingId })}
             >
               {p.n}
             </Button>
           ))}
         </div>
         <p className="text-xs text-muted-foreground">
-          {FASTING_PRESETS.find((p) => p.id === s.settings.fasting)?.hint}
+          {FASTING_PRESETS.find((p) => p.id === settings.fasting)?.hint}
         </p>
       </Card>
 
@@ -175,7 +204,7 @@ export function SettingsScreen() {
               key={u}
               variant={units === u ? "default" : "secondary"}
               size="sm"
-              onClick={() => s.patchSettings({ units: u })}
+              onClick={() => patchSettings({ units: u })}
             >
               {u === "met" ? "Métrico" : "Imperial"}
             </Button>
@@ -184,17 +213,17 @@ export function SettingsScreen() {
         <Field label={`Tamaño del vaso (${volumeUnit(units)})`}>
           <Input
             inputMode="decimal"
-            value={mlToDisplay(s.settings.glass, units)}
+            value={mlToDisplay(settings.glass, units)}
             onChange={(e) => {
               const n = parseNum(e.target.value);
               if (!n) return;
-              s.patchSettings({ glass: displayToMl(n, units) });
+              patchSettings({ glass: displayToMl(n, units) });
             }}
           />
         </Field>
         <label className="flex items-center justify-between gap-3 text-sm">
           Tengo básicos de despensa
-          <Switch checked={s.settings.pantryBasics} onCheckedChange={(v) => s.patchSettings({ pantryBasics: v })} />
+          <Switch checked={settings.pantryBasics} onCheckedChange={(v) => patchSettings({ pantryBasics: v })} />
         </label>
       </Card>
 
@@ -202,14 +231,14 @@ export function SettingsScreen() {
       <Card>
         <div className="flex gap-2">
           {(["auto", "light", "dark"] as ThemePref[]).map((t) => (
-            <Button key={t} variant={s.settings.theme === t ? "default" : "secondary"} size="sm" onClick={() => s.patchSettings({ theme: t })}>
+            <Button key={t} variant={settings.theme === t ? "default" : "secondary"} size="sm" onClick={() => patchSettings({ theme: t })}>
               {t === "auto" ? "Auto" : t === "light" ? "Claro" : "Oscuro"}
             </Button>
           ))}
         </div>
         <label className="mt-4 flex items-center justify-between gap-3 text-sm">
           Sumar kcal de actividad al objetivo
-          <Switch checked={s.settings.activityAdjust} onCheckedChange={(v) => s.patchSettings({ activityAdjust: v })} />
+          <Switch checked={settings.activityAdjust} onCheckedChange={(v) => patchSettings({ activityAdjust: v })} />
         </label>
       </Card>
 
@@ -219,30 +248,7 @@ export function SettingsScreen() {
           variant="secondary"
           className="w-full"
           onClick={() => {
-            const blob = new Blob(
-              [
-                JSON.stringify(
-                  {
-                    schema: 4,
-                    onboarded: s.onboarded,
-                    profile: s.profile,
-                    settings: s.settings,
-                    goals: s.goals,
-                    days: s.days,
-                    weights: s.weights,
-                    customFoods: s.customFoods,
-                    recipes: s.recipes,
-                    favorites: s.favorites,
-                    favRecipes: s.favRecipes,
-                    pantry: s.pantry,
-                    recents: s.recents,
-                  },
-                  null,
-                  2,
-                ),
-              ],
-              { type: "application/json" },
-            );
+            const blob = new Blob([JSON.stringify(exportSlice, null, 2)], { type: "application/json" });
             const a = document.createElement("a");
             a.href = URL.createObjectURL(blob);
             a.download = `brio-${new Date().toISOString().slice(0, 10)}.json`;
@@ -264,7 +270,7 @@ export function SettingsScreen() {
             if (!file) return;
             file.text().then((t) => {
               try {
-                s.importAll(JSON.parse(t));
+                importAll(JSON.parse(t));
                 toast.success("Datos importados");
               } catch {
                 toast.error("Archivo no válido");
@@ -287,7 +293,7 @@ export function SettingsScreen() {
         confirmLabel="Borrar"
         destructive
         onConfirm={() => {
-          s.resetAll();
+          resetAll();
           toast.success("Datos borrados");
         }}
       />

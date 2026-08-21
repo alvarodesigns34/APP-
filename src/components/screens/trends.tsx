@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, Empty, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { rangeKeys, sleepDuration, todayKey } from "@/lib/brio/dates";
@@ -13,32 +15,51 @@ function shortDate(key: string) {
 }
 
 export function TrendsScreen() {
-  const s = useBrioStore();
-  const keys = rangeKeys(todayKey(), 14);
+  const snap = useBrioStore(
+    useShallow((s) => ({
+      days: s.days,
+      goals: s.goals,
+      profile: s.profile,
+      settings: s.settings,
+      weights: s.weights,
+      customFoods: s.customFoods,
+      recipes: s.recipes,
+      pantry: s.pantry,
+      favorites: s.favorites,
+      favRecipes: s.favRecipes,
+      recents: s.recents,
+      schema: s.schema,
+      onboarded: s.onboarded,
+    })),
+  );
+  const setViewDate = useBrioStore((s) => s.setViewDate);
+  const data = useMemo(() => {
+    const keys = rangeKeys(todayKey(), 14);
+    return keys.map((k) => {
+      const t = dayFoodTotals(snap, k);
+      const sl = snap.days[k]?.sleep;
+      return {
+        d: shortDate(k),
+        kcal: Math.round(t.kcal),
+        prot: Math.round(t.prot),
+        water: waterTotal(snap, k),
+        move: workoutMinTotal(snap, k),
+        steps: snap.days[k]?.steps || 0,
+        sleep: sl ? Math.round((sleepDuration(sl.bed, sl.wake) / 60) * 10) / 10 : 0,
+      };
+    });
+  }, [snap]);
   const week = rangeKeys(todayKey(), 7);
-  const data = keys.map((k) => {
-    const t = dayFoodTotals(s, k);
-    const sl = s.days[k]?.sleep;
-    return {
-      d: shortDate(k),
-      kcal: Math.round(t.kcal),
-      prot: Math.round(t.prot),
-      water: waterTotal(s, k),
-      move: workoutMinTotal(s, k),
-      steps: s.days[k]?.steps || 0,
-      sleep: sl ? Math.round((sleepDuration(sl.bed, sl.wake) / 60) * 10) / 10 : 0,
-    };
-  });
   const heat = rangeKeys(todayKey(), 84);
-  const insights = weeklyInsights(s);
-  const wData = s.weights.slice(-30).map((w) => ({ d: shortDate(w.date), kg: w.kg }));
-  const trend = weightTrend(s);
-  const units = s.settings.units;
+  const insights = useMemo(() => weeklyInsights(snap), [snap]);
+  const wData = snap.weights.slice(-30).map((w) => ({ d: shortDate(w.date), kg: w.kg }));
+  const trend = useMemo(() => weightTrend(snap), [snap]);
+  const units = snap.settings.units;
 
-  const weekKcal = week.reduce((a, k) => a + dayFoodTotals(s, k).kcal, 0);
-  const weekProt = week.reduce((a, k) => a + dayFoodTotals(s, k).prot, 0);
-  const logged = week.filter((k) => dayFoodTotals(s, k).kcal > 0).length;
-  const hasAny = logged > 0 || s.weights.length > 0 || week.some((k) => (s.days[k]?.steps || 0) > 0);
+  const weekKcal = week.reduce((a, k) => a + dayFoodTotals(snap, k).kcal, 0);
+  const weekProt = week.reduce((a, k) => a + dayFoodTotals(snap, k).prot, 0);
+  const logged = week.filter((k) => dayFoodTotals(snap, k).kcal > 0).length;
+  const hasAny = logged > 0 || snap.weights.length > 0 || week.some((k) => (snap.days[k]?.steps || 0) > 0);
 
   return (
     <Screen>
@@ -108,7 +129,7 @@ export function TrendsScreen() {
       <Card className="mb-3">
         <div className="grid grid-cols-7 gap-1">
           {heat.map((k) => {
-            const c = goalsMet(s, k).count;
+            const c = goalsMet(snap, k).count;
             return (
               <button
                 key={k}
@@ -119,7 +140,7 @@ export function TrendsScreen() {
                   "aspect-square rounded-sm",
                   c >= 4 ? "bg-primary" : c >= 3 ? "bg-primary/70" : c > 0 ? "bg-primary/30" : "bg-muted",
                 )}
-                onClick={() => s.setViewDate(k)}
+                onClick={() => setViewDate(k)}
               />
             );
           })}
