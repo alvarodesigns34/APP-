@@ -9,6 +9,7 @@ import type {
   PersistedState,
   SleepEntry,
   UserRecipe,
+  WeightEntry,
   WorkoutEntry,
 } from "./types";
 import { MEALS, NOTE_MAX } from "./types";
@@ -18,6 +19,7 @@ import { getFood, scaleMacros } from "./catalog";
 import { addDays } from "./dates";
 import { kcalFromWorkout } from "./domain";
 import { latestWeight } from "./selectors";
+import { applyUndo, clearUndo, isApplyingUndo, popUndo, pushUndo } from "./undo";
 
 type Ctx = { customFoods: Food[]; recipes: UserRecipe[] };
 
@@ -46,7 +48,7 @@ export type BrioStore = PersistedState & {
   undoWater: (key: string) => void;
   removeWater: (key: string, id: string) => void;
   setSteps: (key: string, steps: number) => void;
-  addWorkout: (key: string, type: string, min: number, intensity: IntensityId) => void;
+  addWorkout: (key: string, type: string, min: number, intensity: IntensityId) => string;
   removeWorkout: (key: string, id: string) => WorkoutEntry | null;
   restoreWorkout: (key: string, entry: WorkoutEntry) => void;
   setSleep: (key: string, sleep: SleepEntry | null) => void;
@@ -60,6 +62,7 @@ export type BrioStore = PersistedState & {
   addUserRecipe: (recipe: UserRecipe) => void;
   importAll: (raw: unknown) => void;
   resetAll: () => void;
+  undoLast: () => void;
 };
 
 function ctxOf(s: PersistedState): Ctx {
@@ -91,6 +94,22 @@ function slicePersisted(s: BrioStore): PersistedState {
     pantry: s.pantry,
     recents: s.recents,
   };
+}
+
+function weightExtra(w: WeightEntry): { fat?: number; muscle?: number } | undefined {
+  if (w.fat == null && w.muscle == null) return undefined;
+  return { fat: w.fat, muscle: w.muscle };
+}
+
+function recordUndo(label: string, apply: () => void) {
+  if (isApplyingUndo()) return;
+  pushUndo({ label, apply });
+  toast(label, {
+    action: {
+      label: "Deshacer",
+      onClick: () => useBrioStore.getState().undoLast(),
+    },
+  });
 }
 
 export const useBrioStore = create<BrioStore>((set, get) => ({
@@ -162,6 +181,9 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     const recents = [foodId, ...s.recents.filter((x) => x !== foodId)].slice(0, 25);
     set({ days: withDay(s, key, (d) => d.meals[meal].push(entry)), recents });
     get().persist();
+    recordUndo("Comida añadida", () => {
+      get().removeMeal(key, meal, id);
+    });
     return id;
   },
 
@@ -213,6 +235,12 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       }),
     });
     get().persist();
+    if (removed) {
+      const entry = removed;
+      recordUndo("Comida quitada", () => {
+        get().restoreMeal(key, meal, entry);
+      });
+    }
     return removed;
   },
 
@@ -301,6 +329,9 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       days: withDay(s, key, (d) => d.water.push({ id, t: Date.now(), ml })),
     });
     get().persist();
+    recordUndo("Agua añadida", () => {
+      get().removeWater(key, id);
+    });
     return id;
   },
   undoWater: (key) => {
@@ -326,12 +357,17 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     const s = get();
     const kg = latestWeight(s, key)?.kg ?? s.profile.weight;
     const kcal = kcalFromWorkout(type, min, intensity, kg);
+    const id = uid("k");
     set({
       days: withDay(s, key, (d) =>
-        d.workouts.push({ id: uid("k"), type, min: Math.round(min), intensity, kcal }),
+        d.workouts.push({ id, type, min: Math.round(min), intensity, kcal }),
       ),
     });
     get().persist();
+    recordUndo("Entrenamiento añadido", () => {
+      get().removeWorkout(key, id);
+    });
+    return id;
   },
   removeWorkout: (key, id) => {
     const s = get();
@@ -343,6 +379,12 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       }),
     });
     get().persist();
+    if (removed) {
+      const entry = removed;
+      recordUndo("Entrenamiento quitado", () => {
+        get().restoreWorkout(key, entry);
+      });
+    }
     return removed;
   },
   restoreWorkout: (key, entry) => {
@@ -365,16 +407,34 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     get().persist();
   },
   upsertWeight: (date, kg, extra) => {
+    const prev = get().weights.find((w) => w.date === date);
+    const snapshot = prev ? { ...prev } : null;
     set((s) => {
       const rest = s.weights.filter((w) => w.date !== date);
       const next = [...rest, { date, kg: round(kg, 1), ...extra }].sort((a, b) => (a.date < b.date ? -1 : 1));
       return { weights: next };
     });
     get().persist();
+    if (snapshot) {
+      recordUndo("Peso guardado", () => {
+        get().upsertWeight(snapshot.date, snapshot.kg, weightExtra(snapshot));
+      });
+    } else {
+      recordUndo("Peso guardado", () => {
+        get().deleteWeight(date);
+      });
+    }
   },
   deleteWeight: (date) => {
+    const prev = get().weights.find((w) => w.date === date);
+    const snapshot = prev ? { ...prev } : null;
     set((s) => ({ weights: s.weights.filter((w) => w.date !== date) }));
     get().persist();
+    if (snapshot) {
+      recordUndo("Peso borrado", () => {
+        get().upsertWeight(snapshot.date, snapshot.kg, weightExtra(snapshot));
+      });
+    }
   },
   toggleFavorite: (id) => {
     set((s) => ({
@@ -410,12 +470,20 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     get().persist();
   },
   importAll: (raw) => {
+    clearUndo();
     set({ ...migrate(raw), hydrated: true });
     get().persist();
   },
   resetAll: () => {
+    clearUndo();
     set({ ...defaultState(), hydrated: true, viewDate: get().viewDate });
     get().persist();
+  },
+  undoLast: () => {
+    const entry = popUndo();
+    if (!entry) return;
+    applyUndo(entry);
+    toast.success("Deshecho");
   },
 }));
 

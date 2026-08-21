@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { toast } from "sonner";
 import { DateNav } from "@/components/brio/date-nav";
 import { Card, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { Bar } from "@/components/brio/rings";
@@ -35,7 +34,6 @@ export function ActivityScreen() {
   );
   const viewDate = useBrioStore((s) => s.viewDate);
   const removeWorkout = useBrioStore((s) => s.removeWorkout);
-  const restoreWorkout = useBrioStore((s) => s.restoreWorkout);
   const key = viewDate || todayKey();
   const d = snap.days[key];
   const units = snap.settings.units;
@@ -87,12 +85,7 @@ export function ActivityScreen() {
                   aria-label="Quitar entrenamiento"
                   className="min-h-11 px-2 text-xs text-muted-foreground"
                   onClick={() => {
-                    const removed = removeWorkout(key, w.id);
-                    toast("Eliminado", {
-                      action: removed
-                        ? { label: "Deshacer", onClick: () => restoreWorkout(key, removed) }
-                        : undefined,
-                    });
+                    removeWorkout(key, w.id);
                   }}
                 >
                   Quitar

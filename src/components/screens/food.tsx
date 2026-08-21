@@ -19,7 +19,6 @@ export function FoodScreen() {
   const copyDayMeals = useBrioStore((s) => s.copyDayMeals);
   const copyMeal = useBrioStore((s) => s.copyMeal);
   const removeMeal = useBrioStore((s) => s.removeMeal);
-  const restoreMeal = useBrioStore((s) => s.restoreMeal);
   const duplicateMeal = useBrioStore((s) => s.duplicateMeal);
   const moveMeal = useBrioStore((s) => s.moveMeal);
   const key = viewDate || todayKey();
@@ -183,12 +182,7 @@ export function FoodScreen() {
                           type="button"
                           className="min-h-11 rounded-full bg-muted px-3 text-xs text-muted-foreground"
                           onClick={() => {
-                            const removed = removeMeal(key, m.id, e.id);
-                            toast("Eliminado", {
-                              action: removed
-                                ? { label: "Deshacer", onClick: () => restoreMeal(key, m.id, removed) }
-                                : undefined,
-                            });
+                            removeMeal(key, m.id, e.id);
                           }}
                         >
                           Quitar
