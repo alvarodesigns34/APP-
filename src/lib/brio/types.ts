@@ -132,6 +132,12 @@ export type ReminderSettings = {
   peso: string;
 };
 
+export type WeekdayPlan = {
+  enabled: boolean;
+  /** index 0 = Sunday … 6 = Saturday, matching Date.getDay() */
+  training: boolean[];
+};
+
 export type Settings = {
   theme: ThemePref;
   units: "met" | "imp";
@@ -142,6 +148,7 @@ export type Settings = {
   macroPreset: MacroPresetId;
   macroPct: MacroPct;
   reminders: ReminderSettings;
+  weekdayPlan: WeekdayPlan;
 };
 
 export type Goals = {

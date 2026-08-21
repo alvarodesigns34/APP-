@@ -1,5 +1,6 @@
 import { DEFAULT_MACRO_PCT, clampMacroPct, isMacroPresetId, pctForPreset } from "./domain";
 import { DEFAULT_REMINDERS, parseReminders } from "./reminders";
+import { DEFAULT_WEEKDAY_PLAN, parseWeekdayPlan } from "./weekday-goals";
 import {
   LEGACY_STORE_KEYS,
   MEALS,
@@ -52,6 +53,7 @@ export function defaultState(): PersistedState {
       macroPreset: "equilibrado",
       macroPct: { ...DEFAULT_MACRO_PCT },
       reminders: { ...DEFAULT_REMINDERS },
+      weekdayPlan: { ...DEFAULT_WEEKDAY_PLAN, training: [...DEFAULT_WEEKDAY_PLAN.training] },
     },
     goals: {
       kcal: 2200,
@@ -192,6 +194,7 @@ export function migrate(raw: unknown): PersistedState {
   }
   const rawSettings = isObj(out.settings) ? out.settings : null;
   settings.reminders = parseReminders(rawSettings ? rawSettings.reminders : undefined);
+  settings.weekdayPlan = parseWeekdayPlan(rawSettings ? rawSettings.weekdayPlan : undefined);
   const goals = { ...base.goals, ...(isObj(out.goals) ? out.goals : {}) } as Goals;
 
   const daysIn = isObj(out.days) ? out.days : {};
