@@ -48,6 +48,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => mq.removeEventListener("change", onChange);
   }, [hydrated, theme]);
 
+  if (!hydrated) {
+    return <div className="min-h-dvh bg-background" aria-busy="true" />;
+  }
+
   if (!onboarded) {
     return (
       <div className="min-h-dvh bg-background text-foreground">
@@ -79,6 +83,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       "flex flex-col items-center gap-1 py-2 text-[11px] font-medium",
                       active ? "text-primary" : "text-muted-foreground",
                     )}
+                    aria-current={active ? "page" : undefined}
                   >
                     <Icon className="size-5" strokeWidth={active ? 2.2 : 1.8} />
                     {t.n}

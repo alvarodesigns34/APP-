@@ -1,0 +1,110 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
+
+  --color-background: var(--brio-bg);
+  --color-foreground: var(--brio-fg);
+  --color-card: var(--brio-card);
+  --color-card-foreground: var(--brio-fg);
+  --color-muted: var(--brio-muted);
+  --color-muted-foreground: var(--brio-muted-fg);
+  --color-border: var(--brio-border);
+  --color-primary: var(--brio-primary);
+  --color-primary-foreground: var(--brio-primary-fg);
+  --color-secondary: var(--brio-muted);
+  --color-secondary-foreground: var(--brio-fg);
+  --color-accent: var(--brio-primary);
+  --color-accent-foreground: var(--brio-primary-fg);
+  --color-ring: var(--brio-primary);
+  --color-destructive: var(--brio-bad);
+  --color-input: var(--brio-border);
+
+  --color-kcal: var(--brio-kcal);
+  --color-steps: var(--brio-steps);
+  --color-move: var(--brio-move);
+  --color-water: var(--brio-water);
+  --color-sleep: var(--brio-sleep);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 28px;
+  --radius-3xl: 32px;
+  --radius: 12px;
+}
+
+:root {
+  --brio-bg: #f4f1ea;
+  --brio-fg: #1c1b16;
+  --brio-card: #fffdf8;
+  --brio-muted: #e8e3d8;
+  --brio-muted-fg: #6b675c;
+  --brio-border: color-mix(in oklab, var(--brio-fg) 12%, transparent);
+  --brio-primary: #2f6f4e;
+  --brio-primary-fg: #f4f1ea;
+  --brio-kcal: #2f6f4e;
+  --brio-steps: #3d6b8c;
+  --brio-move: #b4563a;
+  --brio-water: #3d6b8c;
+  --brio-sleep: #5b5278;
+  --brio-bad: #a33b32;
+  --brio-ok: #2f6f4e;
+  --brio-warn: #9a6b2f;
+}
+
+.dark {
+  --brio-bg: #141612;
+  --brio-fg: #f2efe6;
+  --brio-card: #1c1f1a;
+  --brio-muted: #262922;
+  --brio-muted-fg: #a8a396;
+  --brio-border: color-mix(in oklab, var(--brio-fg) 14%, transparent);
+  --brio-primary: #7cb992;
+  --brio-primary-fg: #141612;
+  --brio-kcal: #7cb992;
+  --brio-steps: #8bb4cc;
+  --brio-move: #d48972;
+  --brio-water: #8bb4cc;
+  --brio-sleep: #b7aed4;
+  --brio-bad: #e07a72;
+  --brio-ok: #7cb992;
+  --brio-warn: #d4a56a;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    background: var(--brio-bg);
+    color: var(--brio-fg);
+    font-family: var(--font-sans);
+  }
+  h1, h2, h3 {
+    text-wrap: balance;
+    font-family: var(--font-display);
+    letter-spacing: -0.03em;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

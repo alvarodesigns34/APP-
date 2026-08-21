@@ -10,7 +10,12 @@ export function DateNav({ subtitle }: { subtitle?: string }) {
   const isToday = viewDate === todayKey();
   return (
     <div className="mb-4 flex items-center justify-between gap-2">
-      <Button variant="ghost" size="icon" aria-label="Día anterior" onClick={() => s.setViewDate(addDays(viewDate, -1))}>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Día anterior"
+        onClick={() => s.setViewDate(addDays(viewDate, -1))}
+      >
         <ChevronLeft className="size-5" />
       </Button>
       <div className="text-center">
@@ -23,7 +28,9 @@ export function DateNav({ subtitle }: { subtitle?: string }) {
         aria-label="Día siguiente"
         title={isToday ? "Ya estás en hoy" : "Día siguiente"}
         disabled={isToday}
-        className={cn(isToday && "bg-muted text-muted-foreground disabled:opacity-30")}
+        className={cn(
+          isToday && "bg-muted text-muted-foreground disabled:opacity-30",
+        )}
         onClick={() => !isToday && s.setViewDate(addDays(viewDate, 1))}
       >
         <ChevronRight className="size-5" />

@@ -1,3 +1,5 @@
+import type { MealId } from "./types";
+
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
@@ -81,6 +83,18 @@ export function clockToMinutes(hhmm: string): number {
 
 export function sleepDuration(bed: number, wake: number): number {
   let d = wake - bed;
-  if (d <= 0) d += 1440;
+  if (d < 0) d += 1440;
   return d;
+}
+
+export function nowMinutes(): number {
+  const n = new Date();
+  return n.getHours() * 60 + n.getMinutes();
+}
+
+export function mealForHour(h = new Date().getHours()): MealId {
+  if (h < 11) return "desayuno";
+  if (h < 16) return "comida";
+  if (h < 21) return "cena";
+  return "snack";
 }

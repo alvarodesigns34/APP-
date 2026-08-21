@@ -1,0 +1,130 @@
+import { useState } from "react";
+import { toast } from "sonner";
+import { DateNav } from "@/components/brio/date-nav";
+import { Card, Screen, SectionLabel, Title } from "@/components/brio/section";
+import { Bar } from "@/components/brio/rings";
+import { Button } from "@/components/ui/button";
+import { SleepSheet, StepsSheet, WaterSheet, WeightSheet, WorkoutSheet } from "@/components/brio/log-sheets";
+import { RoutinesSheet } from "@/components/brio/routines";
+import { WorkoutHistorySheet, WorkoutWeekCard } from "@/components/brio/workout-history";
+import { todayKey, minutesToHM, sleepDuration, fmtDateRelative } from "@/lib/brio/dates";
+import { nf } from "@/lib/brio/format";
+import { bmi, bmiCategory, distanceFromSteps, activityOf } from "@/lib/brio/domain";
+import { currentWeightKg, waterTotal, workoutMinTotal } from "@/lib/brio/selectors";
+import { useBrioStore } from "@/lib/brio/store";
+import { fmtVolume, fmtWeight } from "@/lib/brio/units";
+
+export function ActivityScreen() {
+  const s = useBrioStore();
+  const key = s.viewDate || todayKey();
+  const d = s.days[key];
+  const units = s.settings.units;
+  const [steps, setSteps] = useState(false);
+  const [wo, setWo] = useState(false);
+  const [water, setWater] = useState(false);
+  const [sleep, setSleep] = useState(false);
+  const [wg, setWg] = useState(false);
+  const [routines, setRoutines] = useState(false);
+  const [hist, setHist] = useState(false);
+  const kg = currentWeightKg(s);
+  const km = distanceFromSteps(d?.steps || 0, s.profile.sex, s.profile.height);
+  const b = bmi(kg, s.profile.height);
+  const cat = bmiCategory(b);
+  const wt = waterTotal(s, key);
+  const glassesEst = s.settings.glass ? Math.round(wt / s.settings.glass) : 0;
+  const dayLabel = fmtDateRelative(key).toLowerCase();
+
+  return (
+    <Screen>
+      <Title sub="Movimiento, agua, sueño y peso">Actividad</Title>
+      <DateNav />
+
+      <Card className="mb-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="font-medium">Pasos</span>
+          <Button size="sm" variant="ghost" onClick={() => setSteps(true)}>Editar</Button>
+        </div>
+        <div className="font-display text-3xl tabular-nums">{nf(d?.steps || 0)}</div>
+        <p className="mb-2 text-xs text-muted-foreground">{nf(km, 2)} km · objetivo {nf(s.goals.steps)}</p>
+        <Bar pct={s.goals.steps ? ((d?.steps || 0) / s.goals.steps) * 100 : 0} color="var(--brio-steps)" />
+      </Card>
+
+      <SectionLabel>Entrenamiento</SectionLabel>
+      <Card className="mb-3">
+        {(d?.workouts.length ?? 0) === 0 ? (
+          <p className="text-sm text-muted-foreground">Aún no hay sesiones {dayLabel}.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {d!.workouts.map((w) => (
+              <li key={w.id} className="flex items-center justify-between py-2 text-sm">
+                <span>
+                  {activityOf(w.type).n}
+                  <span className="block text-xs text-muted-foreground">{w.min} min · {nf(w.kcal)} kcal</span>
+                </span>
+                <button
+                  type="button"
+                  aria-label="Quitar entrenamiento"
+                  className="min-h-11 px-2 text-xs text-muted-foreground"
+                  onClick={() => {
+                    const removed = s.removeWorkout(key, w.id);
+                    toast("Eliminado", {
+                      action: removed
+                        ? { label: "Deshacer", onClick: () => s.restoreWorkout(key, removed) }
+                        : undefined,
+                    });
+                  }}
+                >
+                  Quitar
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-2 text-xs text-muted-foreground">{workoutMinTotal(s, key)} min {dayLabel}</p>
+        <div className="mt-3 flex gap-2">
+          <Button className="flex-1" variant="secondary" onClick={() => setWo(true)}>Registrar</Button>
+          <Button className="flex-1" variant="outline" onClick={() => setRoutines(true)}>Rutinas</Button>
+        </div>
+      </Card>
+
+      <WorkoutWeekCard onOpen={() => setHist(true)} />
+
+      <Card className="mb-3" onClick={() => setWater(true)}>
+        <div className="mb-2 font-medium">Agua</div>
+        <div className="font-display text-2xl tabular-nums">{fmtVolume(wt, units)}</div>
+        <p className="mb-2 text-xs text-muted-foreground">
+          {glassesEst} {glassesEst === 1 ? "vaso" : "vasos"} de {fmtVolume(s.settings.glass, units)}
+        </p>
+        <Bar pct={s.goals.water ? (wt / s.goals.water) * 100 : 0} color="var(--brio-water)" />
+      </Card>
+
+      <Card className="mb-3" onClick={() => setSleep(true)}>
+        <div className="mb-1 font-medium">Sueño</div>
+        {d?.sleep ? (
+          <p className="text-sm">
+            {minutesToHM(sleepDuration(d.sleep.bed, d.sleep.wake))}
+            <span className="block text-xs text-muted-foreground">objetivo {minutesToHM(s.goals.sleep)}</span>
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">Toca para registrar la noche.</p>
+        )}
+      </Card>
+
+      <Card onClick={() => setWg(true)}>
+        <div className="mb-1 font-medium">Peso</div>
+        <div className="font-display text-2xl tabular-nums">{fmtWeight(kg, units)}</div>
+        <p className="text-xs text-muted-foreground">
+          IMC {nf(b, 1)} · {cat.n} · meta {fmtWeight(s.goals.weight, units)}
+        </p>
+      </Card>
+
+      <StepsSheet open={steps} onOpenChange={setSteps} date={key} />
+      <WorkoutSheet open={wo} onOpenChange={setWo} date={key} />
+      <WaterSheet open={water} onOpenChange={setWater} date={key} />
+      <SleepSheet open={sleep} onOpenChange={setSleep} date={key} />
+      <WeightSheet open={wg} onOpenChange={setWg} date={key} />
+      <RoutinesSheet open={routines} onOpenChange={setRoutines} date={key} />
+      <WorkoutHistorySheet open={hist} onOpenChange={setHist} />
+    </Screen>
+  );
+}

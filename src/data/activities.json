@@ -1,0 +1,331 @@
+[
+  {
+    "id": "fuerza",
+    "n": "Fuerza",
+    "met": 5,
+    "ico": "dumbbell",
+    "g": "fuerza"
+  },
+  {
+    "id": "fuerzaint",
+    "n": "Fuerza intensa",
+    "met": 6,
+    "ico": "dumbbell",
+    "g": "fuerza"
+  },
+  {
+    "id": "calistenia",
+    "n": "Calistenia",
+    "met": 8,
+    "ico": "dumbbell",
+    "g": "fuerza"
+  },
+  {
+    "id": "crossfit",
+    "n": "Entrenamiento cruzado",
+    "met": 8,
+    "ico": "dumbbell",
+    "g": "fuerza"
+  },
+  {
+    "id": "hiit",
+    "n": "HIIT",
+    "met": 8,
+    "ico": "flame",
+    "g": "fuerza"
+  },
+  {
+    "id": "circuito",
+    "n": "Circuito de máquinas",
+    "met": 6,
+    "ico": "dumbbell",
+    "g": "fuerza"
+  },
+  {
+    "id": "comba",
+    "n": "Comba",
+    "met": 11,
+    "ico": "run",
+    "g": "fuerza"
+  },
+  {
+    "id": "caminar",
+    "n": "Caminata",
+    "met": 3.5,
+    "ico": "shoe",
+    "g": "cardio"
+  },
+  {
+    "id": "caminarapido",
+    "n": "Caminata rápida",
+    "met": 4.3,
+    "ico": "shoe",
+    "g": "cardio"
+  },
+  {
+    "id": "senderismo",
+    "n": "Senderismo",
+    "met": 6,
+    "ico": "shoe",
+    "g": "cardio"
+  },
+  {
+    "id": "rucking",
+    "n": "Marcha con mochila",
+    "met": 7.8,
+    "ico": "shoe",
+    "g": "cardio"
+  },
+  {
+    "id": "carrera",
+    "n": "Carrera",
+    "met": 9,
+    "ico": "run",
+    "g": "cardio"
+  },
+  {
+    "id": "sprints",
+    "n": "Series y sprints",
+    "met": 12,
+    "ico": "run",
+    "g": "cardio"
+  },
+  {
+    "id": "ciclismo",
+    "n": "Ciclismo",
+    "met": 7.5,
+    "ico": "run",
+    "g": "cardio"
+  },
+  {
+    "id": "spinning",
+    "n": "Ciclo indoor",
+    "met": 8.5,
+    "ico": "run",
+    "g": "cardio"
+  },
+  {
+    "id": "eliptica",
+    "n": "Elíptica",
+    "met": 5,
+    "ico": "run",
+    "g": "cardio"
+  },
+  {
+    "id": "remo",
+    "n": "Remo",
+    "met": 7,
+    "ico": "dumbbell",
+    "g": "cardio"
+  },
+  {
+    "id": "escaleras",
+    "n": "Escaleras",
+    "met": 8.8,
+    "ico": "up",
+    "g": "cardio"
+  },
+  {
+    "id": "natacion",
+    "n": "Natación",
+    "met": 7,
+    "ico": "drop",
+    "g": "cardio"
+  },
+  {
+    "id": "aquagym",
+    "n": "Aquagym",
+    "met": 5.5,
+    "ico": "drop",
+    "g": "cardio"
+  },
+  {
+    "id": "patinaje",
+    "n": "Patinaje",
+    "met": 7,
+    "ico": "run",
+    "g": "cardio"
+  },
+  {
+    "id": "futbol",
+    "n": "Fútbol",
+    "met": 7,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "futbolsala",
+    "n": "Fútbol sala",
+    "met": 7.5,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "baloncesto",
+    "n": "Baloncesto",
+    "met": 6.5,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "balonmano",
+    "n": "Balonmano",
+    "met": 8,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "voleibol",
+    "n": "Voleibol",
+    "met": 4,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "rugby",
+    "n": "Rugby",
+    "met": 8.3,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "hockey",
+    "n": "Hockey",
+    "met": 8,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "padel",
+    "n": "Pádel",
+    "met": 6.5,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "tenis",
+    "n": "Tenis",
+    "met": 7.3,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "squash",
+    "n": "Squash",
+    "met": 7.3,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "badminton",
+    "n": "Bádminton",
+    "met": 5.5,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "pingpong",
+    "n": "Tenis de mesa",
+    "met": 4,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "golf",
+    "n": "Golf caminando",
+    "met": 4.8,
+    "ico": "shoe",
+    "g": "deporte"
+  },
+  {
+    "id": "escalada",
+    "n": "Escalada",
+    "met": 8,
+    "ico": "up",
+    "g": "deporte"
+  },
+  {
+    "id": "boxeo",
+    "n": "Boxeo",
+    "met": 7.8,
+    "ico": "dumbbell",
+    "g": "deporte"
+  },
+  {
+    "id": "marciales",
+    "n": "Artes marciales",
+    "met": 10.3,
+    "ico": "dumbbell",
+    "g": "deporte"
+  },
+  {
+    "id": "esqui",
+    "n": "Esquí",
+    "met": 6,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "snowboard",
+    "n": "Snowboard",
+    "met": 5.3,
+    "ico": "run",
+    "g": "deporte"
+  },
+  {
+    "id": "surf",
+    "n": "Surf",
+    "met": 3,
+    "ico": "drop",
+    "g": "deporte"
+  },
+  {
+    "id": "piraguismo",
+    "n": "Piragüismo",
+    "met": 5.8,
+    "ico": "drop",
+    "g": "deporte"
+  },
+  {
+    "id": "yoga",
+    "n": "Yoga",
+    "met": 2.5,
+    "ico": "sparkle",
+    "g": "mente"
+  },
+  {
+    "id": "yogapotencia",
+    "n": "Yoga dinámico",
+    "met": 4,
+    "ico": "sparkle",
+    "g": "mente"
+  },
+  {
+    "id": "pilates",
+    "n": "Pilates",
+    "met": 3,
+    "ico": "sparkle",
+    "g": "mente"
+  },
+  {
+    "id": "movilidad",
+    "n": "Movilidad",
+    "met": 2.3,
+    "ico": "sparkle",
+    "g": "mente"
+  },
+  {
+    "id": "baile",
+    "n": "Baile",
+    "met": 6.5,
+    "ico": "sparkle",
+    "g": "mente"
+  },
+  {
+    "id": "aerobic",
+    "n": "Aerobic",
+    "met": 6.5,
+    "ico": "sparkle",
+    "g": "mente"
+  }
+]
