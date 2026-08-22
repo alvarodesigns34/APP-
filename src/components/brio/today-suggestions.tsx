@@ -3,7 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { Card, SectionLabel } from "@/components/brio/section";
 import { RecipeDetail } from "@/components/brio/recipe-browser";
 import { nf } from "@/lib/brio/format";
-import { suggestRecipes } from "@/lib/brio/selectors-catalog";
+import { pantryHint, suggestRecipes, type SuggestedRecipe } from "@/lib/brio/selectors-catalog";
 import { useBrioStore } from "@/lib/brio/store";
 import { useCatalog } from "@/lib/brio/use-catalog";
 import type { Recipe } from "@/lib/brio/types";
@@ -30,7 +30,7 @@ export function TodaySuggestions({ date }: { date: string }) {
   );
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const sug = useMemo(() => {
-    if (!ready) return { list: [] as Recipe[], remKcal: 0, remProt: 0 };
+    if (!ready) return { list: [] as SuggestedRecipe[], remKcal: 0, remProt: 0 };
     return suggestRecipes(snap, date, 3);
   }, [ready, snap, date]);
 
@@ -42,25 +42,30 @@ export function TodaySuggestions({ date }: { date: string }) {
       <Card>
         <p className="mb-3 text-sm text-muted-foreground">
           Te quedan <span className="font-medium text-foreground">{nf(sug.remKcal)} kcal</span>
-          {sug.remProt > 0 ? ` y ${nf(sug.remProt)} g de proteína` : ""}.
+          {sug.remProt > 0 ? ` y ${nf(sug.remProt)} g de proteína` : ""}. Primero las que más encajan con tu
+          despensa.
         </p>
         <div className="space-y-2">
-          {sug.list.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              className="flex w-full items-center justify-between rounded-2xl bg-muted/60 px-3 py-2 text-left"
-              onClick={() => setRecipe(r)}
-            >
-              <span>
-                <span className="block font-medium">{r.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {r.minutes} min · {nf(r.perServing.prot)} g prot
+          {sug.list.map(({ recipe: r, miss }) => {
+            const hint = pantryHint(miss);
+            return (
+              <button
+                key={r.id}
+                type="button"
+                className="flex min-h-11 w-full items-center justify-between rounded-2xl bg-muted/60 px-3 py-2 text-left"
+                onClick={() => setRecipe(r)}
+              >
+                <span>
+                  <span className="block font-medium">{r.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {r.minutes} min · {nf(r.perServing.prot)} g prot
+                    {hint ? ` · ${hint}` : ""}
+                  </span>
                 </span>
-              </span>
-              <span className="tabular-nums text-sm">{nf(r.perServing.kcal)} kcal</span>
-            </button>
-          ))}
+                <span className="tabular-nums text-sm">{nf(r.perServing.kcal)} kcal</span>
+              </button>
+            );
+          })}
         </div>
       </Card>
       {recipe ? (

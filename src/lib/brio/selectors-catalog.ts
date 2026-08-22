@@ -4,21 +4,7 @@ import { dayFoodTotals, kcalGoalFor } from "./selectors";
 import type { MealId, PersistedState, Recipe } from "./types";
 import { MEALS } from "./types";
 
-export function suggestRecipes(s: PersistedState, key: string, limit = 3) {
-  const food = dayFoodTotals(s, key);
-  const remKcal = kcalGoalFor(s, key) - food.kcal;
-  const remProt = s.goals.prot - food.prot;
-  if (remKcal < 120) return { remKcal, remProt, list: [] as Recipe[] };
-  const list = BASE_RECIPES.filter((r) => {
-    const k = r.perServing.kcal;
-    if (k < 80 || k > remKcal + 80) return false;
-    if (remProt > 15 && r.perServing.prot < 12) return false;
-    return true;
-  })
-    .sort((a, b) => b.perServing.prot - a.perServing.prot)
-    .slice(0, limit);
-  return { remKcal, remProt, list };
-}
+export type SuggestedRecipe = { recipe: Recipe; miss: number };
 
 export function missingIngredients(s: PersistedState, recipe: Recipe): string[] {
   return recipe.ing
@@ -28,6 +14,40 @@ export function missingIngredients(s: PersistedState, recipe: Recipe): string[] 
       return !isPantryBasic(getFood(i.id, { customFoods: s.customFoods, recipes: s.recipes }));
     })
     .map((i) => i.name);
+}
+
+export function pickSuggestedRecipes(
+  recipes: Recipe[],
+  s: PersistedState,
+  remKcal: number,
+  remProt: number,
+  limit = 3,
+): SuggestedRecipe[] {
+  return recipes
+    .filter((r) => {
+      const k = r.perServing.kcal;
+      if (k < 80 || k > remKcal + 80) return false;
+      if (remProt > 15 && r.perServing.prot < 12) return false;
+      return true;
+    })
+    .map((recipe) => ({ recipe, miss: missingIngredients(s, recipe).length }))
+    .sort((a, b) => a.miss - b.miss || b.recipe.perServing.prot - a.recipe.perServing.prot)
+    .slice(0, limit);
+}
+
+export function pantryHint(miss: number): string | null {
+  if (miss === 0) return "La puedes hacer ahora";
+  if (miss === 1) return "Te falta 1 ingrediente";
+  if (miss <= 3) return `Te faltan ${miss} ingredientes`;
+  return null;
+}
+
+export function suggestRecipes(s: PersistedState, key: string, limit = 3) {
+  const food = dayFoodTotals(s, key);
+  const remKcal = kcalGoalFor(s, key) - food.kcal;
+  const remProt = s.goals.prot - food.prot;
+  if (remKcal < 120) return { remKcal, remProt, list: [] as SuggestedRecipe[] };
+  return { remKcal, remProt, list: pickSuggestedRecipes(BASE_RECIPES, s, remKcal, remProt, limit) };
 }
 
 export type LastPortion = { grams: number; qty: number; unitName: string; meal: MealId; kcal: number };
