@@ -52,13 +52,57 @@ import {
 } from "@/lib/brio/units";
 import { cn } from "@/lib/utils";
 
+type GoalKey = "kcal" | "prot" | "steps" | "water" | "weight" | "sleep" | "activityMin";
+
 /** Lower bounds applied when a goal field loses focus. */
-const GOAL_MIN: Partial<Record<"kcal" | "prot" | "steps" | "water", number>> = {
+const GOAL_MIN: Partial<Record<GoalKey, number>> = {
   kcal: MIN_DAY_KCAL,
   prot: 0,
   steps: 0,
   water: 0,
+  weight: 1,
+  sleep: 0,
+  activityMin: 0,
 };
+
+/**
+ * Every editable goal, with its own display conversion.
+ *
+ * The weight, sleep and weekly-exercise targets used to be unreachable from
+ * here even though all three are shown as goals elsewhere — the weight target
+ * could only move by pressing "Recalcular", and sleep and exercise not at all.
+ * Sleep is stored in minutes but asked for in hours, which is how people think
+ * about it.
+ */
+const GOAL_FIELDS: {
+  key: GoalKey;
+  label: (u: UnitSystem) => string;
+  toDisplay: (v: number, u: UnitSystem) => number;
+  toStore: (v: number, u: UnitSystem) => number;
+}[] = [
+  { key: "kcal", label: () => "Calorías (kcal)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
+  { key: "prot", label: () => "Proteína (g)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
+  { key: "steps", label: () => "Pasos", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
+  {
+    key: "water",
+    label: (u) => `Agua (${volumeUnit(u)})`,
+    toDisplay: (v, u) => mlToDisplay(v, u),
+    toStore: (v, u) => displayToMl(v, u),
+  },
+  {
+    key: "weight",
+    label: (u) => `Peso objetivo (${weightUnit(u)})`,
+    toDisplay: (v, u) => kgToDisplay(v, u),
+    toStore: (v, u) => displayToKg(v, u),
+  },
+  {
+    key: "sleep",
+    label: () => "Sueño (horas)",
+    toDisplay: (v) => Math.round((v / 60) * 10) / 10,
+    toStore: (v) => Math.round(v * 60),
+  },
+  { key: "activityMin", label: () => "Ejercicio a la semana (min)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
+];
 
 export function SettingsScreen() {
   const profile = useBrioStore((s) => s.profile);
@@ -100,15 +144,18 @@ export function SettingsScreen() {
 
   function recalc() {
     const g = computeGoals({ ...profile, pct: settings.macroPct });
+    // Deliberately not `weight`. computeGoals derives it as current × 0.95, and
+    // every weigh-in writes profile.weight, so recalculating after losing any
+    // weight moved the target down again — a goal you could never reach. It is
+    // a personal target, editable directly above.
     patchGoals({
       kcal: g.kcal,
       prot: g.prot,
       carb: g.carb,
       fat: g.fat,
       water: g.water,
-      weight: g.weight,
     });
-    toast.success("Objetivos recalculados");
+    toast.success("Calorías y macros recalculadas");
   }
 
   function applySplit(preset: MacroPresetId, pct: { prot: number; carb: number; fat: number }) {
@@ -269,31 +316,38 @@ export function SettingsScreen() {
 
       <SectionLabel>Objetivos</SectionLabel>
       <Card className="space-y-2">
-        {(
-          [
-            ["kcal", "kcal", goals.kcal],
-            ["prot", "Proteína g", goals.prot],
-            ["steps", "Pasos", goals.steps],
-            ["water", `Agua ${volumeUnit(units)}`, goals.water],
-          ] as const
-        ).map(([k, n, v]) => (
-          <Field key={k} label={n}>
+        {GOAL_FIELDS.map((f) => (
+          <Field key={f.key} label={f.label(units)}>
             <Input
-              inputMode="numeric"
-              value={k === "water" ? mlToDisplay(v, units) : v}
+              inputMode="decimal"
+              value={f.toDisplay(goals[f.key], units)}
               onChange={(e) => {
                 const n = parseNum(e.target.value) || 0;
-                patchGoals({ [k]: k === "water" ? displayToMl(n, units) : n });
+                patchGoals({ [f.key]: f.toStore(n, units) });
               }}
               // Clamp on blur, not on change: clamping mid-typing makes the
               // field impossible to clear and retype.
               onBlur={() => {
-                const min = GOAL_MIN[k];
-                if (min != null && goals[k] < min) patchGoals({ [k]: min });
+                const min = GOAL_MIN[f.key];
+                if (min != null && goals[f.key] < min) patchGoals({ [f.key]: min });
               }}
             />
           </Field>
         ))}
+        {/* This is the switch that most changes the daily calorie number, and it
+            used to live at the bottom of the "Apariencia" card, where it read as
+            a display setting. The caveat now shows whether or not it is on —
+            before, the warning only appeared once the damage was done. */}
+        <label className="flex items-center justify-between gap-3 border-t border-border pt-3 text-sm">
+          Sumar kcal de actividad al objetivo
+          <Switch checked={settings.activityAdjust} onCheckedChange={(v) => patchSettings({ activityAdjust: v })} />
+        </label>
+        {profile.activity !== "sed" ? (
+          <p className="text-xs text-muted-foreground">
+            Tu nivel de actividad ya cuenta el movimiento habitual. Si activas esto, los entrenos y los pasos de hoy se
+            suman otra vez.
+          </p>
+        ) : null}
         <p className="pt-1 text-xs text-muted-foreground">
           El objetivo de calorías no baja de {nf(GOAL_MIN.kcal)} kcal. Consulta a un profesional antes de fijar un
           objetivo agresivo.
@@ -405,15 +459,6 @@ export function SettingsScreen() {
             </Button>
           ))}
         </div>
-        <label className="mt-4 flex items-center justify-between gap-3 text-sm">
-          Sumar kcal de actividad al objetivo
-          <Switch checked={settings.activityAdjust} onCheckedChange={(v) => patchSettings({ activityAdjust: v })} />
-        </label>
-        {settings.activityAdjust && profile.activity !== "sed" ? (
-          <p className="text-xs text-muted-foreground">
-            Tu gasto ya incluye actividad habitual. Esto suma los entrenos y pasos de hoy otra vez.
-          </p>
-        ) : null}
       </Card>
 
       <SectionLabel>Objetivos por día</SectionLabel>

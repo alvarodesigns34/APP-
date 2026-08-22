@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Minus, Plus, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
@@ -13,7 +13,7 @@ import type { Recipe } from "@/lib/brio/types";
 import { MEALS, type MealId } from "@/lib/brio/types";
 import { missingIngredients } from "@/lib/brio/selectors-catalog";
 import { useBrioStore } from "@/lib/brio/store";
-import { nf, round } from "@/lib/brio/format";
+import { nf, plural, round } from "@/lib/brio/format";
 import { scaleRecipe } from "@/lib/brio/scale-recipe";
 import { cn } from "@/lib/utils";
 
@@ -33,17 +33,21 @@ export function RecipeBrowser({
   const [cat, setCat] = useState<string | null>(null);
   const [filter, setFilter] = useState<string | null>(null);
   const [sort, setSort] = useState<RecipeSortId>("relevancia");
+  const [onlyFavs, setOnlyFavs] = useState(false);
   const [picked, setPicked] = useState<Recipe | null>(null);
 
-  const list = useMemo(() => {
-    if (!catalogReady) return [];
+  const { list, found } = useMemo(() => {
+    if (!catalogReady) return { list: [] as Recipe[], found: 0 };
     // Sort after searching so "relevancia" keeps the search ranking, and the
     // other orders apply to the whole matching set rather than to an
     // arbitrary slice of it.
-    const found = searchRecipes(q, { cat, badge: filter, limit: 200 });
-    const sorted = sortRecipes(found, sort);
-    return sorted.slice(0, 60);
-  }, [q, cat, filter, sort, catalogReady]);
+    let hits = searchRecipes(q, { cat, badge: filter, limit: 200 });
+    // Starring a recipe was possible but there was no way to list the starred
+    // ones again — the only consumer of favRecipes was a sort elsewhere.
+    if (onlyFavs) hits = hits.filter((r) => favRecipes.includes(r.id));
+    const sorted = sortRecipes(hits, sort);
+    return { list: sorted.slice(0, 60), found: sorted.length };
+  }, [q, cat, filter, sort, catalogReady, onlyFavs, favRecipes]);
 
   if (picked) {
     return (
@@ -64,36 +68,46 @@ export function RecipeBrowser({
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Recetas">
       <Input placeholder="Buscar receta" value={q} onChange={(e) => setQ(e.target.value)} />
-      <div className="my-2 flex gap-1 overflow-x-auto">
-        <Chip on={!cat} onClick={() => setCat(null)}>
+      {/* Three identical unlabelled chip rows gave no clue what each one did. */}
+      <ChipRow label="Tipo">
+        <Chip on={!cat && !onlyFavs} onClick={() => { setCat(null); setOnlyFavs(false); }}>
           Todas
         </Chip>
+        <Chip on={onlyFavs} onClick={() => setOnlyFavs((v) => !v)}>
+          Favoritas
+        </Chip>
         {RECIPE_CATS.map((c) => (
-          <Chip key={c.id} on={cat === c.id} onClick={() => setCat(c.id)}>
+          <Chip key={c.id} on={cat === c.id} onClick={() => setCat(cat === c.id ? null : c.id)}>
             {c.n}
           </Chip>
         ))}
-      </div>
-      <div className="mb-3 flex gap-1 overflow-x-auto">
+      </ChipRow>
+      <ChipRow label="Filtro">
         {RECIPE_FILTERS.map((f) => (
-          <Chip key={f.id} on={filter === f.id} onClick={() => setFilter(filter === f.id ? null : f.id)}>
+          <Chip key={f.id} on={filter === f.id} onClick={() => setFilter(filter === f.id ? null : f.id)} title={f.why}>
             {f.n}
           </Chip>
         ))}
-      </div>
-      <div className="mb-3 flex gap-1 overflow-x-auto">
+      </ChipRow>
+      <ChipRow label="Orden">
         {RECIPE_SORTS.map((s) => (
           <Chip key={s.id} on={sort === s.id} onClick={() => setSort(s.id)}>
             {s.n}
           </Chip>
         ))}
-      </div>
+      </ChipRow>
       {!catalogReady ? <CatalogNotice state={catalog} loadingText="Cargando recetas…" /> : null}
       {catalogReady ? (
         <p className="mb-2 text-xs text-muted-foreground" aria-live="polite">
-          {list.length === 0
-            ? "Ninguna receta coincide"
-            : `${list.length} receta${list.length === 1 ? "" : "s"}`}
+          {/* The old label read list.length, which is capped at 60, so a broad
+              search always claimed exactly "60 recetas". */}
+          {found === 0
+            ? onlyFavs
+              ? "Aún no has marcado ninguna receta con la estrella"
+              : "Ninguna receta coincide"
+            : found > list.length
+              ? `${list.length} de ${plural(found, "receta", "recetas")}`
+              : plural(found, "receta", "recetas")}
         </p>
       ) : null}
       <ul className="space-y-2">
@@ -283,17 +297,42 @@ export function RecipeDetail({
   );
 }
 
-function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: string }) {
+function Chip({
+  on,
+  onClick,
+  children,
+  title,
+}: {
+  on: boolean;
+  onClick: () => void;
+  children: string;
+  title?: string;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      // RECIPE_FILTERS carries a `why` for each badge ("Como máximo 400 kcal
+      // por ración") that was written and never surfaced anywhere.
+      title={title}
       className={cn(
         "min-h-11 shrink-0 rounded-full px-3 text-xs",
-        on ? "bg-primary text-primary-foreground" : "bg-muted",
+        on ? "bg-primary font-medium text-primary-foreground" : "bg-muted",
       )}
     >
       {children}
     </button>
+  );
+}
+
+/** A labelled row of chips, so each filter row says what it filters. */
+function ChipRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center gap-2">
+      <span className="w-12 shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </span>
+      <div className="flex flex-1 gap-1 overflow-x-auto">{children}</div>
+    </div>
   );
 }
