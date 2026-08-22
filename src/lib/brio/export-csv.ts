@@ -69,10 +69,21 @@ export function csvEscape(field: string): string {
   return field;
 }
 
+// A cell opening with any of these is a live formula to Excel/Sheets/LibreOffice
+// once the file is opened — a food name or unit typed (or barcode-scanned) as
+// e.g. `=HYPERLINK(...)` would otherwise execute on open. Prefixing with an
+// apostrophe forces it to be read as text; the apostrophe itself isn't shown.
+const CSV_FORMULA_LEAD = /^[=+\-@\t\r]/;
+
+/** Only for user-controlled text fields — never numbers, since a negative number legitimately starts with "-". */
+function csvSanitizeText(field: string): string {
+  return CSV_FORMULA_LEAD.test(field) ? `'${field}` : field;
+}
+
 function cell(v: string | number | null | undefined): string {
   if (v == null || v === "") return "";
   if (typeof v === "number") return Number.isFinite(v) ? csvEscape(csvNumber(v)) : "";
-  return csvEscape(v);
+  return csvEscape(csvSanitizeText(v));
 }
 
 function csvRow(fields: ReadonlyArray<string | number | null | undefined>): string {
