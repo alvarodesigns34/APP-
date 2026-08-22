@@ -27,6 +27,7 @@ export function FoodScreen() {
   const duplicateMeal = useBrioStore((s) => s.duplicateMeal);
   const moveMeal = useBrioStore((s) => s.moveMeal);
   const key = viewDate || todayKey();
+  const isFuture = key > todayKey();
   const t = useMemo(() => {
     const tot = { kcal: 0, prot: 0, carb: 0, fat: 0, fib: 0 };
     for (const m of MEALS) {
@@ -81,7 +82,7 @@ export function FoodScreen() {
 
   return (
     <Screen>
-      <Title sub={`${nf(t.kcal)} kcal · ${nf(t.prot)} g prot`}>Comida</Title>
+      <Title sub={`${isFuture ? "Planificado: " : ""}${nf(t.kcal)} kcal · ${nf(t.prot)} g prot`}>Comida</Title>
       <DateNav />
       <div className="mb-3 flex gap-2">
         <Button className="flex-1" onClick={() => openAdd("comida")}>

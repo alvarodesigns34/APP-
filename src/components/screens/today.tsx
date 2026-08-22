@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import { Dumbbell, Droplets, Flame, Footprints, Moon, Pencil, Scale, Utensils, type LucideIcon } from "lucide-react";
 import { DateNav } from "@/components/brio/date-nav";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { capitalize, fmtDateLong, greeting, minutesToHM, rangeKeys, sleepDuration, todayKey } from "@/lib/brio/dates";
 import { nf } from "@/lib/brio/format";
+import { mealEntryCount } from "@/lib/brio/meals";
 import {
   activityKcal,
   currentStreak,
@@ -51,6 +53,7 @@ export function TodayScreen() {
       onboarded: s.onboarded,
     })),
   );
+  const navigate = useNavigate();
   const viewDate = useBrioStore((s) => s.viewDate);
   const setViewDate = useBrioStore((s) => s.setViewDate);
   const setNoteFn = useBrioStore((s) => s.setNote);
@@ -118,12 +121,28 @@ export function TodayScreen() {
   ];
 
   if (isFuture) {
+    const planned = mealEntryCount(snap.days[key]);
     return (
       <Screen>
-        <Title sub={capitalize(fmtDateLong(key))}>Día futuro</Title>
+        <Title sub={capitalize(fmtDateLong(key))}>Planificando</Title>
         <DateNav />
-        <p className="text-sm text-muted-foreground">Todavía no puedes registrar un día que no ha llegado.</p>
-        <Button className="mt-4" onClick={() => setViewDate(todayKey())}>
+        <Card className="mb-3">
+          {planned > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Tienes {planned} {planned === 1 ? "alimento planificado" : "alimentos planificados"} · {nf(t.kcal)}{" "}
+              kcal.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Aún no has planificado nada para este día. Los pasos, el agua, el sueño y el peso solo se registran el
+              día que pasan — pero puedes adelantar las comidas.
+            </p>
+          )}
+        </Card>
+        <Button className="w-full" onClick={() => void navigate({ to: "/comida" })}>
+          {planned > 0 ? "Ver comidas planificadas" : "Planificar comidas"}
+        </Button>
+        <Button className="mt-2 w-full" variant="outline" onClick={() => setViewDate(todayKey())}>
           Volver a hoy
         </Button>
       </Screen>
