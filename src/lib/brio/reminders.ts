@@ -5,11 +5,13 @@ export const DEFAULT_REMINDERS: ReminderSettings = {
   meals: true,
   water: true,
   weight: false,
+  streak: false,
   desayuno: "08:30",
   comida: "14:00",
   cena: "21:00",
   aguaEveryMin: 120,
   peso: "08:00",
+  streakTime: "20:00",
 };
 
 const TIME_RE = /^(\d{1,2}):(\d{2})$/;
@@ -74,11 +76,13 @@ export function parseReminders(raw: unknown): ReminderSettings {
     meals: parseBool(o.meals, d.meals),
     water: parseBool(o.water, d.water),
     weight: parseBool(o.weight, d.weight),
+    streak: parseBool(o.streak, d.streak),
     desayuno: parseClock(o.desayuno, d.desayuno),
     comida: parseClock(o.comida, d.comida),
     cena: parseClock(o.cena, d.cena),
     aguaEveryMin: parseAguaEveryMin(o.aguaEveryMin, d.aguaEveryMin),
     peso: parseClock(o.peso, d.peso),
+    streakTime: parseClock(o.streakTime, d.streakTime),
   };
 }
 
@@ -93,6 +97,8 @@ export function dueReminders(
     waterMl: number;
     waterGoal: number;
     weighedToday: boolean;
+    streakDays: number;
+    goalsMetToday: number;
   },
 ): ReminderNotice[] {
   if (!reminders.enabled) return [];
@@ -114,6 +120,23 @@ export function dueReminders(
     const t = parseTimeToMinutes(reminders.peso);
     if (Number.isFinite(t) && mins >= t) {
       out.push({ id: "peso", title: "Pésate", body: "Anota el peso de hoy.", url: "/" });
+    }
+  }
+
+  if (
+    reminders.streak &&
+    ctx.streakDays > 0 &&
+    ctx.goalsMetToday < 3 &&
+    !Number.isFinite(lastFired[`${day}:streak`])
+  ) {
+    const t = parseTimeToMinutes(reminders.streakTime);
+    if (Number.isFinite(t) && mins >= t) {
+      out.push({
+        id: "streak",
+        title: "Racha en juego",
+        body: `Llevas ${ctx.streakDays} ${ctx.streakDays === 1 ? "día seguido" : "días seguidos"}. Hoy van ${ctx.goalsMetToday} de 5.`,
+        url: "/",
+      });
     }
   }
 

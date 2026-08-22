@@ -165,7 +165,7 @@ export function SettingsScreen() {
     patchReminders({ enabled: true });
   }
 
-  function onReminderTime(field: "desayuno" | "comida" | "cena" | "peso", raw: string) {
+  function onReminderTime(field: "desayuno" | "comida" | "cena" | "peso" | "streakTime", raw: string) {
     const v = raw.slice(0, 5);
     if (!v) return;
     patchReminders({ [field]: v });
@@ -477,6 +477,10 @@ export function SettingsScreen() {
           Peso
           <Switch checked={reminders.weight} onCheckedChange={(v) => patchReminders({ weight: v })} />
         </label>
+        <label className="flex items-center justify-between gap-3 text-sm">
+          Racha en riesgo
+          <Switch checked={reminders.streak} onCheckedChange={(v) => patchReminders({ streak: v })} />
+        </label>
         <div className="grid grid-cols-3 gap-2">
           <Field label="Desayuno">
             <Input
@@ -494,6 +498,13 @@ export function SettingsScreen() {
         </div>
         <Field label="Peso">
           <Input type="time" value={reminders.peso} onChange={(e) => onReminderTime("peso", e.target.value)} />
+        </Field>
+        <Field label="Racha en riesgo">
+          <Input
+            type="time"
+            value={reminders.streakTime}
+            onChange={(e) => onReminderTime("streakTime", e.target.value)}
+          />
         </Field>
         <Field label="Avisar agua cada (min)">
           <Input
