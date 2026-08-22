@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMacroSeries, loggedDayMean, MACRO_MA_MIN_POINTS, MACRO_MA_WINDOW } from "./macro-series";
+import { buildMacroSeries, loggedDayMean, DEFAULT_TREND_RANGE, MACRO_MA_MIN_POINTS, MACRO_MA_WINDOW, TREND_RANGES } from "./macro-series";
 
 const GOALS = { kcal: 2200, prot: 138, carb: 248, fat: 73 };
 
@@ -72,5 +72,15 @@ describe("buildMacroSeries", () => {
     expect(pts[0].water).toBe(500);
     expect(pts[1].water).toBe(0);
     expect(pts[1].kcalMa).toBe(1900);
+  });
+
+  it("exposes the 14 / 30 / 90 day chart ranges", () => {
+    expect(TREND_RANGES).toEqual([14, 30, 90]);
+    expect(DEFAULT_TREND_RANGE).toBe(14);
+    const pts = buildMacroSeries(
+      Array.from({ length: 30 }, (_, i) => day(`${i + 1}/1`, i % 2 ? 1800 : 0)),
+      GOALS,
+    );
+    expect(pts).toHaveLength(30);
   });
 });
