@@ -15,7 +15,10 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-11 px-4",
-        sm: "h-9 px-3 text-xs",
+        // 40px rather than 36px: these chips sit in wrap rows, so the height has
+        // to be real (an invisible overlay would steal taps from the neighbour
+        // chip). Full-width rows that can afford it use min-h-11 directly.
+        sm: "h-10 px-3 text-xs",
         lg: "h-12 px-5",
         icon: "size-11",
       },

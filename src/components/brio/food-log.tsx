@@ -10,6 +10,7 @@ import { CATEGORIES, MEALS, type Food, type MealEntry, type MealId } from "@/lib
 import { getFood, searchFoods } from "@/lib/brio/catalog";
 import { useCatalog } from "@/lib/brio/use-catalog";
 import { CatalogNotice } from "@/components/brio/catalog-state";
+import { HighlightText } from "@/components/brio/highlight-text";
 import { useBrioStore } from "@/lib/brio/store";
 import { habitualFoodIds } from "@/lib/brio/selectors";
 import { loadSearchPrefs, rememberQuery, saveSearchPrefs } from "@/lib/brio/search-prefs";
@@ -471,20 +472,33 @@ export function FoodLogSheet({
               <Plus className="size-4" />
               Crear alimento
             </Button>
+            {catalogReady && tab === "buscar" && q.trim() ? (
+              <p className="mb-1 text-xs text-muted-foreground" aria-live="polite">
+                {list.length === 0
+                  ? "Ningún alimento coincide"
+                  : `${list.length} resultado${list.length === 1 ? "" : "s"}`}
+              </p>
+            ) : null}
             <ul className="divide-y divide-border">
               {!catalogReady ? (
                 <li>
                   <CatalogNotice state={catalog} loadingText="Cargando alimentos…" />
                 </li>
               ) : list.length === 0 ? (
-                <li className="py-8 text-center text-sm text-muted-foreground">No hay resultados.</li>
+                <li className="py-8 text-center text-sm text-muted-foreground">
+                  {q.trim()
+                    ? `No hay resultados para "${q.trim()}". Prueba con otra palabra o crea el alimento.`
+                    : "No hay resultados."}
+                </li>
               ) : (
                 list.map((f) => {
                   const fav = favorites.includes(f.id);
                   return (
                     <li key={f.id} className="flex items-center gap-2 py-1">
                       <button type="button" className="min-h-11 min-w-0 flex-1 text-left" onClick={() => pick(f)}>
-                        <div className="truncate font-medium">{f.name}</div>
+                        <div className="truncate font-medium">
+                          {tab === "buscar" ? <HighlightText text={f.name} query={q} /> : f.name}
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           {nf(f.kcal)} kcal / 100 {f.base}
                           {f.builtinRecipe ? " · receta" : f.custom ? " · propio" : ""}

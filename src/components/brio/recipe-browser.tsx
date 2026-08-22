@@ -4,7 +4,9 @@ import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BASE_RECIPES, RECIPE_CATS, RECIPE_FILTERS, filterName, recipeAsFood } from "@/lib/brio/catalog";
+import { RECIPE_CATS, RECIPE_FILTERS, filterName, recipeAsFood, searchRecipes } from "@/lib/brio/catalog";
+import { RECIPE_SORTS, sortRecipes, type RecipeSortId } from "@/lib/brio/sort-recipes";
+import { HighlightText } from "@/components/brio/highlight-text";
 import { useCatalog } from "@/lib/brio/use-catalog";
 import { CatalogNotice } from "@/components/brio/catalog-state";
 import type { Recipe } from "@/lib/brio/types";
@@ -30,17 +32,18 @@ export function RecipeBrowser({
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
   const [filter, setFilter] = useState<string | null>(null);
+  const [sort, setSort] = useState<RecipeSortId>("relevancia");
   const [picked, setPicked] = useState<Recipe | null>(null);
 
   const list = useMemo(() => {
     if (!catalogReady) return [];
-    return BASE_RECIPES.filter((r) => {
-      if (cat && r.cat !== cat) return false;
-      if (filter && !r.badges.includes(filter)) return false;
-      if (q && !r.name.toLowerCase().includes(q.toLowerCase())) return false;
-      return true;
-    }).slice(0, 60);
-  }, [q, cat, filter, catalogReady]);
+    // Sort after searching so "relevancia" keeps the search ranking, and the
+    // other orders apply to the whole matching set rather than to an
+    // arbitrary slice of it.
+    const found = searchRecipes(q, { cat, badge: filter, limit: 200 });
+    const sorted = sortRecipes(found, sort);
+    return sorted.slice(0, 60);
+  }, [q, cat, filter, sort, catalogReady]);
 
   if (picked) {
     return (
@@ -78,7 +81,21 @@ export function RecipeBrowser({
           </Chip>
         ))}
       </div>
+      <div className="mb-3 flex gap-1 overflow-x-auto">
+        {RECIPE_SORTS.map((s) => (
+          <Chip key={s.id} on={sort === s.id} onClick={() => setSort(s.id)}>
+            {s.n}
+          </Chip>
+        ))}
+      </div>
       {!catalogReady ? <CatalogNotice state={catalog} loadingText="Cargando recetas…" /> : null}
+      {catalogReady ? (
+        <p className="mb-2 text-xs text-muted-foreground" aria-live="polite">
+          {list.length === 0
+            ? "Ninguna receta coincide"
+            : `${list.length} receta${list.length === 1 ? "" : "s"}`}
+        </p>
+      ) : null}
       <ul className="space-y-2">
         {list.map((r) => (
           <li key={r.id}>
@@ -88,7 +105,9 @@ export function RecipeBrowser({
               onClick={() => setPicked(r)}
             >
               <div className="flex justify-between gap-2">
-                <span className="font-medium">{r.name}</span>
+                <span className="font-medium">
+                  <HighlightText text={r.name} query={q} />
+                </span>
                 {favRecipes.includes(r.id) ? <Star className="size-4 fill-primary text-primary" /> : null}
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
