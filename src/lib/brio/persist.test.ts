@@ -129,4 +129,48 @@ describe("migrate", () => {
     expect(s.settings.theme).toBe("light");
     expect(s.settings.weekdayPlan).toEqual(DEFAULT_WEEKDAY_PLAN);
   });
+
+  describe("activityAdjust", () => {
+    it("defaults a save from before this setting existed to off, not the new-install default", () => {
+      const s = migrate({ settings: { theme: "dark", units: "imp" } });
+      expect(s.settings.activityAdjust).toBe(false);
+    });
+
+    it("respects an explicit false the same save already had", () => {
+      const s = migrate({ settings: { activityAdjust: false } });
+      expect(s.settings.activityAdjust).toBe(false);
+    });
+
+    it("respects an explicit true the same save already had", () => {
+      const s = migrate({ settings: { activityAdjust: true } });
+      expect(s.settings.activityAdjust).toBe(true);
+    });
+
+    it("treats garbage as absent and defaults to off", () => {
+      const s = migrate({ settings: { activityAdjust: "yes" } });
+      expect(s.settings.activityAdjust).toBe(false);
+    });
+  });
+
+  describe("workouts", () => {
+    it("drops malformed workout entries and keeps valid ones", () => {
+      const s = migrate({
+        days: {
+          "2026-08-22": {
+            workouts: [
+              null,
+              "nope",
+              { id: "w1" },
+              { id: "w2", type: "correr", min: -5, intensity: "media", kcal: 300 },
+              { id: "w3", type: "correr", min: 30, intensity: "rara", kcal: 300 },
+              { id: "w4", type: "correr", min: 30, intensity: "alta", kcal: 300 },
+            ],
+          },
+        },
+      });
+      const workouts = s.days["2026-08-22"].workouts;
+      expect(workouts).toHaveLength(1);
+      expect(workouts[0]).toEqual({ id: "w4", type: "correr", min: 30, intensity: "alta", kcal: 300 });
+    });
+  });
 });
