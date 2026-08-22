@@ -14,6 +14,7 @@ import {
   bmiCategory,
   clampMacroPct,
   computeGoals,
+  kcalFloor,
   macrosFromKcal,
   pctForPreset,
 } from "@/lib/brio/domain";
@@ -400,6 +401,11 @@ export function SettingsScreen() {
           Sumar kcal de actividad al objetivo
           <Switch checked={settings.activityAdjust} onCheckedChange={(v) => patchSettings({ activityAdjust: v })} />
         </label>
+        {settings.activityAdjust && profile.activity !== "sed" ? (
+          <p className="text-xs text-muted-foreground">
+            Tu gasto ya incluye actividad habitual. Esto suma los entrenos y pasos de hoy otra vez.
+          </p>
+        ) : null}
       </Card>
 
       <SectionLabel>Objetivos por día</SectionLabel>
@@ -435,8 +441,8 @@ export function SettingsScreen() {
         </div>
         {weekdayPlan.enabled ? (
           <p className="text-sm text-muted-foreground">
-            Lunes {kcalForWeekday(goals.kcal, weekdayPlan.training, 1)} kcal · Domingo{" "}
-            {kcalForWeekday(goals.kcal, weekdayPlan.training, 0)} kcal
+            Lunes {kcalForWeekday(goals.kcal, weekdayPlan.training, 1, kcalFloor(profile.sex))} kcal · Domingo{" "}
+            {kcalForWeekday(goals.kcal, weekdayPlan.training, 0, kcalFloor(profile.sex))} kcal
           </p>
         ) : null}
         <p className="text-xs text-muted-foreground">

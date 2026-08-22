@@ -1,5 +1,5 @@
 import { addDays, dateOf, mealForHour, nowMinutes, rangeKeys, sleepDuration, todayKey } from "./dates";
-import { kcalFromSteps, macrosFromKcal } from "./domain";
+import { kcalFloor, kcalFromSteps, macrosFromKcal } from "./domain";
 import { emptyDay } from "./persist";
 import type { DayLog, FastingId, MealEntry, MealId, PersistedState } from "./types";
 import { FASTING_PRESETS, MEALS } from "./types";
@@ -57,10 +57,21 @@ export function activityKcal(s: PersistedState, key: string): number {
   return workoutKcalTotal(s, key) + stepsKcal(s, key);
 }
 
+/**
+ * Daily kcal target.
+ *
+ * `goals.kcal` already includes PAL (`profile.activity` 1.2–1.9 via TDEE) and
+ * the purpose surplus/deficit. If the weekday plan is on, that number is split
+ * across the week (training days ×1.12, rest days the remainder) so the 7-day
+ * sum stays `7 * goals.kcal`. If `activityAdjust` is on, logged workout + step
+ * kcal are then ADDED on top. That extra can double-count exercise when the
+ * profile is already Ligero/Moderado/Alto — the Settings copy warns; the
+ * arithmetic is left as-is this round.
+ */
 export function kcalGoalFor(s: PersistedState, key: string): number {
   let k = s.goals.kcal;
   if (s.settings.weekdayPlan?.enabled) {
-    k = kcalForWeekday(k, s.settings.weekdayPlan.training, dateOf(key).getDay());
+    k = kcalForWeekday(k, s.settings.weekdayPlan.training, dateOf(key).getDay(), kcalFloor(s.profile.sex));
   }
   if (s.settings.activityAdjust) k += activityKcal(s, key);
   return k;
@@ -77,7 +88,12 @@ export function macroGoalsFor(s: PersistedState, key: string): { prot: number; c
   if (!s.settings.weekdayPlan?.enabled) {
     return { prot: s.goals.prot, carb: s.goals.carb, fat: s.goals.fat };
   }
-  const k = kcalForWeekday(s.goals.kcal, s.settings.weekdayPlan.training, dateOf(key).getDay());
+  const k = kcalForWeekday(
+    s.goals.kcal,
+    s.settings.weekdayPlan.training,
+    dateOf(key).getDay(),
+    kcalFloor(s.profile.sex),
+  );
   if (k === s.goals.kcal) return { prot: s.goals.prot, carb: s.goals.carb, fat: s.goals.fat };
   return macrosFromKcal(k, s.settings.macroPct);
 }

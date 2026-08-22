@@ -17,8 +17,9 @@ export function parseWeekdayPlan(raw: unknown): WeekdayPlan {
 }
 
 /**
- * No day may be planned below this, whatever the split. A nutrition target under
- * it is not something the app should ever hand out.
+ * Legacy algorithm floor used when callers omit `minKcal`. Production callers
+ * pass `kcalFloor(sex)` (1200/1350/1500) so a rest day never undercuts
+ * `computeGoals`.
  */
 export const MIN_DAY_KCAL = 1000;
 
@@ -26,19 +27,25 @@ export const MIN_DAY_KCAL = 1000;
  * Daily kcal such that the 7-day sum equals `7 * baseKcal`.
  *
  * Training days get round(base * 1.12) and rest days share the remainder, but no
- * day may fall under `MIN_DAY_KCAL`: when the plain split would push rest days
+ * day may fall under `minKcal`: when the plain split would push rest days
  * below it, the training bonus shrinks until it fits. A base already under the
  * floor cannot be redistributed without going lower still, so the plan flattens
  * to `baseKcal` every day instead of amplifying it.
  */
-export function kcalForWeekday(baseKcal: number, training: boolean[], jsWeekday: number): number {
+export function kcalForWeekday(
+  baseKcal: number,
+  training: boolean[],
+  jsWeekday: number,
+  minKcal: number = MIN_DAY_KCAL,
+): number {
   if (!Array.isArray(training) || training.length !== 7) return baseKcal;
   const flags = training.map((d) => !!d);
   let tCount = 0;
   for (const f of flags) if (f) tCount += 1;
   if (tCount === 0 || tCount === 7) return baseKcal;
   if (!Number.isInteger(jsWeekday) || jsWeekday < 0 || jsWeekday > 6) return baseKcal;
-  if (!Number.isFinite(baseKcal) || baseKcal < MIN_DAY_KCAL) return baseKcal;
+  const floor = Number.isFinite(minKcal) && minKcal > 0 ? minKcal : MIN_DAY_KCAL;
+  if (!Number.isFinite(baseKcal) || baseKcal < floor) return baseKcal;
 
   const rCount = 7 - tCount;
   const weekly = 7 * baseKcal;
@@ -47,10 +54,10 @@ export function kcalForWeekday(baseKcal: number, training: boolean[], jsWeekday:
   let restTotal = weekly - tCount * trainingKcal;
   let restKcal = Math.floor(restTotal / rCount);
 
-  if (restKcal < MIN_DAY_KCAL) {
+  if (restKcal < floor) {
     // Pin rest days at the floor and give training days whatever is left. With
-    // baseKcal >= MIN_DAY_KCAL this keeps training days at or above the floor too.
-    trainingKcal = Math.floor((weekly - rCount * MIN_DAY_KCAL) / tCount);
+    // baseKcal >= floor this keeps training days at or above the floor too.
+    trainingKcal = Math.floor((weekly - rCount * floor) / tCount);
     restTotal = weekly - tCount * trainingKcal;
     restKcal = Math.floor(restTotal / rCount);
   }

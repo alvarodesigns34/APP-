@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { kcalFloor } from "./domain";
 import { defaultState, emptyDay } from "./persist";
 import { kcalGoalFor } from "./selectors";
 import { DEFAULT_WEEKDAY_PLAN, MIN_DAY_KCAL, kcalForWeekday, parseWeekdayPlan } from "./weekday-goals";
 
 const MON_FRI: boolean[] = [false, true, true, true, true, true, false];
 
-function weekSum(base: number, training: boolean[]): number {
+function weekSum(base: number, training: boolean[], minKcal?: number): number {
   let sum = 0;
-  for (let d = 0; d < 7; d++) sum += kcalForWeekday(base, training, d);
+  for (let d = 0; d < 7; d++) sum += kcalForWeekday(base, training, d, minKcal);
   return sum;
 }
 
@@ -77,6 +78,29 @@ describe("kcalForWeekday", () => {
     for (let d = 0; d < 7; d++) expect(kcalForWeekday(base, MON_FRI, d)).toBe(base);
     expect(weekSum(base, MON_FRI)).toBe(7 * base);
   });
+
+  it("never plans a rest day under kcalFloor(woman) = 1200", () => {
+    const floor = kcalFloor("m");
+    expect(floor).toBe(1200);
+    const base = 1400;
+    const days = [0, 1, 2, 3, 4, 5, 6].map((d) => kcalForWeekday(base, MON_FRI, d, floor));
+    expect(Math.min(...days)).toBeGreaterThanOrEqual(floor);
+    expect(weekSum(base, MON_FRI, floor)).toBe(7 * base);
+    const oldMin = Math.min(...[0, 1, 2, 3, 4, 5, 6].map((d) => kcalForWeekday(base, MON_FRI, d, 1000)));
+    expect(oldMin).toBeLessThan(floor);
+  });
+
+  it("never plans a rest day under kcalFloor(man) = 1500", () => {
+    const floor = kcalFloor("h");
+    expect(floor).toBe(1500);
+    const base = 1800;
+    const days = [0, 1, 2, 3, 4, 5, 6].map((d) => kcalForWeekday(base, MON_FRI, d, floor));
+    expect(Math.min(...days)).toBeGreaterThanOrEqual(floor);
+    expect(weekSum(base, MON_FRI, floor)).toBe(7 * base);
+    // Old 1000 floor would have allowed a rest day well below 1500 for this base.
+    const oldMin = Math.min(...[0, 1, 2, 3, 4, 5, 6].map((d) => kcalForWeekday(base, MON_FRI, d, 1000)));
+    expect(oldMin).toBeLessThan(floor);
+  });
 });
 
 describe("parseWeekdayPlan", () => {
@@ -142,6 +166,8 @@ describe("kcalGoalFor weekday plan", () => {
     monday.workouts = [{ id: "w1", type: "run", min: 30, intensity: "media", kcal: 300 }];
     s.days["2026-08-24"] = monday;
     expect(kcalGoalFor(s, "2026-08-24")).toBe(Math.round(2200 * 1.12) + 300);
-    expect(kcalGoalFor(s, "2026-08-23")).toBe(kcalForWeekday(2200, MON_FRI, 0));
+    expect(kcalGoalFor(s, "2026-08-23")).toBe(
+      kcalForWeekday(2200, MON_FRI, 0, kcalFloor(s.profile.sex)),
+    );
   });
 });
