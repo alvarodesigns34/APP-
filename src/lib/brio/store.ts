@@ -16,7 +16,7 @@ import { MEALS, NOTE_MAX } from "./types";
 import { clearAuxStorage, defaultState, emptyDay, isEmptyDay, loadState, migrate, saveState } from "./persist";
 import { uid, round } from "./format";
 import { scaleMacros } from "./scale-macros";
-import { addDays } from "./dates";
+import { addDays, fmtDateRelative } from "./dates";
 import { kcalFromWorkout } from "./domain";
 import { latestWeight } from "./selectors";
 import { applyUndo, clearUndo, isApplyingUndo, popUndo, pushUndo } from "./undo";
@@ -189,10 +189,12 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
 
   updateMeal: (key, meal, entryId, grams, qty, unitName, food) => {
     const s = get();
+    let prevEntry: MealEntry | null = null;
     set({
       days: withDay(s, key, (d) => {
         const e = d.meals[meal].find((x) => x.id === entryId);
         if (!e) return;
+        prevEntry = { ...e };
         const n = food
           ? scaleMacros(food, grams)
           : e.grams
@@ -222,6 +224,19 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       }),
     });
     get().persist();
+    if (prevEntry) {
+      const snapshot = prevEntry;
+      recordUndo("Registro actualizado", () => {
+        const st = get();
+        set({
+          days: withDay(st, key, (d) => {
+            const e = d.meals[meal].find((x) => x.id === entryId);
+            if (e) Object.assign(e, snapshot);
+          }),
+        });
+        get().persist();
+      });
+    }
   },
 
   removeMeal: (key, meal, entryId) => {
@@ -255,27 +270,45 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
 
   duplicateMeal: (key, meal, entryId) => {
     const s = get();
+    let newId: string | null = null;
     set({
       days: withDay(s, key, (d) => {
         const e = d.meals[meal].find((x) => x.id === entryId);
-        if (e) d.meals[meal].push({ ...e, id: uid("e") });
+        if (e) {
+          newId = uid("e");
+          d.meals[meal].push({ ...e, id: newId });
+        }
       }),
     });
     get().persist();
+    if (newId) {
+      const id = newId;
+      recordUndo("Comida duplicada", () => {
+        get().removeMeal(key, meal, id);
+      });
+    }
   },
 
   moveMeal: (key, from, to, entryId) => {
     if (from === to) return;
     const s = get();
+    let moved = false;
     set({
       days: withDay(s, key, (d) => {
         const i = d.meals[from].findIndex((x) => x.id === entryId);
         if (i < 0) return;
         const [e] = d.meals[from].splice(i, 1);
         d.meals[to].push(e);
+        moved = true;
       }),
     });
     get().persist();
+    if (moved) {
+      const mealName = MEALS.find((x) => x.id === to)?.n.toLowerCase() ?? to;
+      recordUndo(`Movido a ${mealName}`, () => {
+        get().moveMeal(key, to, from, entryId);
+      });
+    }
   },
 
   copyDayMeals: (fromKey, toKey) => {
@@ -283,17 +316,26 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     const src = s.days[fromKey];
     if (!src) return 0;
     let n = 0;
+    const added: { meal: MealId; id: string }[] = [];
     set({
       days: withDay(s, toKey, (d) => {
         for (const m of MEALS) {
           for (const e of src.meals[m.id]) {
-            d.meals[m.id].push({ ...e, id: uid("e") });
+            const id = uid("e");
+            d.meals[m.id].push({ ...e, id });
+            added.push({ meal: m.id, id });
             n += 1;
           }
         }
       }),
     });
     get().persist();
+    if (n) {
+      const rel = fmtDateRelative(fromKey).toLowerCase();
+      recordUndo(`Copiados ${n} registros de ${rel}`, () => {
+        for (const x of added) get().removeMeal(toKey, x.meal, x.id);
+      });
+    }
     return n;
   },
 
@@ -318,6 +360,10 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       }),
     });
     get().persist();
+    const mealName = MEALS.find((m) => m.id === meal)?.n.toLowerCase() ?? meal;
+    recordUndo(`Añadidos ${ids.length} alimentos a ${mealName}`, () => {
+      for (const id of ids) get().removeMeal(toKey, meal, id);
+    });
     return ids;
   },
 
@@ -353,12 +399,19 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
   },
   setSteps: (key, steps) => {
     const s = get();
+    const prev = s.days[key]?.steps ?? 0;
+    const next = Math.max(0, Math.round(steps));
     set({
       days: withDay(s, key, (d) => {
-        d.steps = Math.max(0, Math.round(steps));
+        d.steps = next;
       }),
     });
     get().persist();
+    if (prev !== next) {
+      recordUndo("Pasos actualizados", () => {
+        get().setSteps(key, prev);
+      });
+    }
   },
   addWorkout: (key, type, min, intensity) => {
     const s = get();
@@ -403,21 +456,32 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
   },
   setSleep: (key, sleep) => {
     const s = get();
+    const prev = s.days[key]?.sleep ?? null;
     set({
       days: withDay(s, key, (d) => {
         d.sleep = sleep;
       }),
     });
     get().persist();
+    recordUndo(sleep ? "Sueño guardado" : "Sueño borrado", () => {
+      get().setSleep(key, prev);
+    });
   },
   setNote: (key, note) => {
     const s = get();
+    const prev = s.days[key]?.note ?? "";
+    const next = note.slice(0, NOTE_MAX);
     set({
       days: withDay(s, key, (d) => {
-        d.note = note.slice(0, NOTE_MAX);
+        d.note = next;
       }),
     });
     get().persist();
+    if (prev !== next) {
+      recordUndo("Nota guardada", () => {
+        get().setNote(key, prev);
+      });
+    }
   },
   upsertWeight: (date, kg, extra) => {
     const prev = get().weights.find((w) => w.date === date);

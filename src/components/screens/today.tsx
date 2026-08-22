@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Dumbbell, Droplets, Flame, Footprints, Moon, Pencil, Scale, Utensils, type LucideIcon } from "lucide-react";
-import { toast } from "sonner";
 import { DateNav } from "@/components/brio/date-nav";
 import { FastingCard } from "@/components/brio/fasting";
 import { Bar, LabeledBar, LegendRow, Rings } from "@/components/brio/rings";
@@ -311,7 +310,6 @@ export function TodayScreen() {
             onClick={() => {
               setNoteFn(key, note);
               setNoteOpen(false);
-              toast.success("Nota guardada");
             }}
           >
             Guardar
