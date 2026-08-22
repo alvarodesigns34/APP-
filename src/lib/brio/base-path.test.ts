@@ -34,4 +34,20 @@ describe("runtime code has no root-absolute static paths", () => {
     const src = await import("../../router.tsx?raw").then((m) => m.default as unknown as string);
     expect(src).toMatch(/basepath:\s*import\.meta\.env\.BASE_URL/);
   });
+
+  it("manifest.webmanifest uses relative paths, not baked-in BASE_URL", async () => {
+    // A raw public/ file, copied as-is: it can't read import.meta.env.BASE_URL
+    // like the runtime code above, so it has to stay deployment-agnostic the
+    // same way sw.js does — every URL relative (no leading "/"), which the
+    // manifest spec resolves against the manifest's own URL (correctly
+    // prefixed already, since index.html's <link href="/manifest.webmanifest">
+    // does go through Vite's base rewriting).
+    const raw = await import("../../../public/manifest.webmanifest?raw").then(
+      (m) => m.default as unknown as string,
+    );
+    const manifest = JSON.parse(raw) as { start_url: string; icons: { src: string }[] };
+    expect(manifest.start_url.startsWith("/")).toBe(false);
+    expect(manifest.icons.length).toBeGreaterThan(0);
+    for (const icon of manifest.icons) expect(icon.src.startsWith("/")).toBe(false);
+  });
 });
