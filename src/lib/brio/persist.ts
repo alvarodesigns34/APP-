@@ -21,6 +21,7 @@ import {
   type WorkoutEntry,
 } from "./types";
 import { normalizeEan } from "./barcode";
+import { parseShopping } from "./shopping";
 
 export function emptyDay(): DayLog {
   return {
@@ -77,6 +78,7 @@ export function defaultState(): PersistedState {
     favRecipes: [],
     pantry: [],
     recents: [],
+    shopping: [],
   };
 }
 
@@ -359,6 +361,8 @@ export function migrate(raw: unknown): PersistedState {
     favRecipes: strIds(out.favRecipes),
     pantry: strIds(out.pantry),
     recents: strIds(out.recents),
+    // Additive: saves from before the shopping list existed simply have none.
+    shopping: parseShopping(out.shopping),
   };
 }
 

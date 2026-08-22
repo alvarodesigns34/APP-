@@ -86,6 +86,7 @@ export function SettingsScreen() {
       favRecipes: s.favRecipes,
       pantry: s.pantry,
       recents: s.recents,
+      shopping: s.shopping,
     })),
   );
   const fileRef = useRef<HTMLInputElement>(null);

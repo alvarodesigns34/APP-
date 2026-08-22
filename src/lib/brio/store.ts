@@ -20,6 +20,7 @@ import { fmtDateRelative } from "./dates";
 import { kcalFromWorkout } from "./domain";
 import { latestWeight } from "./selectors";
 import { applyUndo, clearUndo, isApplyingUndo, popUndo, pushUndo } from "./undo";
+import { findShoppingItem, makeShoppingItem } from "./shopping";
 
 export type BrioStore = PersistedState & {
   hydrated: boolean;
@@ -66,6 +67,14 @@ export type BrioStore = PersistedState & {
   togglePantry: (id: string) => void;
   addCustomFood: (food: Omit<Food, "id" | "custom" | "cat"> & { id?: string }) => string;
   addUserRecipe: (recipe: UserRecipe) => void;
+  addShoppingItem: (input: { name: string; qty?: string; cat?: string; foodId?: string }) => string | null;
+  addShoppingItems: (inputs: { name: string; qty?: string; cat?: string; foodId?: string }[]) => number;
+  toggleShoppingItem: (id: string) => void;
+  updateShoppingItem: (id: string, patch: { name?: string; qty?: string }) => void;
+  removeShoppingItem: (id: string) => void;
+  clearShoppingDone: () => void;
+  clearShopping: () => void;
+  shoppingDoneToPantry: () => number;
   importAll: (raw: unknown) => void;
   resetAll: () => void;
   undoLast: () => void;
@@ -95,6 +104,7 @@ function slicePersisted(s: BrioStore): PersistedState {
     favRecipes: s.favRecipes,
     pantry: s.pantry,
     recents: s.recents,
+    shopping: s.shopping,
   };
 }
 
@@ -562,6 +572,120 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     set((s) => ({ recipes: [...s.recipes, recipe] }));
     get().persist();
   },
+  addShoppingItem: (input) => {
+    const name = input.name.trim();
+    if (!name) return null;
+    const existing = findShoppingItem(get().shopping, name);
+    if (existing) {
+      // Adding the same thing twice should not produce two lines to tick off.
+      // An already-bought line comes back as pending instead.
+      if (existing.done) {
+        set((s) => ({ shopping: s.shopping.map((i) => (i.id === existing.id ? { ...i, done: false } : i)) }));
+        get().persist();
+      }
+      return existing.id;
+    }
+    const item = makeShoppingItem({ ...input, name });
+    set((s) => ({ shopping: [...s.shopping, item] }));
+    get().persist();
+    return item.id;
+  },
+
+  addShoppingItems: (inputs) => {
+    const s = get();
+    const next = [...s.shopping];
+    let added = 0;
+    for (const input of inputs) {
+      const name = input.name.trim();
+      if (!name) continue;
+      const existing = findShoppingItem(next, name);
+      if (existing) continue;
+      next.push(makeShoppingItem({ ...input, name }));
+      added += 1;
+    }
+    if (!added) return 0;
+    set({ shopping: next });
+    get().persist();
+    const label = added === 1 ? "1 producto" : `${added} productos`;
+    recordUndo(`${label} a la lista`, () => {
+      const ids = new Set(next.slice(s.shopping.length).map((i) => i.id));
+      set((st) => ({ shopping: st.shopping.filter((i) => !ids.has(i.id)) }));
+      get().persist();
+    });
+    return added;
+  },
+
+  toggleShoppingItem: (id) => {
+    set((s) => ({ shopping: s.shopping.map((i) => (i.id === id ? { ...i, done: !i.done } : i)) }));
+    get().persist();
+  },
+
+  updateShoppingItem: (id, patch) => {
+    set((s) => ({
+      shopping: s.shopping.map((i) =>
+        i.id === id
+          ? {
+              ...i,
+              ...(patch.name != null && patch.name.trim() ? { name: patch.name.trim() } : {}),
+              ...(patch.qty != null ? { qty: patch.qty.trim() } : {}),
+            }
+          : i,
+      ),
+    }));
+    get().persist();
+  },
+
+  removeShoppingItem: (id) => {
+    const removed = get().shopping.find((i) => i.id === id);
+    if (!removed) return;
+    set((s) => ({ shopping: s.shopping.filter((i) => i.id !== id) }));
+    get().persist();
+    recordUndo(`Quitado ${removed.name}`, () => {
+      set((s) => ({ shopping: [...s.shopping, removed] }));
+      get().persist();
+    });
+  },
+
+  clearShoppingDone: () => {
+    const cleared = get().shopping.filter((i) => i.done);
+    if (!cleared.length) return;
+    set((s) => ({ shopping: s.shopping.filter((i) => !i.done) }));
+    get().persist();
+    recordUndo(`${plural(cleared.length, "producto quitado", "productos quitados")}`, () => {
+      set((s) => ({ shopping: [...s.shopping, ...cleared] }));
+      get().persist();
+    });
+  },
+
+  clearShopping: () => {
+    const all = get().shopping;
+    if (!all.length) return;
+    set({ shopping: [] });
+    get().persist();
+    recordUndo("Lista vaciada", () => {
+      set({ shopping: all });
+      get().persist();
+    });
+  },
+
+  /** Ticked items that came from the catalog go into the pantry and leave the list. */
+  shoppingDoneToPantry: () => {
+    const s = get();
+    const done = s.shopping.filter((i) => i.done);
+    if (!done.length) return 0;
+    const ids = done.map((i) => i.foodId).filter((id): id is string => !!id);
+    const pantry = [...s.pantry];
+    for (const id of ids) if (!pantry.includes(id)) pantry.push(id);
+    const prevPantry = s.pantry;
+    set({ pantry, shopping: s.shopping.filter((i) => !i.done) });
+    get().persist();
+    recordUndo(`${plural(done.length, "producto guardado", "productos guardados")}`, () => {
+      set((st) => ({ pantry: prevPantry, shopping: [...st.shopping, ...done] }));
+      get().persist();
+    });
+    return done.length;
+  },
+
   importAll: (raw) => {
     clearUndo();
     set({ ...migrate(raw), hydrated: true });
