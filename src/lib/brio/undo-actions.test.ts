@@ -142,3 +142,32 @@ describe("copyDayMeals / cloneMealEntries undo storms", () => {
     expect(undoCount()).toBe(0);
   });
 });
+
+describe("setSleep undo", () => {
+  const key = "2026-08-22";
+  const night = { bed: 23 * 60, wake: 7 * 60 };
+
+  it("records an undo entry when the night actually changes", () => {
+    useBrioStore.setState({ hydrated: true });
+    useBrioStore.getState().setSleep(key, night);
+    expect(undoCount()).toBe(1);
+    useBrioStore.getState().undoLast();
+    expect(useBrioStore.getState().days[key]?.sleep ?? null).toBeNull();
+  });
+
+  it("does not record one when the sheet is saved without changing anything", () => {
+    useBrioStore.setState({ hydrated: true });
+    useBrioStore.getState().setSleep(key, night);
+    clearUndo();
+    // Same bed/wake, a fresh object: re-saving the sheet must not push a
+    // no-op entry, the same way setSteps and setNote already guard.
+    useBrioStore.getState().setSleep(key, { ...night });
+    expect(undoCount()).toBe(0);
+  });
+
+  it("does not record one when clearing a night that was already empty", () => {
+    useBrioStore.setState({ hydrated: true });
+    useBrioStore.getState().setSleep(key, null);
+    expect(undoCount()).toBe(0);
+  });
+});

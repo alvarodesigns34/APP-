@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { fmtDateRelative, rangeKeys, todayKey } from "@/lib/brio/dates";
 import { intensityOf } from "@/lib/brio/domain";
-import { nf } from "@/lib/brio/format";
+import { nf, plural } from "@/lib/brio/format";
 import { allSessions, sportMarks, weekWorkoutMin } from "@/lib/brio/workouts";
 import { useBrioStore } from "@/lib/brio/store";
 import { activityOf } from "@/lib/brio/domain";
@@ -58,7 +58,7 @@ export function WorkoutWeekCard({ onOpen }: { onOpen: () => void }) {
         </p>
         <Bar pct={goal ? (week / goal) * 100 : 0} color="var(--brio-move)" />
         <p className="mt-3 text-sm text-muted-foreground">
-          {sessions.filter((x) => x.date >= rangeKeys(todayKey(), 7)[0]).length} sesiones
+          {plural(sessions.filter((x) => x.date >= rangeKeys(todayKey(), 7)[0]).length, "sesión", "sesiones")}
           {best ? ` · mejor: ${best.name} ${best.bestMin} min` : ""}
         </p>
         <Button className="mt-3 w-full" variant="secondary" onClick={onOpen}>

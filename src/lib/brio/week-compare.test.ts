@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { PersistedState } from "./types";
 import { compareWeeks, delta, isWeekEmpty, weekTotals, type WeekTotals } from "./week-compare";
 
-const days: PersistedState["days"] = {};
 const KEYS = ["a", "b", "c", "d", "e", "f", "g"];
 const zeroFood = () => ({ kcal: 0, prot: 0 });
 const zero = () => 0;
@@ -11,8 +9,8 @@ const emptyWeek: WeekTotals = { kcalAvg: 0, protAvg: 0, stepsAvg: 0, moveMin: 0,
 
 describe("weekTotals", () => {
   it("empty weeks are all zeros", () => {
-    expect(weekTotals(days, KEYS, zeroFood, zero, zero)).toEqual(emptyWeek);
-    expect(weekTotals(days, [], zeroFood, zero, zero)).toEqual(emptyWeek);
+    expect(weekTotals(KEYS, zeroFood, zero, zero)).toEqual(emptyWeek);
+    expect(weekTotals([], zeroFood, zero, zero)).toEqual(emptyWeek);
   });
 
   it("kcal/prot average only days with kcal>0; a week without food is 0", () => {
@@ -21,13 +19,12 @@ describe("weekTotals", () => {
       c: { kcal: 1800, prot: 120 },
       d: { kcal: 0, prot: 50 },
     };
-    const withFood = weekTotals(days, KEYS, (k) => food[k] ?? { kcal: 0, prot: 0 }, zero, zero);
+    const withFood = weekTotals(KEYS, (k) => food[k] ?? { kcal: 0, prot: 0 }, zero, zero);
     expect(withFood.foodDays).toBe(2);
     expect(withFood.kcalAvg).toBe(1900);
     expect(withFood.protAvg).toBe(110);
 
     const withoutFood = weekTotals(
-      days,
       KEYS,
       zeroFood,
       () => 8000,
@@ -39,12 +36,12 @@ describe("weekTotals", () => {
   });
 
   it("steps average 0-fills all 7 days (missing days count as 0)", () => {
-    const t = weekTotals(days, KEYS, zeroFood, (k) => (k === "a" ? 7000 : 0), zero);
+    const t = weekTotals(KEYS, zeroFood, (k) => (k === "a" ? 7000 : 0), zero);
     expect(t.stepsAvg).toBe(1000);
   });
 
   it("move is the sum of minutes, not the mean", () => {
-    const t = weekTotals(days, KEYS, zeroFood, zero, (k) => (k === "a" || k === "b" ? 30 : 0));
+    const t = weekTotals(KEYS, zeroFood, zero, (k) => (k === "a" || k === "b" ? 30 : 0));
     expect(t.moveMin).toBe(60);
     expect(t.moveMin).not.toBe(60 / 7);
   });

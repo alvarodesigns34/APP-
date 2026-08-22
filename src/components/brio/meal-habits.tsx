@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Empty, SectionLabel } from "@/components/brio/section";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -10,9 +11,28 @@ import { MEALS, type MealId } from "@/lib/brio/types";
 import { cn } from "@/lib/utils";
 
 export function MealHabits({ date }: { date: string }) {
-  const days = useBrioStore((s) => s.days);
+  const snap = useBrioStore(
+    useShallow((s) => ({
+      days: s.days,
+      goals: s.goals,
+      profile: s.profile,
+      settings: s.settings,
+      weights: s.weights,
+      customFoods: s.customFoods,
+      recipes: s.recipes,
+      pantry: s.pantry,
+      favorites: s.favorites,
+      favRecipes: s.favRecipes,
+      recents: s.recents,
+      schema: s.schema,
+      onboarded: s.onboarded,
+    })),
+  );
   const cloneMealEntries = useBrioStore((s) => s.cloneMealEntries);
-  const habits = habitualMeals(useBrioStore.getState());
+  // Groups 28 days of meals into a Map; recomputing that on every store change
+  // was pure waste. The slice above also replaces a hidden `<span>` that only
+  // existed to keep `days` subscribed.
+  const habits = useMemo(() => habitualMeals(snap), [snap]);
   const [open, setOpen] = useState<MealHabit | null>(null);
   const [slot, setSlot] = useState<MealId>("desayuno");
 
@@ -101,8 +121,6 @@ export function MealHabits({ date }: { date: string }) {
           </div>
         ) : null}
       </Sheet>
-      {/* keep days subscribed so habits refresh */}
-      <span className="hidden">{Object.keys(days).length}</span>
     </>
   );
 }

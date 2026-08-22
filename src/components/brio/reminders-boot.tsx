@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { todayKey } from "@/lib/brio/dates";
 import { dueReminders } from "@/lib/brio/reminders";
-import { fireDueReminders } from "@/lib/brio/reminders-fire";
+import { fireDueReminders, pruneLastFired } from "@/lib/brio/reminders-fire";
 import { currentStreak, goalsMet, waterTotal } from "@/lib/brio/selectors";
 import { useBrioStore } from "@/lib/brio/store";
 import { AUX_STORE_KEYS } from "@/lib/brio/types";
@@ -26,10 +26,10 @@ function loadLastFired(): Record<string, number> {
   }
 }
 
-function saveLastFired(map: Record<string, number>) {
+function saveLastFired(map: Record<string, number>, day: string) {
   if (typeof localStorage === "undefined") return;
   try {
-    localStorage.setItem(FIRED_KEY, JSON.stringify(map));
+    localStorage.setItem(FIRED_KEY, JSON.stringify(pruneLastFired(map, day)));
   } catch {
     /* quota */
   }
@@ -67,7 +67,7 @@ function tick() {
       }),
     )
     .then((next) => {
-      saveLastFired(next);
+      saveLastFired(next, day);
     })
     .catch(() => {
       /* ready rejected — leave lastFired untouched so the next tick retries */

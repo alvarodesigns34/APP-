@@ -2,7 +2,7 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Card, Empty, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { addDays, rangeKeys, sleepDuration, todayKey } from "@/lib/brio/dates";
-import { nf } from "@/lib/brio/format";
+import { nf, plural } from "@/lib/brio/format";
 import { buildMacroSeries, DEFAULT_TREND_RANGE, TREND_RANGES, type TrendRange } from "@/lib/brio/macro-series";
 import {
   dayFoodTotals,
@@ -199,8 +199,8 @@ export function TrendsScreen() {
   const foodOf = (k: string) => dayFoodTotals(snap, k);
   const stepsOf = (k: string) => snap.days[k]?.steps || 0;
   const moveOf = (k: string) => workoutMinTotal(snap, k);
-  const thisWeekTotals = weekTotals(snap.days, week, foodOf, stepsOf, moveOf);
-  const prevWeekTotals = weekTotals(snap.days, prevWeek, foodOf, stepsOf, moveOf);
+  const thisWeekTotals = weekTotals(week, foodOf, stepsOf, moveOf);
+  const prevWeekTotals = weekTotals(prevWeek, foodOf, stepsOf, moveOf);
 
   return (
     <Screen>
@@ -253,7 +253,7 @@ export function TrendsScreen() {
             </p>
             {trend.eta != null ? (
               <p className="mt-2 text-sm">
-                Si sigues así, llegarías en unos {trend.eta} días
+                Si sigues así, llegarías en unos {plural(trend.eta, "día", "días")}
                 {trend.weeks != null ? ` (${nf(trend.weeks, 1)} semanas)` : ""}.
               </p>
             ) : Math.abs(trend.remaining) >= 0.2 ? (

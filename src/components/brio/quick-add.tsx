@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Star } from "lucide-react";
 import { Empty, SectionLabel } from "@/components/brio/section";
 import { getFood } from "@/lib/brio/catalog";
@@ -9,28 +11,56 @@ import { useCatalog } from "@/lib/brio/use-catalog";
 import { CatalogInlineNotice } from "@/components/brio/catalog-state";
 import { MEALS, type Food } from "@/lib/brio/types";
 
+type QuickRow = { food: Food; portion: NonNullable<ReturnType<typeof lastPortion>> };
+
 export function QuickAddStrip({ date }: { date: string }) {
   const catalog = useCatalog();
   const ready = catalog.ready;
-  const favorites = useBrioStore((s) => s.favorites);
-  const recents = useBrioStore((s) => s.recents);
-  const days = useBrioStore((s) => s.days);
-  const customFoods = useBrioStore((s) => s.customFoods);
-  const recipes = useBrioStore((s) => s.recipes);
+  const snap = useBrioStore(
+    useShallow((s) => ({
+      days: s.days,
+      goals: s.goals,
+      profile: s.profile,
+      settings: s.settings,
+      weights: s.weights,
+      customFoods: s.customFoods,
+      recipes: s.recipes,
+      pantry: s.pantry,
+      favorites: s.favorites,
+      favRecipes: s.favRecipes,
+      recents: s.recents,
+      schema: s.schema,
+      onboarded: s.onboarded,
+    })),
+  );
   const addMeal = useBrioStore((s) => s.addMeal);
-  const snapshot = useBrioStore.getState();
+  const favorites = snap.favorites;
 
-  const ctx = { customFoods, recipes };
-  const ids: string[] = [];
-  if (ready) {
-    for (const id of [...favorites, ...recents, ...habitualFoodIds(snapshot, 8)]) {
+  const meal = slotForQuickAdd(date);
+  const mealName = MEALS.find((m) => m.id === meal)?.n.toLowerCase() ?? "comida";
+
+  // `habitualFoodIds` walks 21 days and `lastPortion` walks 60 more for each of
+  // the 8 chips. Unmemoized that ran on every store change — the most expensive
+  // thing on Hoy. The store slice above also replaces a hidden `<span>` that
+  // existed only to keep `days` subscribed.
+  const rows = useMemo<QuickRow[]>(() => {
+    if (!ready) return [];
+    const ctx = { customFoods: snap.customFoods, recipes: snap.recipes };
+    const ids: string[] = [];
+    for (const id of [...snap.favorites, ...snap.recents, ...habitualFoodIds(snap, 8)]) {
       if (!ids.includes(id)) ids.push(id);
       if (ids.length >= 8) break;
     }
-  }
-  const foods = ready ? ids.map((id) => getFood(id, ctx)).filter((f): f is Food => !!f) : [];
-  const meal = slotForQuickAdd(date);
-  const mealName = MEALS.find((m) => m.id === meal)?.n.toLowerCase() ?? "comida";
+    const out: QuickRow[] = [];
+    for (const id of ids) {
+      const food = getFood(id, ctx);
+      if (!food) continue;
+      const portion = lastPortion(snap, food.id);
+      if (!portion) continue;
+      out.push({ food, portion });
+    }
+    return out;
+  }, [ready, snap]);
 
   if (!ready) {
     return (
@@ -41,7 +71,7 @@ export function QuickAddStrip({ date }: { date: string }) {
     );
   }
 
-  if (foods.length === 0) {
+  if (rows.length === 0) {
     return (
       <>
         <SectionLabel>Al vuelo</SectionLabel>
@@ -57,9 +87,7 @@ export function QuickAddStrip({ date }: { date: string }) {
     <>
       <SectionLabel>Al vuelo · {mealName}</SectionLabel>
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-        {foods.map((f) => {
-          const portion = lastPortion(snapshot, f.id);
-          if (!portion) return null;
+        {rows.map(({ food: f, portion }) => {
           const slot = meal;
           return (
             <button
@@ -85,7 +113,6 @@ export function QuickAddStrip({ date }: { date: string }) {
           );
         })}
       </div>
-      <span className="hidden">{Object.keys(days).length}</span>
     </>
   );
 }

@@ -12,7 +12,7 @@ import {
   type Food,
   type FoodUnit,
   type IntensityId,
-  type MealId,
+  type MealEntry,
   type PersistedState,
   type Profile,
   type Settings,
@@ -89,6 +89,29 @@ function num(v: unknown, d = 0): number {
   return Number.isFinite(n) ? n : d;
 }
 
+/**
+ * `Number(null)` and `Number("")` are both 0, so an absent field would silently
+ * become a real zero — for a goal that reads as "switched off" rather than
+ * "missing". Treat those as absent and let the caller's fallback win.
+ */
+function numOrNull(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Finite and > 0, else the fallback. */
+function positive(v: unknown, fallback: number): number {
+  const n = numOrNull(v);
+  return n != null && n > 0 ? n : fallback;
+}
+
+/** Finite and >= 0, else the fallback. An explicit zero is a legal "goal switched off". */
+function nonNegative(v: unknown, fallback: number): number {
+  const n = numOrNull(v);
+  return n != null && n >= 0 ? n : fallback;
+}
+
 function strIds(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
   return v.filter((x): x is string => typeof x === "string" && x.length > 0);
@@ -112,6 +135,49 @@ function parseWorkout(v: unknown): WorkoutEntry | null {
   if (!Number.isFinite(min) || min < 0) return null;
   if (!Number.isFinite(kcal) || kcal < 0) return null;
   return { id: v.id, type: v.type, min, intensity: v.intensity, kcal };
+}
+
+/**
+ * Meal entries used to pass through on nothing more than `typeof === "object"`,
+ * so a hand-edited or truncated backup could carry an entry with no `kcal` at
+ * all. `sumEntries` adds those straight into the day's totals, and one missing
+ * number turns every calorie figure in the app into NaN. Validate them the same
+ * way workouts and custom foods already are.
+ */
+function parseMealEntry(v: unknown, index: number): MealEntry | null {
+  if (!isObj(v)) return null;
+  const macro = (x: unknown): number | null => {
+    const n = Number(x);
+    return Number.isFinite(n) ? n : null;
+  };
+  const kcal = macro(v.kcal);
+  const prot = macro(v.prot);
+  const carb = macro(v.carb);
+  const fat = macro(v.fat);
+  const fib = macro(v.fib);
+  if (kcal == null || prot == null || carb == null || fat == null || fib == null) return null;
+  const grams = macro(v.grams);
+  const qty = macro(v.qty);
+  const foodId = typeof v.foodId === "string" && v.foodId ? v.foodId : null;
+  if (foodId == null) return null;
+  const t = macro(v.t);
+  return {
+    id: typeof v.id === "string" && v.id ? v.id : `e-migrated-${index}-${foodId}`,
+    foodId,
+    name: typeof v.name === "string" && v.name ? v.name : foodId,
+    qty: qty != null && qty > 0 ? qty : 1,
+    unitName: typeof v.unitName === "string" && v.unitName ? v.unitName : "g",
+    grams: grams != null && grams >= 0 ? grams : 0,
+    ...(t != null ? { t } : {}),
+    kcal,
+    prot,
+    carb,
+    fat,
+    fib,
+    sug: macro(v.sug),
+    sat: macro(v.sat),
+    sod: macro(v.sod),
+  };
 }
 
 function parseFood(v: unknown): Food | null {
@@ -188,6 +254,12 @@ export function migrate(raw: unknown): PersistedState {
   const out = isObj(raw) ? raw : {};
   const profile = { ...base.profile, ...(isObj(out.profile) ? out.profile : {}) } as Profile;
   if (profile.sex !== "h" && profile.sex !== "m" && profile.sex !== "nb") profile.sex = "h";
+  // Height and weight feed bmr/bmi/kcalFromSteps. A string or a negative number
+  // from a hand-edited backup would otherwise reach them unchecked.
+  profile.height = positive(profile.height, base.profile.height);
+  profile.weight = positive(profile.weight, base.profile.weight);
+  profile.name = typeof profile.name === "string" ? profile.name : "";
+  profile.birth = typeof profile.birth === "string" ? profile.birth : "";
   const settings = { ...base.settings, ...(isObj(out.settings) ? out.settings : {}) } as Settings;
   if (settings.theme !== "auto" && settings.theme !== "light" && settings.theme !== "dark") settings.theme = "auto";
   const fasting = (settings as Settings).fasting;
@@ -218,7 +290,21 @@ export function migrate(raw: unknown): PersistedState {
   // those to off so a returning user's kcal goal doesn't silently change. An explicit
   // true/false (including one this app itself saved) is always respected as-is.
   settings.activityAdjust = typeof rawSettings?.activityAdjust === "boolean" ? rawSettings.activityAdjust : false;
-  const goals = { ...base.goals, ...(isObj(out.goals) ? out.goals : {}) } as Goals;
+  const rawGoals = { ...base.goals, ...(isObj(out.goals) ? out.goals : {}) } as Goals;
+  // Every goal divides or subtracts somewhere on Hoy and Tendencias; a
+  // non-numeric one turns whole screens into NaN. Zero stays legal (it is how
+  // Ajustes lets you switch a goal off) — only non-finite and negative are not.
+  const goals: Goals = {
+    kcal: nonNegative(rawGoals.kcal, base.goals.kcal),
+    prot: nonNegative(rawGoals.prot, base.goals.prot),
+    carb: nonNegative(rawGoals.carb, base.goals.carb),
+    fat: nonNegative(rawGoals.fat, base.goals.fat),
+    steps: nonNegative(rawGoals.steps, base.goals.steps),
+    water: nonNegative(rawGoals.water, base.goals.water),
+    sleep: nonNegative(rawGoals.sleep, base.goals.sleep),
+    weight: positive(rawGoals.weight, base.goals.weight),
+    activityMin: nonNegative(rawGoals.activityMin, base.goals.activityMin),
+  };
 
   const daysIn = isObj(out.days) ? out.days : {};
   const days: Record<string, DayLog> = {};
@@ -229,7 +315,7 @@ export function migrate(raw: unknown): PersistedState {
     for (const m of MEALS) {
       const arr = meals[m.id];
       d.meals[m.id] = Array.isArray(arr)
-        ? (arr.filter((e) => e && typeof e === "object") as DayLog["meals"][MealId])
+        ? arr.map((e, i) => parseMealEntry(e, i)).filter((e): e is MealEntry => e != null)
         : [];
     }
     d.water = Array.isArray(v.water)

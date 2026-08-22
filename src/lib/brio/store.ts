@@ -14,9 +14,9 @@ import type {
 } from "./types";
 import { MEALS, NOTE_MAX } from "./types";
 import { clearAuxStorage, defaultState, emptyDay, isEmptyDay, loadState, migrate, saveState } from "./persist";
-import { uid, round } from "./format";
+import { uid, round, plural } from "./format";
 import { scaleMacros } from "./scale-macros";
-import { addDays, fmtDateRelative } from "./dates";
+import { fmtDateRelative } from "./dates";
 import { kcalFromWorkout } from "./domain";
 import { latestWeight } from "./selectors";
 import { applyUndo, clearUndo, isApplyingUndo, popUndo, pushUndo } from "./undo";
@@ -333,7 +333,8 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     get().persist();
     if (n) {
       const rel = fmtDateRelative(fromKey).toLowerCase();
-      recordUndo(`Copiados ${n} registros de ${rel}`, () => {
+      const verb = n === 1 ? "Copiado" : "Copiados";
+      recordUndo(`${verb} ${plural(n, "registro", "registros")} de ${rel}`, () => {
         for (const x of added) get().removeMeal(toKey, x.meal, x.id);
       });
     }
@@ -362,7 +363,8 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     });
     get().persist();
     const mealName = MEALS.find((m) => m.id === meal)?.n.toLowerCase() ?? meal;
-    recordUndo(`Añadidos ${ids.length} alimentos a ${mealName}`, () => {
+    const verb = ids.length === 1 ? "Añadido" : "Añadidos";
+    recordUndo(`${verb} ${plural(ids.length, "alimento", "alimentos")} a ${mealName}`, () => {
       for (const id of ids) get().removeMeal(toKey, meal, id);
     });
     return ids;
@@ -464,9 +466,14 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       }),
     });
     get().persist();
-    recordUndo(sleep ? "Sueño guardado" : "Sueño borrado", () => {
-      get().setSleep(key, prev);
-    });
+    // Same guard as setSteps/setNote: saving the sheet without changing
+    // anything should not push a no-op entry onto the undo stack.
+    const same = prev === sleep || (!!prev && !!sleep && prev.bed === sleep.bed && prev.wake === sleep.wake);
+    if (!same) {
+      recordUndo(sleep ? "Sueño guardado" : "Sueño borrado", () => {
+        get().setSleep(key, prev);
+      });
+    }
   },
   setNote: (key, note) => {
     const s = get();
@@ -574,7 +581,3 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     toast.success("Deshecho");
   },
 }));
-
-export function previousDayKey(key: string) {
-  return addDays(key, -1);
-}

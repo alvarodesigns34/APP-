@@ -63,7 +63,13 @@ self.addEventListener("fetch", (event) => {
         .then((res) => {
           if (res && res.ok) {
             const copy = res.clone();
-            caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+            // Swallowed on purpose: a failed write (quota, a partial 206, a
+            // storage-partitioned context) must not surface as an unhandled
+            // rejection in the worker — the response itself is already fine.
+            caches
+              .open(CACHE)
+              .then((cache) => cache.put(event.request, copy))
+              .catch(() => {});
           }
           return res;
         })
