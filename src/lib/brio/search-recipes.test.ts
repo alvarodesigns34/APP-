@@ -106,6 +106,10 @@ describe("searchRecipesIndexed", () => {
     ).toEqual(["Tostada de aguacate"]);
   });
 
+  it("fuzzy-matches a one-letter typo like brocoi → Brócoli", () => {
+    expect(names("brocoi")).toContain("Brócoli salteado");
+  });
+
   it("returns nothing for a query that matches no recipe", () => {
     expect(names("zzzqqq")).toEqual([]);
   });

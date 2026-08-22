@@ -1,27 +1,26 @@
 import { norm } from "./format";
-import { tokenize } from "./search";
+import { fuzzyMaxDistance, levenshteinAtMost, tokenize } from "./search";
 import type { Recipe } from "./types";
 
 /**
- * Recipe search, matching what the food search already does.
- *
- * The previous filter was `name.toLowerCase().includes(q.toLowerCase())`, which
- * is accent-sensitive: "brocoli", "platano", "limon", "salmon", "atun", "pure",
- * "cafe" and friends returned nothing at all, even though the recipes exist.
- * Typing Spanish without accents is the norm on a phone keyboard, so that hid a
- * large part of the catalog.
+ * Recipe search: accent-blind (same `norm` as foods) plus a fuzzy tier when
+ * exact/prefix/substring hits are few, matching `search.ts`.
  *
  * Ranked so the closest match leads:
  *   0 name starts with the query
  *   1 every query word prefixes a word of the name
  *   2 the name contains the query
- *   3 an ingredient or tag matches (a recipe "with chicken" is a fair hit for
- *     "pollo", it just should not outrank one named for it)
+ *   3 fuzzy (typos, e.g. "brocoi" → Brócoli)
+ *   4 an ingredient or tag matches
  */
 export const RECIPE_RANK_NAME_PREFIX = 0;
 export const RECIPE_RANK_WORD_PREFIX = 1;
 export const RECIPE_RANK_SUBSTRING = 2;
-export const RECIPE_RANK_CONTENT = 3;
+export const RECIPE_RANK_FUZZY = 3;
+export const RECIPE_RANK_CONTENT = 4;
+
+/** Same threshold as food search: only fuzzy when exact hits are scarce. */
+const FEW_EXACT = 8;
 
 export type RecipeIndexEntry = {
   recipe: Recipe;
@@ -42,17 +41,51 @@ export function buildRecipeIndex(recipes: Recipe[]): RecipeIndexEntry[] {
   });
 }
 
-function rankOf(e: RecipeIndexEntry, nq: string, qTokens: string[]): number | null {
+function exactRank(e: RecipeIndexEntry, nq: string, qTokens: string[]): number | null {
   if (e.nn.startsWith(nq)) return RECIPE_RANK_NAME_PREFIX;
   if (qTokens.length <= 1) {
     if (e.tokens.some((t) => t.startsWith(nq))) return RECIPE_RANK_WORD_PREFIX;
     if (e.nn.includes(nq)) return RECIPE_RANK_SUBSTRING;
-  } else {
-    if (qTokens.every((qt) => e.tokens.some((t) => t.startsWith(qt)))) return RECIPE_RANK_WORD_PREFIX;
-    if (e.nn.includes(nq) || qTokens.every((qt) => e.nn.includes(qt))) return RECIPE_RANK_SUBSTRING;
+    return null;
   }
+  if (qTokens.every((qt) => e.tokens.some((t) => t.startsWith(qt)))) return RECIPE_RANK_WORD_PREFIX;
+  if (e.nn.includes(nq) || qTokens.every((qt) => e.nn.includes(qt))) return RECIPE_RANK_SUBSTRING;
+  return null;
+}
+
+function contentRank(e: RecipeIndexEntry, qTokens: string[]): number | null {
   if (qTokens.length > 0 && qTokens.every((qt) => e.content.includes(qt))) return RECIPE_RANK_CONTENT;
   return null;
+}
+
+function bestTokenDistance(qt: string, tokens: string[], cap: number): number {
+  const max = Math.min(cap, fuzzyMaxDistance(qt.length));
+  if (max <= 0) {
+    return tokens.some((t) => t.startsWith(qt)) ? 0 : 1;
+  }
+  let best = max + 1;
+  for (const t of tokens) {
+    if (t.startsWith(qt)) return 0;
+    if (Math.abs(t.length - qt.length) > max) continue;
+    const d = levenshteinAtMost(qt, t, max);
+    if (d < best) {
+      best = d;
+      if (best === 0) return 0;
+    }
+  }
+  return best;
+}
+
+function fuzzyDist(e: RecipeIndexEntry, qTokens: string[], cap: number): number | null {
+  if (qTokens.length === 0 || cap <= 0) return null;
+  let dist = 0;
+  for (const qt of qTokens) {
+    const d = bestTokenDistance(qt, e.tokens, cap);
+    const max = Math.min(cap, fuzzyMaxDistance(qt.length));
+    if (d > max) return null;
+    dist += d;
+  }
+  return dist;
 }
 
 export function searchRecipesIndexed(
@@ -71,14 +104,41 @@ export function searchRecipesIndexed(
   if (!nq) return pool.slice(0, limit).map((e) => e.recipe);
 
   const qTokens = tokenize(nq);
-  const hits: { e: RecipeIndexEntry; rank: number }[] = [];
+  const hits: { e: RecipeIndexEntry; rank: number; dist: number }[] = [];
+  const seen = new Set<string>();
+
   for (const e of pool) {
-    const rank = rankOf(e, nq, qTokens);
-    if (rank != null) hits.push({ e, rank });
+    const rank = exactRank(e, nq, qTokens);
+    if (rank == null) continue;
+    hits.push({ e, rank, dist: 0 });
+    seen.add(e.recipe.id);
   }
+
+  const cap = fuzzyMaxDistance(nq.length);
+  if (cap > 0 && hits.length < FEW_EXACT && hits.length < limit) {
+    for (const e of pool) {
+      if (seen.has(e.recipe.id)) continue;
+      const dist = fuzzyDist(e, qTokens, cap);
+      if (dist == null) continue;
+      hits.push({ e, rank: RECIPE_RANK_FUZZY, dist });
+      seen.add(e.recipe.id);
+    }
+  }
+
+  for (const e of pool) {
+    if (seen.has(e.recipe.id)) continue;
+    const rank = contentRank(e, qTokens);
+    if (rank == null) continue;
+    hits.push({ e, rank, dist: 0 });
+    seen.add(e.recipe.id);
+  }
+
   hits.sort(
     (a, b) =>
-      a.rank - b.rank || a.e.recipe.name.length - b.e.recipe.name.length || a.e.order - b.e.order,
+      a.rank - b.rank ||
+      a.dist - b.dist ||
+      a.e.recipe.name.length - b.e.recipe.name.length ||
+      a.e.order - b.e.order,
   );
   return hits.slice(0, limit).map((x) => x.e.recipe);
 }

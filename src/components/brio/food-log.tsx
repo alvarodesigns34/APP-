@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { CustomFoodSheet } from "@/components/brio/custom-food";
 import { FoodDetailSheet } from "@/components/brio/food-detail";
 import { CATEGORIES, MEALS, type Food, type MealEntry, type MealId } from "@/lib/brio/types";
-import { getFood, searchFoods } from "@/lib/brio/catalog";
+import { getFood } from "@/lib/brio/catalog";
+import { buildFoodLogList } from "@/lib/brio/food-log-list";
 import { useCatalog } from "@/lib/brio/use-catalog";
 import { CatalogNotice } from "@/components/brio/catalog-state";
 import { HighlightText } from "@/components/brio/highlight-text";
@@ -114,14 +115,22 @@ export function FoodLogSheet({
     }
   }, [open, edit, defaultMeal, catalogReady]);
 
-  const list = useMemo(() => {
-    if (picked || editing) return [];
-    if (!catalogReady) return [];
-    const catalogCtx = { customFoods, recipes };
-    if (tab === "buscar") return searchFoods(q, cat, catalogCtx, 60);
-    const ids = tab === "recientes" ? recents : tab === "favoritos" ? favorites : habitual;
-    return ids.map((id) => getFood(id, catalogCtx)).filter((f): f is Food => !!f);
-  }, [tab, q, cat, recents, favorites, habitual, customFoods, recipes, picked, editing, catalogReady]);
+  const list = useMemo(
+    () =>
+      buildFoodLogList({
+        picked,
+        editing: !!editing,
+        tab,
+        q,
+        cat,
+        recents,
+        favorites,
+        habitual,
+        customFoods,
+        recipes,
+      }),
+    [tab, q, cat, recents, favorites, habitual, customFoods, recipes, picked, editing],
+  );
 
   const unitG = useMemo(() => {
     if (!picked) {
@@ -471,7 +480,7 @@ export function FoodLogSheet({
               <Plus className="size-4" />
               Crear alimento
             </Button>
-            {catalogReady && tab === "buscar" && q.trim() ? (
+            {(catalogReady || list.length > 0) && tab === "buscar" && q.trim() ? (
               <p className="mb-1 text-xs text-muted-foreground" aria-live="polite">
                 {list.length === 0
                   ? "Ningún alimento coincide"
@@ -483,7 +492,8 @@ export function FoodLogSheet({
                 <li>
                   <CatalogNotice state={catalog} loadingText="Cargando alimentos…" />
                 </li>
-              ) : list.length === 0 ? (
+              ) : null}
+              {list.length === 0 && catalogReady ? (
                 <li className="py-8 text-center text-sm text-muted-foreground">
                   {q.trim()
                     ? `No hay resultados para "${q.trim()}". Prueba con otra palabra o crea el alimento.`
