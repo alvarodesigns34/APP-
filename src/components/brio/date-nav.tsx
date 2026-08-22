@@ -10,6 +10,7 @@ export const DateNav = memo(function DateNav({ subtitle }: { subtitle?: string }
   const setViewDate = useBrioStore((s) => s.setViewDate);
   const key = viewDate || todayKey();
   const atMax = !canPlanFurther(key, todayKey());
+  const isToday = key === todayKey();
   return (
     <div className="mb-4 flex items-center justify-between gap-2">
       <Button
@@ -20,10 +21,24 @@ export const DateNav = memo(function DateNav({ subtitle }: { subtitle?: string }
       >
         <ChevronLeft className="size-5" />
       </Button>
-      <div className="text-center">
-        <div className="font-medium">{fmtDateRelative(key)}</div>
-        {subtitle ? <div className="text-xs text-muted-foreground">{subtitle}</div> : null}
-      </div>
+      {/* viewDate is global and sticky, so walking back a few days left every
+          screen in the past with no way out but the arrow. Tapping the date
+          returns to today. */}
+      {isToday ? (
+        <div className="text-center">
+          <div className="font-medium">{fmtDateRelative(key)}</div>
+          {subtitle ? <div className="text-xs text-muted-foreground">{subtitle}</div> : null}
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="rounded-xl px-3 py-1 text-center transition-colors hover:bg-muted active:bg-muted"
+          onClick={() => setViewDate(todayKey())}
+        >
+          <div className="font-medium">{fmtDateRelative(key)}</div>
+          <div className="text-xs text-primary">Volver a hoy</div>
+        </button>
+      )}
       <Button
         variant="ghost"
         size="icon"

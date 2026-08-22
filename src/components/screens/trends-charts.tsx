@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { Card, SectionLabel } from "@/components/brio/section";
 import { nf } from "@/lib/brio/format";
-import type { MacroSeriesPoint } from "@/lib/brio/macro-series";
+import { niceCeil, type MacroSeriesPoint } from "@/lib/brio/macro-series";
 import { cn } from "@/lib/utils";
 import { fmtWeight, kgToDisplay, type UnitSystem } from "@/lib/brio/units";
 
@@ -69,7 +69,9 @@ function macroYDomain(
     }
   }
   if (max <= 0) return [0, 1];
-  return [0, max * 1.08];
+  // A raw max * 1.08 makes the top tick something like 2440.8, which a narrow
+  // axis clipped to "440,8". Round up to a readable ceiling instead.
+  return [0, niceCeil(max * 1.02)];
 }
 
 function MacroComposedChart({
@@ -99,7 +101,7 @@ function MacroComposedChart({
             <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--brio-border)" />
               <XAxis dataKey="d" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} width={32} domain={domain} />
+              <YAxis tick={{ fontSize: 10 }} width={46} domain={domain} allowDecimals={false} tickFormatter={(v) => nf(Number(v))} />
               <Tooltip
                 formatter={(v, name) => {
                   const n = typeof v === "number" ? v : Number(v);
@@ -181,7 +183,7 @@ export function TrendsCharts({
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
             <XAxis dataKey="d" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 10 }} width={36} />
+            <YAxis tick={{ fontSize: 10 }} width={46} allowDecimals={false} tickFormatter={(v) => nf(Number(v))} />
             <Tooltip formatter={(v) => [`${v} ml`, "Agua"]} />
             <Bar dataKey="water" fill="var(--brio-water)" radius={[4, 4, 0, 0]} />
           </BarChart>
@@ -193,7 +195,7 @@ export function TrendsCharts({
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
             <XAxis dataKey="d" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 10 }} width={32} />
+            <YAxis tick={{ fontSize: 10 }} width={46} allowDecimals={false} tickFormatter={(v) => nf(Number(v))} />
             <Tooltip formatter={(v) => [`${v} h`, "Sueño"]} />
             <Line type="monotone" dataKey="sleep" stroke="var(--brio-sleep)" strokeWidth={2} dot={false} />
           </LineChart>
@@ -205,7 +207,7 @@ export function TrendsCharts({
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
             <XAxis dataKey="d" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 10 }} width={32} />
+            <YAxis tick={{ fontSize: 10 }} width={46} allowDecimals={false} tickFormatter={(v) => nf(Number(v))} />
             <Tooltip formatter={(v) => [`${v}`, "Pasos"]} />
             <Line type="monotone" dataKey="steps" stroke="var(--brio-steps)" strokeWidth={2} dot={false} />
           </LineChart>

@@ -129,7 +129,13 @@ export function FoodLogSheet({
         customFoods,
         recipes,
       }),
-    [tab, q, cat, recents, favorites, habitual, customFoods, recipes, picked, editing],
+    // catalogReady is not read inside buildFoodLogList, so the lint rule calls
+    // it unnecessary — but searchFoods/getFood resolve against the module-level
+    // catalog it gates, which the rule cannot see. Without it the memo caches
+    // the empty pre-load result: /comida mounts this sheet eagerly, so opening
+    // "Añadir" showed "No hay resultados" until you typed a letter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tab, q, cat, recents, favorites, habitual, customFoods, recipes, picked, editing, catalogReady],
   );
 
   const unitG = useMemo(() => {

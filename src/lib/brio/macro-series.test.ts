@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMacroSeries, loggedDayMean, DEFAULT_TREND_RANGE, MACRO_MA_MIN_POINTS, MACRO_MA_WINDOW, TREND_RANGES } from "./macro-series";
+import { buildMacroSeries, loggedDayMean, niceCeil, DEFAULT_TREND_RANGE, MACRO_MA_MIN_POINTS, MACRO_MA_WINDOW, TREND_RANGES } from "./macro-series";
 
 const GOALS = { kcal: 2200, prot: 138, carb: 248, fat: 73 };
 
@@ -82,5 +82,27 @@ describe("buildMacroSeries", () => {
       GOALS,
     );
     expect(pts).toHaveLength(30);
+  });
+});
+
+describe("niceCeil", () => {
+  it("rounds a max up to a readable ceiling", () => {
+    expect(niceCeil(2440.8)).toBe(2500);
+    expect(niceCeil(140.8)).toBe(150);
+    expect(niceCeil(18.04)).toBe(20);
+    expect(niceCeil(1)).toBe(1);
+    expect(niceCeil(1.2)).toBe(1.5);
+  });
+
+  it("never returns a ceiling below the value it was given", () => {
+    for (const v of [1, 7, 99, 100, 101, 999, 1001, 2440.8, 12345]) {
+      expect(niceCeil(v)).toBeGreaterThanOrEqual(v);
+    }
+  });
+
+  it("falls back to 1 for nothing to plot", () => {
+    expect(niceCeil(0)).toBe(1);
+    expect(niceCeil(-5)).toBe(1);
+    expect(niceCeil(NaN)).toBe(1);
   });
 });

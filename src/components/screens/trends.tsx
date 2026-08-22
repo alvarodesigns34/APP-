@@ -1,7 +1,8 @@
 import { lazy, Suspense, useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import { Card, Empty, Screen, SectionLabel, Title } from "@/components/brio/section";
-import { addDays, rangeKeys, sleepDuration, todayKey } from "@/lib/brio/dates";
+import { addDays, rangeKeys, sleepDuration, todayKey, weekColumns, WEEKDAYS } from "@/lib/brio/dates";
 import { nf, plural } from "@/lib/brio/format";
 import { buildMacroSeries, DEFAULT_TREND_RANGE, TREND_RANGES, type TrendRange } from "@/lib/brio/macro-series";
 import {
@@ -173,6 +174,7 @@ export function TrendsScreen() {
     })),
   );
   const setViewDate = useBrioStore((s) => s.setViewDate);
+  const navigate = useNavigate();
   const [range, setRange] = useState<TrendRange>(DEFAULT_TREND_RANGE);
   const data = useMemo(() => {
     const keys = rangeKeys(todayKey(), range);
@@ -203,8 +205,14 @@ export function TrendsScreen() {
   // goalsMet chains into kcalGoalFor → activityKcal → stepsKcal → latestWeight,
   // which filters the whole weights array. Unmemoized that ran 84 times on
   // every render of this screen.
+  // Weeks as columns, weekdays as rows. The old grid poured 84 days into 7
+  // columns, which looks like a calendar but is a wrapping strip: a column only
+  // lands on a weekday if day one happened to be a Monday.
   const heat = useMemo(
-    () => rangeKeys(todayKey(), 84).map((k) => ({ k, c: goalsMet(snap, k).count })),
+    () =>
+      weekColumns(todayKey(), 12).map((col) =>
+        col.map((k) => (k == null ? null : { k, c: goalsMet(snap, k).count })),
+      ),
     [snap],
   );
   const insights = useMemo(() => weeklyInsights(snap), [snap]);
@@ -314,24 +322,51 @@ export function TrendsScreen() {
 
       <SectionLabel>Calendario</SectionLabel>
       <Card className="mb-3">
-        <div className="grid grid-cols-7 gap-1">
-          {heat.map(({ k, c }) => {
-            return (
-              <button
-                key={k}
-                type="button"
-                title={`${k}: ${c}/5`}
-                aria-label={`${k}: ${c} de 5 objetivos`}
-                className={cn(
-                  "aspect-square rounded-sm",
-                  c >= 4 ? "bg-primary" : c >= 3 ? "bg-primary/70" : c > 0 ? "bg-primary/30" : "bg-muted",
-                )}
-                onClick={() => setViewDate(k)}
-              />
-            );
-          })}
+        <div className="flex gap-1.5">
+          <div className="grid shrink-0 grid-rows-7 gap-1 pr-0.5 text-[10px] leading-none text-muted-foreground">
+            {WEEKDAYS.map((w, i) => (
+              // Only alternate rows are labelled; seven 10px labels in a column
+              // this short is noise rather than orientation.
+              <span key={w} className="flex h-3.5 items-center">
+                {i % 2 === 0 ? w : ""}
+              </span>
+            ))}
+          </div>
+          <div className="grid flex-1 grid-flow-col grid-rows-7 gap-1">
+            {heat.map((col, ci) =>
+              col.map((cell, ri) =>
+                cell == null ? (
+                  <span key={`e${ci}-${ri}`} className="h-3.5 rounded-[3px]" aria-hidden />
+                ) : (
+                  <button
+                    key={cell.k}
+                    type="button"
+                    title={`${cell.k}: ${cell.c}/5`}
+                    aria-label={`${cell.k}: ${cell.c} de 5 objetivos`}
+                    className={cn(
+                      "h-3.5 rounded-[3px] transition-colors",
+                      cell.c >= 4
+                        ? "bg-primary"
+                        : cell.c >= 3
+                          ? "bg-primary/70"
+                          : cell.c > 0
+                            ? "bg-primary/30"
+                            : "bg-muted",
+                    )}
+                    onClick={() => {
+                      // The copy promised "toca un día para abrirlo" but only
+                      // set the global date, so nothing visibly happened here
+                      // and the other screens silently moved.
+                      setViewDate(cell.k);
+                      void navigate({ to: "/" });
+                    }}
+                  />
+                ),
+              ),
+            )}
+          </div>
         </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">12 semanas · toca un día para abrirlo</p>
+        <p className="mt-2 text-[11px] text-muted-foreground">12 semanas · toca un día para abrirlo en Hoy</p>
       </Card>
 
       <SectionLabel>Gráficas</SectionLabel>
