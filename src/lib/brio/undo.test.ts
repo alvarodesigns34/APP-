@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { applyUndo, clearUndo, MAX_UNDO, popUndo, pushUndo, undoCount } from "./undo";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { applyUndo, clearUndo, listUndo, MAX_UNDO, popUndo, pushUndo, subscribeUndo, undoCount } from "./undo";
 
 afterEach(() => {
   clearUndo();
@@ -59,5 +59,59 @@ describe("undo stack", () => {
     applyUndo(entry!);
     expect(n).toBe(1);
     expect(popUndo()).toBeNull();
+  });
+});
+
+describe("listUndo", () => {
+  it("lists labels most-recent-first without mutating the stack", () => {
+    pushUndo({ label: "a", apply: () => {} });
+    pushUndo({ label: "b", apply: () => {} });
+    pushUndo({ label: "c", apply: () => {} });
+    expect(listUndo()).toEqual(["c", "b", "a"]);
+    expect(undoCount()).toBe(3);
+  });
+
+  it("returns a stable reference until the stack changes", () => {
+    pushUndo({ label: "a", apply: () => {} });
+    const first = listUndo();
+    expect(listUndo()).toBe(first);
+    pushUndo({ label: "b", apply: () => {} });
+    expect(listUndo()).not.toBe(first);
+    expect(listUndo()).toEqual(["b", "a"]);
+  });
+
+  it("nested pushes during applyUndo do not notify (they are dropped, per pushUndo)", () => {
+    pushUndo({ label: "outer", apply: () => pushUndo({ label: "nested", apply: () => {} }) });
+    const before = listUndo();
+    applyUndo(popUndo()!);
+    expect(listUndo()).toEqual([]);
+    expect(listUndo()).not.toBe(before);
+  });
+});
+
+describe("subscribeUndo", () => {
+  it("notifies on push, pop and clear, and unsubscribes cleanly", () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeUndo(listener);
+
+    pushUndo({ label: "a", apply: () => {} });
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    popUndo();
+    expect(listener).toHaveBeenCalledTimes(2);
+
+    popUndo(); // empty stack: no change, no notify
+    expect(listener).toHaveBeenCalledTimes(2);
+
+    pushUndo({ label: "b", apply: () => {} });
+    clearUndo();
+    expect(listener).toHaveBeenCalledTimes(4);
+
+    clearUndo(); // already empty: no notify
+    expect(listener).toHaveBeenCalledTimes(4);
+
+    unsubscribe();
+    pushUndo({ label: "c", apply: () => {} });
+    expect(listener).toHaveBeenCalledTimes(4);
   });
 });

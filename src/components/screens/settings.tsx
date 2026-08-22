@@ -36,6 +36,7 @@ import { combinedCsv } from "@/lib/brio/export-csv";
 import { nf, parseNum } from "@/lib/brio/format";
 import { DEFAULT_WEEKDAY_PLAN, MIN_DAY_KCAL, kcalForWeekday } from "@/lib/brio/weekday-goals";
 import { formatBackupPreview, previewBackup, type BackupPreview } from "@/lib/brio/backup-preview";
+import { useUndoList } from "@/lib/brio/undo";
 import {
   cmToDisplay,
   displayToCm,
@@ -68,6 +69,8 @@ export function SettingsScreen() {
   const patchSettings = useBrioStore((s) => s.patchSettings);
   const importAll = useBrioStore((s) => s.importAll);
   const resetAll = useBrioStore((s) => s.resetAll);
+  const undoLast = useBrioStore((s) => s.undoLast);
+  const undoList = useUndoList();
   const exportSlice = useBrioStore(
     useShallow((s) => ({
       schema: s.schema,
@@ -513,6 +516,28 @@ export function SettingsScreen() {
         <p className="text-xs text-muted-foreground">
           Los avisos salen en este dispositivo, sin cuenta. Si cierras la app del todo, el sistema puede retrasarlos.
         </p>
+      </Card>
+
+      <SectionLabel>Últimas acciones</SectionLabel>
+      <Card className="space-y-2">
+        {undoList.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No hay nada que deshacer.</p>
+        ) : (
+          <>
+            <Button variant="secondary" className="w-full" onClick={undoLast}>
+              Deshacer: {undoList[0]}
+            </Button>
+            {undoList.length > 1 ? (
+              <ul className="space-y-1 px-1 text-xs text-muted-foreground">
+                {undoList.slice(1, 6).map((label, i) => (
+                  <li key={i} className="truncate">
+                    {label}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </>
+        )}
       </Card>
 
       <SectionLabel>Datos</SectionLabel>
