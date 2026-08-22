@@ -63,12 +63,17 @@ function tick() {
   saveLastFired(lastFired);
   if (!("serviceWorker" in navigator)) return;
   void navigator.serviceWorker.ready.then((reg) => {
+    // Bake BASE_URL into both paths: "icon" resolves against this page's own
+    // URL, and "url" is read back inside the SW where a root-absolute path
+    // ("/comida") would resolve to the domain root instead of "/APP-/comida"
+    // on a GitHub Pages subpath deploy.
+    const base = import.meta.env.BASE_URL;
     for (const n of due) {
       void reg.showNotification(n.title, {
         body: n.body,
-        icon: "/icon-192.png",
+        icon: `${base}icon-192.png`,
         tag: `brio-${n.id}`,
-        data: { url: n.url },
+        data: { url: `${base}${n.url.replace(/^\//, "")}` },
         renotify: false,
       } as NotificationOptions);
     }

@@ -6,6 +6,10 @@ export const router = createRouter({
   routeTree,
   defaultErrorComponent: AppErrorComponent,
   defaultPreload: "intent",
+  // Matches Vite's `base` (vite.config.ts): "/" locally, "/APP-/" on GitHub
+  // Pages. Without this, links and a page refresh under a subpath deploy
+  // resolve against the wrong root.
+  basepath: import.meta.env.BASE_URL,
 });
 
 declare module "@tanstack/react-router" {
