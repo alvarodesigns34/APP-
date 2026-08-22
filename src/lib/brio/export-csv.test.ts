@@ -82,6 +82,44 @@ describe("fixture: 1 meal + 1 weight", () => {
   });
 });
 
+describe("CSV formula injection", () => {
+  it("prefixes a leading =, +, -, @ or tab with an apostrophe so it isn't read as a formula", () => {
+    const s = withLogs((st) => {
+      const d = emptyDay();
+      d.meals.comida = [
+        meal({ id: "m1", name: "=cmd|calc", unitName: "unidad" }),
+        meal({ id: "m2", name: "+1 huevo", unitName: "unidad" }),
+        meal({ id: "m3", name: "@mention", unitName: "unidad" }),
+      ];
+      st.days["2026-05-01"] = d;
+    });
+    const lines = rows(mealsCsv(s)).slice(1);
+    expect(lines[0]).toContain(";'=cmd|calc;");
+    expect(lines[1]).toContain(";'+1 huevo;");
+    expect(lines[2]).toContain(";'@mention;");
+  });
+
+  it("composes with quote-escaping when the payload also contains a quote", () => {
+    const s = withLogs((st) => {
+      const d = emptyDay();
+      d.meals.comida = [meal({ name: '=HYPERLINK("http://evil")', unitName: "unidad" })];
+      st.days["2026-05-01"] = d;
+    });
+    const line = rows(mealsCsv(s))[1];
+    // Neutralized (leading apostrophe) AND RFC4180-quoted (embedded quotes doubled).
+    expect(line).toContain('"\'=HYPERLINK(""http://evil"")"');
+  });
+
+  it("does not touch a legitimate negative number", () => {
+    const s = withLogs((st) => {
+      st.weights = [{ date: "2026-05-01", kg: 70, fat: -1 }];
+    });
+    // fat is invalid as a negative percentage but the point stands: numeric
+    // cells must never gain a leading apostrophe just for starting with "-".
+    expect(rows(weightsCsv(s))[1]).toBe("2026-05-01;70;-1;");
+  });
+});
+
 describe("quoting inside food names", () => {
   it("escapes quotes and semicolons in the alimento column", () => {
     const s = withLogs((st) => {
