@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { ACTIVITIES, ACTIVITY_GROUPS, INTENSITIES } from "@/lib/brio/domain";
 import { useBrioStore } from "@/lib/brio/store";
 import { latestWeight } from "@/lib/brio/selectors";
-import { parseNum } from "@/lib/brio/format";
+import { parseNum, parsePositive } from "@/lib/brio/format";
 import { clockToMinutes, fmtDateRelative, minutesToClock, minutesToHM, sleepDuration } from "@/lib/brio/dates";
 import {
   displayToKg,
@@ -101,7 +101,7 @@ export function WaterSheet({
         />
         <Button
           onClick={() => {
-            const n = parseNum(custom);
+            const n = parsePositive(custom);
             if (!n) return;
             const ml = displayToMl(n, units);
             add(date, ml);
@@ -245,7 +245,7 @@ export function WorkoutSheet({
         <Button
           className="w-full"
           onClick={() => {
-            add(date, type, parseNum(min) || 30, intensity);
+            add(date, type, parsePositive(min) || 30, intensity);
             onOpenChange(false);
           }}
         >
@@ -326,7 +326,7 @@ export function WeightSheet({
         <Button
           className="w-full"
           onClick={() => {
-            const n = parseNum(v);
+            const n = parsePositive(v);
             if (!n) return;
             const kg = displayToKg(n, units);
             upsert(date, kg);

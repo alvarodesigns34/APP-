@@ -12,7 +12,9 @@ export function uid(prefix = "x"): string {
 }
 
 export function nf(v: number | null | undefined, d = 0): string {
-  if (v == null || Number.isNaN(v)) return "—";
+  // Number.isFinite also rules out ±Infinity, which used to render literally
+  // as "Infinity" instead of the em dash placeholder.
+  if (v == null || !Number.isFinite(v)) return "—";
   const n = round(v, d);
   const parts = String(Math.abs(n)).split(".");
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -25,6 +27,25 @@ export function parseNum(v: string | number | null | undefined): number {
   if (s === "") return NaN;
   const n = Number(s);
   return Number.isFinite(n) ? n : NaN;
+}
+
+/**
+ * `plural(1, "día", "días")` → "1 día". Both forms are spelled out because
+ * Spanish plurals are not a reliable "+s" (sesión → sesiones), and several
+ * strings around the app used to read "1 días" / "1 sesiones".
+ */
+export function plural(n: number, one: string, many: string): string {
+  return `${nf(n)} ${n === 1 ? one : many}`;
+}
+
+/**
+ * Like `parseNum`, but only accepts a finite value strictly greater than zero.
+ * Quantities the user types (grams, ml, kg, minutes, cm) are never negative,
+ * and `parseNum` alone happily returns -500 for "-500".
+ */
+export function parsePositive(v: string | number | null | undefined): number {
+  const n = parseNum(v);
+  return n > 0 ? n : NaN;
 }
 
 export function norm(s: string): string {

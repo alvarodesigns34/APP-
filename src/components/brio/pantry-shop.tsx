@@ -5,7 +5,7 @@ import { BASE_RECIPES, getFood, searchFoods } from "@/lib/brio/catalog";
 import { useCatalog } from "@/lib/brio/use-catalog";
 import { CatalogNotice } from "@/components/brio/catalog-state";
 import { useBrioStore } from "@/lib/brio/store";
-import { missingIngredients } from "@/lib/brio/selectors-catalog";
+import { missingIngredients, pantryHint } from "@/lib/brio/selectors-catalog";
 import { nf } from "@/lib/brio/format";
 import type { Food } from "@/lib/brio/types";
 import { cn } from "@/lib/utils";
@@ -78,9 +78,9 @@ export function PantrySheet({ open, onOpenChange }: { open: boolean; onOpenChang
         {ready.map(({ r, miss }) => (
           <li key={r.id} className="rounded-2xl bg-muted/50 px-3 py-2 text-sm">
             {r.name}
-            <span className="block text-xs text-muted-foreground">
-              {miss === 0 ? "La puedes hacer ahora" : `Te faltan ${miss} ingredientes`}
-            </span>
+            {/* pantryHint gets the singular right ("Te falta 1 ingrediente"); the
+                copy inlined here used to read "Te faltan 1 ingredientes". */}
+            <span className="block text-xs text-muted-foreground">{pantryHint(miss)}</span>
           </li>
         ))}
       </ul>

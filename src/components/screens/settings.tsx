@@ -33,7 +33,7 @@ import {
 } from "@/lib/brio/types";
 import { useBrioStore } from "@/lib/brio/store";
 import { combinedCsv } from "@/lib/brio/export-csv";
-import { nf, parseNum } from "@/lib/brio/format";
+import { nf, parseNum, parsePositive } from "@/lib/brio/format";
 import { DEFAULT_WEEKDAY_PLAN, MIN_DAY_KCAL, kcalForWeekday } from "@/lib/brio/weekday-goals";
 import { formatBackupPreview, previewBackup, type BackupPreview } from "@/lib/brio/backup-preview";
 import { useUndoList } from "@/lib/brio/undo";
@@ -210,7 +210,7 @@ export function SettingsScreen() {
               inputMode="decimal"
               value={cmToDisplay(profile.height, units)}
               onChange={(e) => {
-                const n = parseNum(e.target.value);
+                const n = parsePositive(e.target.value);
                 if (!n) return;
                 patchProfile({ height: displayToCm(n, units) });
               }}
@@ -221,7 +221,7 @@ export function SettingsScreen() {
               inputMode="decimal"
               value={kgToDisplay(profile.weight, units)}
               onChange={(e) => {
-                const n = parseNum(e.target.value);
+                const n = parsePositive(e.target.value);
                 if (!n) return;
                 patchProfile({ weight: displayToKg(n, units) });
               }}
@@ -378,7 +378,7 @@ export function SettingsScreen() {
             inputMode="decimal"
             value={mlToDisplay(settings.glass, units)}
             onChange={(e) => {
-              const n = parseNum(e.target.value);
+              const n = parsePositive(e.target.value);
               if (!n) return;
               patchSettings({ glass: displayToMl(n, units) });
             }}
@@ -514,7 +514,7 @@ export function SettingsScreen() {
             max={360}
             value={reminders.aguaEveryMin}
             onChange={(e) => {
-              const n = parseNum(e.target.value);
+              const n = parsePositive(e.target.value);
               if (!n) return;
               patchReminders({ aguaEveryMin: n });
             }}

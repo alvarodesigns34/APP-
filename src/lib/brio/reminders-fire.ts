@@ -1,7 +1,25 @@
 import type { ReminderNotice } from "./reminders";
 
+/** Bookkeeping key for "this reminder already fired today". Must match the keys `dueReminders` checks. */
 export function firedKey(day: string, id: string): string {
-  return id === "water" ? `${day}:water` : `${day}:${id}`;
+  return `${day}:${id}`;
+}
+
+/**
+ * Keeps only the entries belonging to `day`.
+ *
+ * Every key is day-scoped (`2026-08-22:cena`) and only today's are ever read,
+ * but nothing used to drop the old ones: the map grew by one entry per
+ * reminder per day forever, and was re-serialized to localStorage on every
+ * fire.
+ */
+export function pruneLastFired(map: Record<string, number>, day: string): Record<string, number> {
+  const prefix = `${day}:`;
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(map)) {
+    if (k.startsWith(prefix)) out[k] = v;
+  }
+  return out;
 }
 
 export type ShowNotification = (title: string, options: NotificationOptions) => Promise<void>;

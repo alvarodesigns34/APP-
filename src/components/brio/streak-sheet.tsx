@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { Sheet } from "@/components/ui/sheet";
 import { currentStreak, goalsMet } from "@/lib/brio/selectors";
 import { rangeKeys, todayKey } from "@/lib/brio/dates";
+import { plural } from "@/lib/brio/format";
 import { useBrioStore } from "@/lib/brio/store";
 import { cn } from "@/lib/utils";
 import { MonthCal } from "./month-cal";
@@ -47,7 +48,7 @@ export function StreakSheet({ open, onOpenChange }: { open: boolean; onOpenChang
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Racha">
-      <p className="mb-1 font-display text-3xl tabular-nums">{streak} días</p>
+      <p className="mb-1 font-display text-3xl tabular-nums">{plural(streak, "día", "días")}</p>
       <p className="mb-4 text-sm text-muted-foreground">Cumple 3 objetivos en un día para que cuente en la racha.</p>
       <div className="mb-6 grid grid-cols-7 gap-1">
         {stripCounts.map(({ k, c }) => (

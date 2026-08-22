@@ -173,4 +173,90 @@ describe("migrate", () => {
       expect(workouts[0]).toEqual({ id: "w4", type: "correr", min: 30, intensity: "alta", kcal: 300 });
     });
   });
+
+  describe("meal entries", () => {
+    const good = {
+      id: "e1",
+      foodId: "f001",
+      name: "Manzana",
+      qty: 1,
+      unitName: "unidad",
+      grams: 180,
+      t: 1787415741804,
+      kcal: 93.6,
+      prot: 0.5,
+      carb: 24.8,
+      fat: 0.4,
+      fib: 4.3,
+      sug: 18.7,
+      sat: 0.1,
+      sod: 1.8,
+    };
+
+    it("drops entries with a missing or non-numeric macro instead of letting NaN through", () => {
+      const s = migrate({
+        days: {
+          "2026-08-22": {
+            meals: {
+              comida: [
+                null,
+                "nope",
+                {},
+                { ...good, id: "no-kcal", kcal: undefined },
+                { ...good, id: "text-kcal", kcal: "muchas" },
+                { ...good, id: "no-food", foodId: "" },
+                good,
+              ],
+            },
+          },
+        },
+      });
+      const entries = s.days["2026-08-22"].meals.comida;
+      expect(entries).toHaveLength(1);
+      expect(entries[0].id).toBe("e1");
+      const total = entries.reduce((a, e) => a + e.kcal, 0);
+      expect(Number.isFinite(total)).toBe(true);
+      expect(total).toBe(93.6);
+    });
+
+    it("keeps a usable entry when only the cosmetic fields are missing", () => {
+      const s = migrate({
+        days: {
+          "2026-08-22": {
+            meals: { cena: [{ foodId: "f002", kcal: 100, prot: 1, carb: 2, fat: 3, fib: 0 }] },
+          },
+        },
+      });
+      const e = s.days["2026-08-22"].meals.cena[0];
+      expect(e.kcal).toBe(100);
+      expect(e.name).toBe("f002");
+      expect(e.qty).toBe(1);
+      expect(e.grams).toBe(0);
+      expect(e.id.length).toBeGreaterThan(0);
+      expect(e.sug).toBeNull();
+    });
+  });
+
+  describe("numeric goals and profile", () => {
+    it("falls back on non-numeric or negative goals rather than storing them", () => {
+      const s = migrate({ goals: { kcal: "muchas", steps: -500, water: null, weight: 0 } });
+      expect(s.goals.kcal).toBe(2200);
+      expect(s.goals.steps).toBe(8000);
+      expect(s.goals.water).toBe(2000);
+      expect(s.goals.weight).toBe(70);
+    });
+
+    it("keeps zero, which is how Ajustes switches a goal off", () => {
+      const s = migrate({ goals: { steps: 0, water: 0 } });
+      expect(s.goals.steps).toBe(0);
+      expect(s.goals.water).toBe(0);
+    });
+
+    it("falls back on a non-positive height or weight", () => {
+      const s = migrate({ profile: { height: -175, weight: "setenta", name: 42 } });
+      expect(s.profile.height).toBe(175);
+      expect(s.profile.weight).toBe(70);
+      expect(s.profile.name).toBe("");
+    });
+  });
 });

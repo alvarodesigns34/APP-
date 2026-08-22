@@ -1,5 +1,3 @@
-import type { PersistedState } from "./types";
-
 export type WeekTotals = {
   kcalAvg: number; // mean of days with kcal>0; 0 if none
   protAvg: number; // same days
@@ -15,13 +13,11 @@ export type WeekDelta = {
 };
 
 export function weekTotals(
-  days: PersistedState["days"],
   keys: string[],
   foodTotals: (key: string) => { kcal: number; prot: number },
   stepsOf: (key: string) => number,
   moveOf: (key: string) => number,
 ): WeekTotals {
-  void days;
   let kcalSum = 0;
   let protSum = 0;
   let foodDays = 0;

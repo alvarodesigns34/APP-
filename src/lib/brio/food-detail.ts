@@ -1,4 +1,4 @@
-import { addDays, rangeKeys } from "./dates";
+import { addDays } from "./dates";
 import { MEALS, type Food, type MealId, type PersistedState } from "./types";
 
 const LOOKBACK_DAYS = 90;
@@ -55,8 +55,9 @@ export function lastLogged(
   foodId: string,
   today: string,
 ): { date: string; meal: MealId; grams: number; kcal: number } | null {
-  const span = rangeKeys(today, LOOKBACK_DAYS).length;
-  for (let n = 0; n < span; n++) {
+  // Was `rangeKeys(today, LOOKBACK_DAYS).length`, which built and threw away a
+  // 90-string array on every call just to recover the constant it started from.
+  for (let n = 0; n < LOOKBACK_DAYS; n++) {
     const date = addDays(today, -n);
     const day = days[date];
     if (!day) continue;
