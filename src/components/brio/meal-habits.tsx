@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { toast } from "sonner";
 import { Empty, SectionLabel } from "@/components/brio/section";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -13,22 +12,12 @@ import { cn } from "@/lib/utils";
 export function MealHabits({ date }: { date: string }) {
   const days = useBrioStore((s) => s.days);
   const cloneMealEntries = useBrioStore((s) => s.cloneMealEntries);
-  const removeMeal = useBrioStore((s) => s.removeMeal);
   const habits = habitualMeals(useBrioStore.getState());
   const [open, setOpen] = useState<MealHabit | null>(null);
   const [slot, setSlot] = useState<MealId>("desayuno");
 
   function apply(habit: MealHabit, meal: MealId) {
-    const ids = cloneMealEntries(date, meal, habit.entries);
-    const name = MEALS.find((m) => m.id === meal)?.n.toLowerCase() ?? meal;
-    toast.success(`Añadidos ${ids.length} alimentos a ${name}`, {
-      action: {
-        label: "Deshacer",
-        onClick: () => {
-          for (const id of ids) removeMeal(date, meal, id);
-        },
-      },
-    });
+    cloneMealEntries(date, meal, habit.entries);
     setOpen(null);
   }
 

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -134,7 +133,6 @@ export function StepsSheet({
           onClick={() => {
             setSteps(date, parseNum(v) || 0);
             onOpenChange(false);
-            toast.success("Pasos actualizados");
           }}
         >
           Guardar
@@ -180,7 +178,6 @@ export function SleepSheet({
               if (dur <= 0) return;
               setSleep(date, { bed: clockToMinutes(bed), wake: clockToMinutes(wake) });
               onOpenChange(false);
-              toast.success("Sueño guardado");
             }}
           >
             Guardar · {minutesToHM(dur)}
@@ -192,7 +189,6 @@ export function SleepSheet({
               onClick={() => {
                 setSleep(date, null);
                 onOpenChange(false);
-                toast.success("Sueño borrado");
               }}
             >
               Quitar

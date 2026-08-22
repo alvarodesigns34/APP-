@@ -14,7 +14,6 @@ import { sumEntries } from "@/lib/brio/selectors";
 import { useBrioStore } from "@/lib/brio/store";
 import { MEALS, type MealEntry, type MealId } from "@/lib/brio/types";
 import { QUICK_LOG_EVENT } from "@/lib/brio/hotkeys";
-import { applyUndo } from "@/lib/brio/undo";
 import { PantrySheet, ShoppingSheet } from "@/components/brio/pantry-shop";
 import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
@@ -77,16 +76,7 @@ export function FoodScreen() {
 
   function repeatYesterday(m: MealId) {
     const ids = copyMeal(yesterday, key, m);
-    toast.success(ids.length ? `Añadidos ${ids.length} alimentos` : "Ayer no tenía esa comida", {
-      action: ids.length
-        ? {
-            label: "Deshacer",
-            onClick: () => {
-              for (const id of ids) removeMeal(key, m, id);
-            },
-          }
-        : undefined,
-    });
+    if (!ids.length) toast.success("Ayer no tenía esa comida");
   }
 
   return (
@@ -108,7 +98,7 @@ export function FoodScreen() {
             className="flex-1"
             onClick={() => {
               const n = copyDayMeals(yesterday, key);
-              toast.success(n ? `Copiados ${n} registros de ayer` : "Ayer no tenía comidas");
+              if (!n) toast.success("Ayer no tenía comidas");
             }}
           >
             Copiar ayer
@@ -173,7 +163,6 @@ export function FoodScreen() {
                           className="min-h-11 rounded-full bg-muted px-3 text-xs"
                           onClick={() => {
                             duplicateMeal(key, m.id, e.id);
-                            toast.success("Duplicado");
                           }}
                         >
                           Duplicar
@@ -187,7 +176,6 @@ export function FoodScreen() {
                               onClick={() => {
                                 moveMeal(key, m.id, other.id, e.id);
                                 setMovingId(null);
-                                toast.success(`Movido a ${other.n.toLowerCase()}`);
                               }}
                             >
                               Mover a {other.n.toLowerCase()}
@@ -271,7 +259,6 @@ function CopyOtherDaySheet({
 }) {
   const days = useBrioStore((s) => s.days);
   const copyDayMeals = useBrioStore((s) => s.copyDayMeals);
-  const removeMeal = useBrioStore((s) => s.removeMeal);
   const sources = useMemo(() => recentDaysWithMeals(days, todayKey(), 14, targetKey), [days, targetKey]);
   const [fromKey, setFromKey] = useState("");
 
@@ -284,36 +271,9 @@ function CopyOtherDaySheet({
 
   function confirm() {
     if (!canCopy) return;
-    const before = new Set(
-      MEALS.flatMap((m) => (useBrioStore.getState().days[targetKey]?.meals[m.id] ?? []).map((e) => e.id)),
-    );
     const copied = copyDayMeals(fromKey, targetKey);
     onOpenChange(false);
-    if (!copied) {
-      toast.success("Ese día no tenía comidas");
-      return;
-    }
-    const after = useBrioStore.getState().days[targetKey];
-    const added: { meal: MealId; id: string }[] = [];
-    for (const m of MEALS) {
-      for (const e of after?.meals[m.id] ?? []) {
-        if (!before.has(e.id)) added.push({ meal: m.id, id: e.id });
-      }
-    }
-    const rel = fmtDateRelative(fromKey).toLowerCase();
-    toast.success(`Copiados ${copied} registros de ${rel}`, {
-      action: {
-        label: "Deshacer",
-        onClick: () => {
-          applyUndo({
-            label: "Deshacer copia",
-            apply: () => {
-              for (const x of added) removeMeal(targetKey, x.meal, x.id);
-            },
-          });
-        },
-      },
-    });
+    if (!copied) toast.success("Ese día no tenía comidas");
   }
 
   return (

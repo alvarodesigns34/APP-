@@ -254,7 +254,6 @@ export function FoodLogSheet({
     if (!g || g <= 0 || !qn || qn <= 0) return;
     if (edit) {
       updateMeal(date, edit.meal, edit.entry.id, g, qn, unitName, picked ?? undefined);
-      toast.success("Registro actualizado");
     } else {
       if (!picked) return;
       addMeal(date, meal, picked, g, qn, unitName);
