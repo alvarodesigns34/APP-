@@ -15,7 +15,7 @@ import {
 import { useBrioStore } from "@/lib/brio/store";
 import { cn } from "@/lib/utils";
 import { fmtWeight } from "@/lib/brio/units";
-import { compareWeeks, weekTotals, type WeekDelta, type WeekTotals } from "@/lib/brio/week-compare";
+import { compareWeeks, isWeekEmpty, weekTotals, type WeekDelta, type WeekTotals } from "@/lib/brio/week-compare";
 import { buildWeightChart } from "@/lib/brio/weight-chart";
 
 const TrendsCharts = lazy(() => import("./trends-charts").then((m) => ({ default: m.TrendsCharts })));
@@ -97,7 +97,8 @@ function signedDeltaLabel(d: WeekDelta, unit: string): string {
 
 function WeekCompareBlock({ curr, prev }: { curr: WeekTotals; prev: WeekTotals }) {
   const d = compareWeeks(curr, prev);
-  const prevEmpty = prev.foodDays === 0 && prev.stepsAvg === 0 && prev.moveMin === 0;
+  const currEmpty = isWeekEmpty(curr);
+  const prevEmpty = isWeekEmpty(prev);
   const rows: { label: string; curr: number; prev: number; delta: WeekDelta; unit: string }[] = [
     { label: "Calorías", curr: curr.kcalAvg, prev: prev.kcalAvg, delta: d.kcal, unit: "kcal" },
     { label: "Proteína", curr: curr.protAvg, prev: prev.protAvg, delta: d.prot, unit: "g" },
@@ -107,7 +108,11 @@ function WeekCompareBlock({ curr, prev }: { curr: WeekTotals; prev: WeekTotals }
   return (
     <div className="mt-4">
       <p className="text-sm font-medium">Esta semana vs. la anterior</p>
-      {prevEmpty ? (
+      {currEmpty ? (
+        // Otherwise every row would show a misleading "-100%" from comparing a
+        // week that simply has no logs yet against a real previous week.
+        <p className="mt-2 text-sm text-muted-foreground">Esta semana aún no tiene datos.</p>
+      ) : prevEmpty ? (
         <p className="mt-2 text-sm text-muted-foreground">La semana anterior aún no tiene datos.</p>
       ) : (
         <ul className="mt-2 space-y-1.5">
