@@ -50,7 +50,7 @@ export function RoutinesSheet({
                 setTimer(null);
               }}
               className={cn(
-                "shrink-0 rounded-full px-3 py-1 text-xs",
+                "min-h-11 shrink-0 rounded-full px-3 py-1 text-xs",
                 i === session ? "bg-primary text-primary-foreground" : "bg-muted",
               )}
             >

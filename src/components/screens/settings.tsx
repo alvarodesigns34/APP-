@@ -425,7 +425,7 @@ export function SettingsScreen() {
               type="button"
               onClick={() => toggleTrainingDay(day)}
               className={cn(
-                "h-10 min-w-10 rounded-xl px-2 text-xs font-medium",
+                "min-h-11 min-w-11 rounded-xl px-2 text-xs font-medium",
                 weekdayPlan.training[day] ? "bg-primary text-primary-foreground" : "bg-muted",
               )}
             >

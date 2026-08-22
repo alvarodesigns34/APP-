@@ -7,7 +7,16 @@ import { useBrioStore } from "@/lib/brio/store";
 import { latestWeight } from "@/lib/brio/selectors";
 import { parseNum } from "@/lib/brio/format";
 import { clockToMinutes, fmtDateRelative, minutesToClock, minutesToHM, sleepDuration } from "@/lib/brio/dates";
-import { displayToKg, displayToMl, fmtVolume, fmtWeight, kgToDisplay, volumeUnit, weightUnit } from "@/lib/brio/units";
+import {
+  displayToKg,
+  displayToMl,
+  fmtVolume,
+  fmtWeight,
+  kgToDisplay,
+  uniqueGlassAmounts,
+  volumeUnit,
+  weightUnit,
+} from "@/lib/brio/units";
 import type { IntensityId } from "@/lib/brio/types";
 import { cn } from "@/lib/utils";
 
@@ -76,8 +85,8 @@ export function WaterSheet({
         <p className="mb-4 text-sm text-muted-foreground">Aún no hay vasos {fmtDateRelative(date).toLowerCase()}.</p>
       )}
       <div className="grid grid-cols-3 gap-2">
-        {[glass, 200, 500].map((ml, i) => (
-          <Button key={`${ml}-${i}`} variant="secondary" onClick={() => addAmount(ml)}>
+        {uniqueGlassAmounts(glass).map((ml) => (
+          <Button key={ml} variant="secondary" onClick={() => addAmount(ml)}>
             +{fmtVolume(ml, units)}
           </Button>
         ))}
@@ -254,7 +263,7 @@ export function WorkoutSheet({
                 type="button"
                 onClick={() => setType(a.id)}
                 className={cn(
-                  "rounded-full px-3 py-1 text-xs",
+                  "min-h-11 rounded-full px-3 py-1 text-xs",
                   type === a.id ? "bg-primary text-primary-foreground" : "bg-muted",
                 )}
               >

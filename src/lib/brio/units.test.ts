@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayToCm, displayToKg, displayToMl, fmtHeight } from "./units";
+import { displayToCm, displayToKg, displayToMl, fmtHeight, uniqueGlassAmounts } from "./units";
 
 describe("units", () => {
   it("rounds imperial conversions instead of storing long floats", () => {
@@ -13,5 +13,16 @@ describe("units", () => {
   it("formats imperial height as feet and inches", () => {
     expect(fmtHeight(175.26, "imp")).toBe("5'9\"");
     expect(fmtHeight(175, "met")).toBe("175 cm");
+  });
+});
+
+describe("uniqueGlassAmounts", () => {
+  it("keeps all three when the custom glass size differs from the presets", () => {
+    expect(uniqueGlassAmounts(250)).toEqual([250, 200, 500]);
+  });
+
+  it("does not repeat the custom size when it matches a preset", () => {
+    expect(uniqueGlassAmounts(200)).toEqual([200, 500]);
+    expect(uniqueGlassAmounts(500)).toEqual([500, 200]);
   });
 });
