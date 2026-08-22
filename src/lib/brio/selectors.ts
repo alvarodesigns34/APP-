@@ -1,5 +1,5 @@
 import { addDays, dateOf, mealForHour, nowMinutes, rangeKeys, sleepDuration, todayKey } from "./dates";
-import { kcalFromSteps } from "./domain";
+import { kcalFromSteps, macrosFromKcal } from "./domain";
 import { emptyDay } from "./persist";
 import type { DayLog, FastingId, MealEntry, MealId, PersistedState } from "./types";
 import { FASTING_PRESETS, MEALS } from "./types";
@@ -64,6 +64,22 @@ export function kcalGoalFor(s: PersistedState, key: string): number {
   }
   if (s.settings.activityAdjust) k += activityKcal(s, key);
   return k;
+}
+
+/**
+ * Protein/carb/fat targets for one day, following the same weekday split as
+ * `kcalGoalFor` (a training day's higher kcal budget means higher macro
+ * grams too, at the same split). Deliberately excludes the activity-kcal
+ * bonus: that extra allowance has no defined split, so it stays a kcal-only
+ * buffer, same as the "Incluye X kcal de actividad" note already shows it.
+ */
+export function macroGoalsFor(s: PersistedState, key: string): { prot: number; carb: number; fat: number } {
+  if (!s.settings.weekdayPlan?.enabled) {
+    return { prot: s.goals.prot, carb: s.goals.carb, fat: s.goals.fat };
+  }
+  const k = kcalForWeekday(s.goals.kcal, s.settings.weekdayPlan.training, dateOf(key).getDay());
+  if (k === s.goals.kcal) return { prot: s.goals.prot, carb: s.goals.carb, fat: s.goals.fat };
+  return macrosFromKcal(k, s.settings.macroPct);
 }
 
 export function latestWeight(s: PersistedState, beforeKey?: string) {

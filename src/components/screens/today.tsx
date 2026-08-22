@@ -15,6 +15,7 @@ import {
   dayFoodTotals,
   goalsMet,
   kcalGoalFor,
+  macroGoalsFor,
   moveGoal,
   waterTotal,
   workoutMinTotal,
@@ -60,6 +61,7 @@ export function TodayScreen() {
   const g = snap.goals;
   const d = snap.days[key];
   const kg = useMemo(() => kcalGoalFor(snap, key), [snap, key]);
+  const mg = useMemo(() => macroGoalsFor(snap, key), [snap, key]);
   const remaining = kg - t.kcal;
   const move = useMemo(() => moveGoal(snap), [snap]);
   const woMin = useMemo(() => workoutMinTotal(snap, key), [snap, key]);
@@ -230,22 +232,22 @@ export function TodayScreen() {
           <LabeledBar
             label="Prot"
             value={`${nf(t.prot)} g`}
-            hint={`/ ${nf(g.prot)} g`}
-            pct={g.prot ? (t.prot / g.prot) * 100 : 0}
+            hint={`/ ${nf(mg.prot)} g`}
+            pct={mg.prot ? (t.prot / mg.prot) * 100 : 0}
             color="var(--brio-kcal)"
           />
           <LabeledBar
             label="HC"
             value={`${nf(t.carb)} g`}
-            hint={`/ ${nf(g.carb)} g`}
-            pct={g.carb ? (t.carb / g.carb) * 100 : 0}
+            hint={`/ ${nf(mg.carb)} g`}
+            pct={mg.carb ? (t.carb / mg.carb) * 100 : 0}
             color="var(--brio-steps)"
           />
           <LabeledBar
             label="Grasa"
             value={`${nf(t.fat)} g`}
-            hint={`/ ${nf(g.fat)} g`}
-            pct={g.fat ? (t.fat / g.fat) * 100 : 0}
+            hint={`/ ${nf(mg.fat)} g`}
+            pct={mg.fat ? (t.fat / mg.fat) * 100 : 0}
             color="var(--brio-move)"
           />
         </div>

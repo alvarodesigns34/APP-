@@ -433,12 +433,16 @@ export function SettingsScreen() {
             </button>
           ))}
         </div>
-        <p className="text-sm text-muted-foreground">
-          Lunes {kcalForWeekday(goals.kcal, weekdayPlan.training, 1)} kcal · Domingo{" "}
-          {kcalForWeekday(goals.kcal, weekdayPlan.training, 0)} kcal
-        </p>
+        {weekdayPlan.enabled ? (
+          <p className="text-sm text-muted-foreground">
+            Lunes {kcalForWeekday(goals.kcal, weekdayPlan.training, 1)} kcal · Domingo{" "}
+            {kcalForWeekday(goals.kcal, weekdayPlan.training, 0)} kcal
+          </p>
+        ) : null}
         <p className="text-xs text-muted-foreground">
-          La media de la semana sigue siendo tu objetivo. Las kcal de actividad se siguen sumando si lo tienes activado.
+          {weekdayPlan.enabled
+            ? "La media de la semana sigue siendo tu objetivo. Las kcal de actividad se siguen sumando si lo tienes activado."
+            : "Actívalo para repartir tu objetivo entre días de entreno y de descanso."}
         </p>
       </Card>
 
