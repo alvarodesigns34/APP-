@@ -115,22 +115,40 @@ function WeekCompareBlock({ curr, prev }: { curr: WeekTotals; prev: WeekTotals }
       ) : prevEmpty ? (
         <p className="mt-2 text-sm text-muted-foreground">La semana anterior aún no tiene datos.</p>
       ) : (
-        <ul className="mt-2 space-y-1.5">
-          {rows.map((r) => (
-            <li key={r.label} className="flex items-baseline justify-between gap-3 text-sm">
-              <span>{r.label}</span>
-              <span className="tabular-nums text-right">
-                {nf(r.curr)}
-                {" · "}
-                <span className="text-muted-foreground">{nf(r.prev)}</span>
-                {" · "}
-                <span className={r.delta.dir === "flat" ? "text-muted-foreground" : "text-foreground"}>
+        // Three bare numbers separated by dots ("940 · 940 · 0 %") gave no way
+        // to tell this week from last, so the columns are labelled and the
+        // current value carries its unit.
+        <div className="mt-2">
+          <div className="grid grid-cols-[1fr_auto_auto_auto] items-baseline gap-x-3 border-b border-border pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="sr-only">Métrica</span>
+            <span className="text-right">Esta</span>
+            <span className="text-right">Anterior</span>
+            <span className="text-right">Cambio</span>
+          </div>
+          <ul>
+            {rows.map((r) => (
+              <li
+                key={r.label}
+                className="grid grid-cols-[1fr_auto_auto_auto] items-baseline gap-x-3 border-b border-border/60 py-1.5 text-sm last:border-0"
+              >
+                <span className="truncate">{r.label}</span>
+                <span className="min-w-14 text-right font-medium tabular-nums">
+                  {nf(r.curr)}
+                  <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">{r.unit}</span>
+                </span>
+                <span className="min-w-12 text-right tabular-nums text-muted-foreground">{nf(r.prev)}</span>
+                <span
+                  className={cn(
+                    "min-w-14 text-right tabular-nums",
+                    r.delta.dir === "flat" ? "text-muted-foreground" : "font-medium text-foreground",
+                  )}
+                >
                   {signedDeltaLabel(r.delta, r.unit)}
                 </span>
-              </span>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

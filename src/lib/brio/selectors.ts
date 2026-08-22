@@ -1,5 +1,6 @@
 import { addDays, dateOf, mealForHour, nowMinutes, rangeKeys, sleepDuration, todayKey } from "./dates";
 import { kcalFloor, kcalFromSteps, macrosFromKcal } from "./domain";
+import { nf } from "./format";
 import { emptyDay } from "./persist";
 import type { DayLog, FastingId, MealEntry, MealId, SelectorState } from "./types";
 import { FASTING_PRESETS, MEALS } from "./types";
@@ -274,12 +275,12 @@ export function weeklyInsights(s: SelectorState): string[] {
   if (daysLogged) {
     const avg = Math.round(kcal / daysLogged);
     const delta = avg - s.goals.kcal;
-    if (Math.abs(delta) < 80) insights.push(`Has rondado tu objetivo: ${avg} kcal de media.`);
-    else if (delta > 0) insights.push(`Esta semana has comido unas ${delta} kcal más de las previstas al día.`);
-    else insights.push(`Has quedado unas ${-delta} kcal por debajo del objetivo al día.`);
+    if (Math.abs(delta) < 80) insights.push(`Has rondado tu objetivo: ${nf(avg)} kcal de media.`);
+    else if (delta > 0) insights.push(`Esta semana has comido unas ${nf(delta)} kcal más de las previstas al día.`);
+    else insights.push(`Has quedado unas ${nf(-delta)} kcal por debajo del objetivo al día.`);
     const p = Math.round(prot / daysLogged);
-    if (p < s.goals.prot * 0.85) insights.push(`La proteína media (${p} g) está por debajo de tu meta.`);
-    else insights.push(`Proteína media en ${p} g: vas bien.`);
+    if (p < s.goals.prot * 0.85) insights.push(`La proteína media (${nf(p)} g) está por debajo de tu meta.`);
+    else insights.push(`Proteína media en ${nf(p)} g: vas bien.`);
   } else {
     insights.push("Registra comidas unos días para ver el recap semanal.");
   }
@@ -291,24 +292,26 @@ export function weeklyInsights(s: SelectorState): string[] {
     const avgW = Math.round(water / waterDays);
     insights.push(
       avgW >= s.goals.water
-        ? `Agua media ${avgW} ml en los días con registro, por encima de la meta.`
-        : `Agua media ${avgW} ml al día en los días con registro.`,
+        ? `Agua media ${nf(avgW)} ml en los días con registro, por encima de la meta.`
+        : `Agua media ${nf(avgW)} ml al día en los días con registro.`,
     );
   }
   if (stepDays) {
     const avgS = Math.round(steps / stepDays);
     insights.push(
       avgS >= s.goals.steps
-        ? `Pasos: ${avgS.toLocaleString("es-ES")} de media, por encima de la meta.`
-        : `Pasos medios: ${avgS.toLocaleString("es-ES")}.`,
+        // nf() is the app's Spanish number format everywhere else; toLocaleString
+        // here was the only place that grouped digits by a different route.
+        ? `Pasos: ${nf(avgS)} de media, por encima de la meta.`
+        : `Pasos medios: ${nf(avgS)}.`,
     );
   }
   if (move > 0) {
     const goal = s.goals.activityMin;
     insights.push(
       move >= goal
-        ? `Has cubierto los ${goal} min de ejercicio de la semana.`
-        : `Llevas ${move} de ${goal} min de ejercicio esta semana.`,
+        ? `Has cubierto los ${nf(goal)} min de ejercicio de la semana.`
+        : `Llevas ${nf(move)} de ${nf(goal)} min de ejercicio esta semana.`,
     );
   }
   const streak = currentStreak(s);

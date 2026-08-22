@@ -163,7 +163,7 @@ export function FoodScreen() {
                       <div className="flex flex-wrap gap-1 pt-1">
                         <button
                           type="button"
-                          className="min-h-11 rounded-full bg-muted px-3 text-xs"
+                          className="min-h-11 rounded-full px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted active:bg-muted"
                           onClick={() => {
                             duplicateMeal(key, m.id, e.id);
                           }}
@@ -175,7 +175,7 @@ export function FoodScreen() {
                             <button
                               key={other.id}
                               type="button"
-                              className="min-h-11 rounded-full bg-primary px-3 text-xs text-primary-foreground"
+                              className="min-h-11 rounded-full bg-primary px-2.5 text-xs font-medium text-primary-foreground"
                               onClick={() => {
                                 moveMeal(key, m.id, other.id, e.id);
                                 setMovingId(null);
@@ -187,7 +187,7 @@ export function FoodScreen() {
                         ) : (
                           <button
                             type="button"
-                            className="min-h-11 rounded-full bg-muted px-3 text-xs"
+                            className="min-h-11 rounded-full px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted active:bg-muted"
                             onClick={() => setMovingId(e.id)}
                           >
                             Mover
@@ -195,7 +195,7 @@ export function FoodScreen() {
                         )}
                         <button
                           type="button"
-                          className="min-h-11 rounded-full bg-muted px-3 text-xs text-muted-foreground"
+                          className="min-h-11 rounded-full px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted active:bg-muted"
                           onClick={() => {
                             removeMeal(key, m.id, e.id);
                           }}
