@@ -35,6 +35,7 @@ import { useBrioStore } from "@/lib/brio/store";
 import { combinedCsv } from "@/lib/brio/export-csv";
 import { nf, parseNum } from "@/lib/brio/format";
 import { DEFAULT_WEEKDAY_PLAN, MIN_DAY_KCAL, kcalForWeekday } from "@/lib/brio/weekday-goals";
+import { formatBackupPreview, previewBackup, type BackupPreview } from "@/lib/brio/backup-preview";
 import {
   cmToDisplay,
   displayToCm,
@@ -89,6 +90,9 @@ export function SettingsScreen() {
   const b = bmi(profile.weight, profile.height);
   const cat = bmiCategory(b);
   const [wipeOpen, setWipeOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState<BackupPreview | null>(null);
+  const [importRaw, setImportRaw] = useState<unknown>(null);
 
   function recalc() {
     const g = computeGoals({ ...profile, pct: settings.macroPct });
@@ -549,11 +553,15 @@ export function SettingsScreen() {
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
+            e.target.value = "";
             if (!file) return;
             file.text().then((t) => {
               try {
-                importAll(JSON.parse(t));
-                toast.success("Datos importados");
+                const raw: unknown = JSON.parse(t);
+                const preview = previewBackup(raw);
+                setImportRaw(raw);
+                setImportPreview(preview);
+                setImportOpen(true);
               } catch {
                 toast.error("Archivo no válido");
               }
@@ -567,6 +575,31 @@ export function SettingsScreen() {
       <p className="mt-6 text-center text-xs text-muted-foreground">
         {APP_NAME} no sustituye el consejo de un profesional sanitario.
       </p>
+      <ConfirmDialog
+        open={importOpen}
+        onOpenChange={(v) => {
+          setImportOpen(v);
+          if (!v) {
+            setImportRaw(null);
+            setImportPreview(null);
+          }
+        }}
+        title="¿Restaurar esta copia?"
+        body={
+          <span className="whitespace-pre-line">
+            {importPreview ? formatBackupPreview(importPreview) : ""}
+          </span>
+        }
+        confirmLabel="Restaurar"
+        destructive
+        onConfirm={() => {
+          if (importRaw == null) return;
+          importAll(importRaw);
+          toast.success("Datos importados");
+          setImportRaw(null);
+          setImportPreview(null);
+        }}
+      />
       <ConfirmDialog
         open={wipeOpen}
         onOpenChange={setWipeOpen}
