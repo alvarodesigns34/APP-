@@ -11,12 +11,14 @@ import {
   type DayLog,
   type Food,
   type FoodUnit,
+  type IntensityId,
   type MealId,
   type PersistedState,
   type Profile,
   type Settings,
   type Goals,
   type UserRecipe,
+  type WorkoutEntry,
 } from "./types";
 import { normalizeEan } from "./barcode";
 
@@ -94,6 +96,22 @@ function strIds(v: unknown): string[] {
 
 function isFoodUnit(v: unknown): v is FoodUnit {
   return isObj(v) && typeof v.name === "string" && Number.isFinite(Number(v.g)) && Number(v.g) > 0;
+}
+
+function isIntensityId(v: unknown): v is IntensityId {
+  return v === "suave" || v === "media" || v === "alta";
+}
+
+function parseWorkout(v: unknown): WorkoutEntry | null {
+  if (!isObj(v)) return null;
+  if (typeof v.id !== "string" || !v.id) return null;
+  if (typeof v.type !== "string" || !v.type) return null;
+  if (!isIntensityId(v.intensity)) return null;
+  const min = Number(v.min);
+  const kcal = Number(v.kcal);
+  if (!Number.isFinite(min) || min < 0) return null;
+  if (!Number.isFinite(kcal) || kcal < 0) return null;
+  return { id: v.id, type: v.type, min, intensity: v.intensity, kcal };
 }
 
 function parseFood(v: unknown): Food | null {
@@ -196,6 +214,10 @@ export function migrate(raw: unknown): PersistedState {
   const rawSettings = isObj(out.settings) ? out.settings : null;
   settings.reminders = parseReminders(rawSettings ? rawSettings.reminders : undefined);
   settings.weekdayPlan = parseWeekdayPlan(rawSettings ? rawSettings.weekdayPlan : undefined);
+  // Saves from before this setting existed have no `activityAdjust` key at all — default
+  // those to off so a returning user's kcal goal doesn't silently change. An explicit
+  // true/false (including one this app itself saved) is always respected as-is.
+  settings.activityAdjust = typeof rawSettings?.activityAdjust === "boolean" ? rawSettings.activityAdjust : false;
   const goals = { ...base.goals, ...(isObj(out.goals) ? out.goals : {}) } as Goals;
 
   const daysIn = isObj(out.days) ? out.days : {};
@@ -216,7 +238,9 @@ export function migrate(raw: unknown): PersistedState {
           return { id: rec.id || `w${k}${i}`, t: num(rec.t, Date.now()), ml: num(rec.ml) };
         })
       : [];
-    d.workouts = Array.isArray(v.workouts) ? (v.workouts as DayLog["workouts"]) : [];
+    d.workouts = Array.isArray(v.workouts)
+      ? v.workouts.map(parseWorkout).filter((w): w is WorkoutEntry => w != null)
+      : [];
     d.steps = num(v.steps, 0);
     const sleep = v.sleep;
     d.sleep =
