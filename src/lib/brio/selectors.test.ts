@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { addDays, todayKey } from "./dates";
+import { addDays, dateOf, todayKey } from "./dates";
 import { bmr, macrosFromKcal, targetKcal, tdee } from "./domain";
 import { defaultState, emptyDay } from "./persist";
-import { fastingStatus, latestWeight, weeklyInsights } from "./selectors";
+import { fastingStatus, kcalGoalFor, latestWeight, macroGoalsFor, weeklyInsights } from "./selectors";
 import { scaleMacros } from "./scale-macros";
 import type { Food } from "./types";
 
@@ -93,5 +93,42 @@ describe("energy math", () => {
     expect(m.prot).toBe(Math.round((2000 * 0.25) / 4));
     expect(m.carb).toBe(Math.round((2000 * 0.45) / 4));
     expect(m.fat).toBe(Math.round((2000 * 0.3) / 9));
+  });
+});
+
+describe("macroGoalsFor follows the weekday plan like kcalGoalFor", () => {
+  it("returns the flat goal when the weekday plan is off", () => {
+    const s = defaultState();
+    s.goals = { ...s.goals, kcal: 2000, prot: 125, carb: 225, fat: 67 };
+    s.settings.weekdayPlan = { enabled: false, training: [false, true, true, true, true, true, false] };
+    const key = todayKey();
+    expect(macroGoalsFor(s, key)).toEqual({ prot: 125, carb: 225, fat: 67 });
+  });
+
+  it("scales macros with the same weekday kcal that kcalGoalFor uses", () => {
+    const s = defaultState();
+    s.goals = { ...s.goals, kcal: 2000, prot: 125, carb: 225, fat: 67 };
+    s.settings.macroPct = { prot: 25, carb: 45, fat: 30 };
+    s.settings.weekdayPlan = { enabled: true, training: [false, true, true, true, true, true, false] };
+    s.settings.activityAdjust = false;
+    const key = todayKey();
+    const dayKcal = kcalGoalFor(s, key);
+    const mg = macroGoalsFor(s, key);
+    expect(mg).toEqual(macrosFromKcal(dayKcal, s.settings.macroPct));
+    // A training day (weekday plan on) should not silently keep the flat base macros.
+    if (s.settings.weekdayPlan.training[dateOf(key).getDay()] !== undefined && dayKcal !== 2000) {
+      expect(mg).not.toEqual({ prot: 125, carb: 225, fat: 67 });
+    }
+  });
+
+  it("does not fold the activity-kcal bonus into macro grams", () => {
+    const s = defaultState();
+    s.goals = { ...s.goals, kcal: 2000, prot: 125, carb: 225, fat: 67 };
+    s.settings.weekdayPlan = { enabled: false, training: [false, true, true, true, true, true, false] };
+    s.settings.activityAdjust = true;
+    const key = todayKey();
+    s.days[key] = { ...emptyDay(), steps: 12000 };
+    expect(kcalGoalFor(s, key)).toBeGreaterThan(2000);
+    expect(macroGoalsFor(s, key)).toEqual({ prot: 125, carb: 225, fat: 67 });
   });
 });
