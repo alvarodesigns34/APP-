@@ -3,6 +3,10 @@ export const MACRO_MA_WINDOW = 7;
 /** Same floor as weight `ma7`: need ≥2 logged days in the window. */
 export const MACRO_MA_MIN_POINTS = 2;
 
+export const TREND_RANGES = [14, 30, 90] as const;
+export type TrendRange = (typeof TREND_RANGES)[number];
+export const DEFAULT_TREND_RANGE: TrendRange = 14;
+
 export type MacroDayIn = {
   d: string;
   kcal: number;

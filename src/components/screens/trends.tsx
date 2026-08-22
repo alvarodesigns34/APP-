@@ -1,9 +1,9 @@
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Card, Empty, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { addDays, rangeKeys, sleepDuration, todayKey } from "@/lib/brio/dates";
 import { nf } from "@/lib/brio/format";
-import { buildMacroSeries } from "@/lib/brio/macro-series";
+import { buildMacroSeries, DEFAULT_TREND_RANGE, TREND_RANGES, type TrendRange } from "@/lib/brio/macro-series";
 import {
   dayFoodTotals,
   goalsMet,
@@ -155,8 +155,9 @@ export function TrendsScreen() {
     })),
   );
   const setViewDate = useBrioStore((s) => s.setViewDate);
+  const [range, setRange] = useState<TrendRange>(DEFAULT_TREND_RANGE);
   const data = useMemo(() => {
-    const keys = rangeKeys(todayKey(), 14);
+    const keys = rangeKeys(todayKey(), range);
     const days = keys.map((k) => {
       const t = dayFoodTotals(snap, k);
       const sl = snap.days[k]?.sleep;
@@ -178,7 +179,7 @@ export function TrendsScreen() {
       carb: snap.goals.carb,
       fat: snap.goals.fat,
     });
-  }, [snap]);
+  }, [snap, range]);
   const week = rangeKeys(todayKey(), 7);
   const prevWeek = rangeKeys(addDays(todayKey(), -7), 7);
   const heat = rangeKeys(todayKey(), 84);
@@ -203,7 +204,7 @@ export function TrendsScreen() {
 
   return (
     <Screen>
-      <Title sub="Últimas dos semanas y recap">Tendencias</Title>
+      <Title sub="Recap, calendario y gráficas">Tendencias</Title>
 
       <SectionLabel>Resumen semanal</SectionLabel>
       {!hasAny ? (
@@ -289,6 +290,23 @@ export function TrendsScreen() {
         <p className="mt-2 text-[11px] text-muted-foreground">12 semanas · toca un día para abrirlo</p>
       </Card>
 
+      <SectionLabel>Gráficas</SectionLabel>
+      <div className="mb-3 flex flex-wrap gap-2">
+        {TREND_RANGES.map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => setRange(n)}
+            className={cn(
+              "min-h-11 rounded-xl px-3 text-sm font-medium",
+              range === n ? "bg-primary text-primary-foreground" : "bg-muted",
+            )}
+            aria-pressed={range === n}
+          >
+            {n} días
+          </button>
+        ))}
+      </div>
       <Suspense fallback={<ChartSkeleton hasWeight={wChart.length > 0} />}>
         <TrendsCharts data={data} wChart={wChart} pesoDomain={pesoDomain} units={units} />
       </Suspense>
