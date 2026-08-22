@@ -57,8 +57,7 @@ function tick() {
   if (!due.length) return;
   const now = Date.now();
   for (const n of due) {
-    if (n.id === "water") lastFired.water = now;
-    else lastFired[`${day}:${n.id}`] = now;
+    lastFired[n.id === "water" ? `${day}:water` : `${day}:${n.id}`] = now;
   }
   saveLastFired(lastFired);
   if (!("serviceWorker" in navigator)) return;

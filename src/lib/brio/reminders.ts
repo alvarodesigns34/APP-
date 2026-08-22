@@ -20,6 +20,14 @@ const MEAL_SLOTS = [
   { id: "cena" as const, title: "Cena", body: "Aún no has registrado esta comida." },
 ];
 
+/**
+ * How long past a meal's time it's still worth reminding about. Without this,
+ * turning reminders on in the evening (or leaving the app closed all day)
+ * fires every meal slot already in the past at once — a burst of stale nags
+ * instead of a timely one.
+ */
+const MEAL_GRACE_MIN = 120;
+
 export function parseTimeToMinutes(hhmm: string): number {
   const m = TIME_RE.exec(String(hhmm).trim());
   if (!m) return NaN;
@@ -97,7 +105,7 @@ export function dueReminders(
       if (ctx.mealHasFood[slot.id]) continue;
       if (Number.isFinite(lastFired[`${day}:${slot.id}`])) continue;
       const t = parseTimeToMinutes(reminders[slot.id]);
-      if (!Number.isFinite(t) || mins < t) continue;
+      if (!Number.isFinite(t) || mins < t || mins - t > MEAL_GRACE_MIN) continue;
       out.push({ id: slot.id, title: slot.title, body: slot.body, url: "/comida" });
     }
   }
@@ -110,7 +118,11 @@ export function dueReminders(
   }
 
   if (reminders.water && ctx.waterMl < ctx.waterGoal && mins >= 8 * 60 && mins <= 22 * 60) {
-    const last = lastFired.water;
+    // Day-scoped like the meal and peso keys: an unscoped key carries yesterday's
+    // last-fired time into today, so the day's first check (any time after 8:00)
+    // sees a gap far bigger than aguaEveryMin and fires immediately instead of
+    // waiting out the interval from today's start.
+    const last = lastFired[`${day}:water`];
     const since =
       typeof last === "number" && Number.isFinite(last)
         ? last
