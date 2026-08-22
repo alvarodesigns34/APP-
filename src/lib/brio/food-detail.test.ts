@@ -120,6 +120,29 @@ describe("lastLogged", () => {
     });
   });
 
+  it("picks the most recently logged meal slot, not the first one in MEALS order", () => {
+    // desayuno comes before cena in MEALS order, but this entry was logged later in
+    // the day, so it must win over the earlier desayuno entry.
+    const d = emptyDay();
+    d.meals.desayuno = [entry("huevo", { grams: 60, kcal: 90, t: 1000 })];
+    d.meals.cena = [entry("huevo", { grams: 120, kcal: 180, t: 5000 })];
+    const days = { [today]: d };
+    expect(lastLogged(days, "huevo", today)).toEqual({
+      date: today,
+      meal: "cena",
+      grams: 120,
+      kcal: 180,
+    });
+  });
+
+  it("treats an entry with no timestamp as the oldest", () => {
+    const d = emptyDay();
+    d.meals.desayuno = [entry("huevo", { grams: 60, kcal: 90 })]; // no t: pre-existing save
+    d.meals.cena = [entry("huevo", { grams: 120, kcal: 180, t: 5000 })];
+    const days = { [today]: d };
+    expect(lastLogged(days, "huevo", today)?.meal).toBe("cena");
+  });
+
   it("ignores logs older than 90 days", () => {
     const inside = addDays(today, -89);
     const outside = addDays(today, -90);

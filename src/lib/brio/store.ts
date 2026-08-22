@@ -169,6 +169,7 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       qty: round(qty, 2),
       unitName,
       grams: round(grams, 1),
+      t: Date.now(),
       kcal: round(n.kcal, 1),
       prot: round(n.prot, 1),
       carb: round(n.carb, 1),
@@ -276,7 +277,7 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
         const e = d.meals[meal].find((x) => x.id === entryId);
         if (e) {
           newId = uid("e");
-          d.meals[meal].push({ ...e, id: newId });
+          d.meals[meal].push({ ...e, id: newId, t: Date.now() });
         }
       }),
     });
@@ -322,7 +323,7 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
         for (const m of MEALS) {
           for (const e of src.meals[m.id]) {
             const id = uid("e");
-            d.meals[m.id].push({ ...e, id });
+            d.meals[m.id].push({ ...e, id, t: Date.now() });
             added.push({ meal: m.id, id });
             n += 1;
           }
@@ -355,7 +356,7 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
         for (const e of entries) {
           const id = uid("e");
           ids.push(id);
-          d.meals[meal].push({ ...e, id });
+          d.meals[meal].push({ ...e, id, t: Date.now() });
         }
       }),
     });

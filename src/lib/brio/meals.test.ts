@@ -115,6 +115,8 @@ describe("copyDayMeals", () => {
     expect(dest.meals.desayuno[0].name).toBe("Avena");
     expect(dest.meals.desayuno[0].id).not.toBe("e-avena");
     expect(useBrioStore.getState().days[from].meals.desayuno[0].id).toBe("e-avena");
+    // The copy is logged now, not silently inheriting the source entry's original time.
+    expect(typeof dest.meals.desayuno[0].t).toBe("number");
   });
 
   it("appends onto existing target meals and returns 0 when the source is empty", () => {
