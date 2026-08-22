@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
 import { addDays, fmtDateRelative, todayKey } from "@/lib/brio/dates";
-import { nf } from "@/lib/brio/format";
+import { nf, plural } from "@/lib/brio/format";
 import { mealEntryCount, recentDaysWithMeals } from "@/lib/brio/meals";
 import { sumEntries } from "@/lib/brio/selectors";
 import { useBrioStore } from "@/lib/brio/store";
@@ -26,6 +26,8 @@ export function FoodScreen() {
   const removeMeal = useBrioStore((s) => s.removeMeal);
   const duplicateMeal = useBrioStore((s) => s.duplicateMeal);
   const moveMeal = useBrioStore((s) => s.moveMeal);
+  const pantryCount = useBrioStore((s) => s.pantry.length);
+  const shopPending = useBrioStore((s) => s.shopping.reduce((n, i) => (i.done ? n : n + 1), 0));
   const key = viewDate || todayKey();
   const isFuture = key > todayKey();
   const t = useMemo(() => {
@@ -161,7 +163,7 @@ export function FoodScreen() {
                       <div className="flex flex-wrap gap-1 pt-1">
                         <button
                           type="button"
-                          className="min-h-11 rounded-full bg-muted px-3 text-xs"
+                          className="min-h-11 rounded-full px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted active:bg-muted"
                           onClick={() => {
                             duplicateMeal(key, m.id, e.id);
                           }}
@@ -173,7 +175,7 @@ export function FoodScreen() {
                             <button
                               key={other.id}
                               type="button"
-                              className="min-h-11 rounded-full bg-primary px-3 text-xs text-primary-foreground"
+                              className="min-h-11 rounded-full bg-primary px-2.5 text-xs font-medium text-primary-foreground"
                               onClick={() => {
                                 moveMeal(key, m.id, other.id, e.id);
                                 setMovingId(null);
@@ -185,7 +187,7 @@ export function FoodScreen() {
                         ) : (
                           <button
                             type="button"
-                            className="min-h-11 rounded-full bg-muted px-3 text-xs"
+                            className="min-h-11 rounded-full px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted active:bg-muted"
                             onClick={() => setMovingId(e.id)}
                           >
                             Mover
@@ -193,7 +195,7 @@ export function FoodScreen() {
                         )}
                         <button
                           type="button"
-                          className="min-h-11 rounded-full bg-muted px-3 text-xs text-muted-foreground"
+                          className="min-h-11 rounded-full px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted active:bg-muted"
                           onClick={() => {
                             removeMeal(key, m.id, e.id);
                           }}
@@ -223,11 +225,17 @@ export function FoodScreen() {
 
       <SectionLabel>Cocina</SectionLabel>
       <div className="grid grid-cols-2 gap-2">
-        <Button variant="secondary" className="h-14 rounded-2xl" onClick={() => setPantry(true)}>
-          Despensa
+        <Button variant="secondary" className="h-14 flex-col gap-0.5 rounded-2xl" onClick={() => setPantry(true)}>
+          <span>Despensa</span>
+          <span className="text-[11px] font-normal text-muted-foreground">
+            {pantryCount ? plural(pantryCount, "alimento", "alimentos") : "Vacía"}
+          </span>
         </Button>
-        <Button variant="secondary" className="h-14 rounded-2xl" onClick={() => setShop(true)}>
-          Lista de compra
+        <Button variant="secondary" className="h-14 flex-col gap-0.5 rounded-2xl" onClick={() => setShop(true)}>
+          <span>Lista de la compra</span>
+          <span className="text-[11px] font-normal text-muted-foreground">
+            {shopPending ? plural(shopPending, "por comprar", "por comprar") : "Vacía"}
+          </span>
         </Button>
       </div>
 

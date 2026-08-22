@@ -1,6 +1,6 @@
 import { rangeKeys, todayKey, addDays } from "./dates";
 import { sumEntries } from "./selectors";
-import type { DayLog, MealEntry, MealId, PersistedState } from "./types";
+import type { DayLog, MealEntry, MealId, SelectorState } from "./types";
 import { MEALS } from "./types";
 
 export type MealHabit = {
@@ -52,7 +52,7 @@ export function recentDaysWithMeals(
   return out;
 }
 
-export function habitualMeals(s: PersistedState, limit = 6): MealHabit[] {
+export function habitualMeals(s: SelectorState, limit = 6): MealHabit[] {
   const keys = rangeKeys(todayKey(), 28);
   const yesterday = addDays(todayKey(), -1);
   const groups = new Map<

@@ -1,13 +1,23 @@
 import { useMemo, useState } from "react";
+import { Check, Plus, X } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { BASE_RECIPES, getFood, searchFoods } from "@/lib/brio/catalog";
+import { BASE_RECIPES, getFood, searchFoods, searchRecipes } from "@/lib/brio/catalog";
 import { useCatalog } from "@/lib/brio/use-catalog";
 import { CatalogNotice } from "@/components/brio/catalog-state";
 import { useBrioStore } from "@/lib/brio/store";
 import { missingIngredients, pantryHint } from "@/lib/brio/selectors-catalog";
-import { nf } from "@/lib/brio/format";
-import type { Food } from "@/lib/brio/types";
+import { nf, plural } from "@/lib/brio/format";
+import {
+  aisleName,
+  groupShopping,
+  parseShoppingInput,
+  shoppingCounts,
+  SHOPPING_OTHER,
+} from "@/lib/brio/shopping";
+import type { Food, ShoppingItem } from "@/lib/brio/types";
 import { cn } from "@/lib/utils";
 
 export function PantrySheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -88,57 +98,277 @@ export function PantrySheet({ open, onOpenChange }: { open: boolean; onOpenChang
   );
 }
 
+
+/**
+ * The shopping list is a list of its own, not a read-only view over recipes.
+ * Anything can go on it — typed by hand, picked from the food catalog, or
+ * pulled in from a recipe's missing ingredients. Pending lines are grouped by
+ * supermarket aisle so the list can be walked top to bottom.
+ */
 export function ShoppingSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const catalog = useCatalog();
   const catalogReady = catalog.ready;
-  const pantry = useBrioStore((s) => s.pantry);
-  const favRecipes = useBrioStore((s) => s.favRecipes);
-  const [picked, setPicked] = useState<string[]>(favRecipes.slice(0, 4));
-  const items = useMemo(() => {
-    const map = new Map<string, { name: string; g: number }>();
-    if (!catalogReady) return [];
-    for (const id of picked) {
-      const r = BASE_RECIPES.find((x) => x.id === id);
-      if (!r) continue;
-      for (const ing of r.ing) {
-        if (pantry.includes(ing.id)) continue;
-        const prev = map.get(ing.id);
-        map.set(ing.id, { name: ing.name, g: (prev?.g || 0) + ing.g });
-      }
-    }
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "es"));
-  }, [picked, pantry, catalogReady]);
+  const shopping = useBrioStore((s) => s.shopping);
+  const customFoods = useBrioStore((s) => s.customFoods);
+  const recipes = useBrioStore((s) => s.recipes);
+  const addShoppingItem = useBrioStore((s) => s.addShoppingItem);
+  const toggleShoppingItem = useBrioStore((s) => s.toggleShoppingItem);
+  const removeShoppingItem = useBrioStore((s) => s.removeShoppingItem);
+  const clearShoppingDone = useBrioStore((s) => s.clearShoppingDone);
+  const doneToPantry = useBrioStore((s) => s.shoppingDoneToPantry);
+
+  const [draft, setDraft] = useState("");
+  const [fromRecipes, setFromRecipes] = useState(false);
+
+  const parsed = useMemo(() => parseShoppingInput(draft), [draft]);
+
+  // Suggestions come from the catalog so a picked item carries its aisle and
+  // its foodId — which is what lets it go to the pantry once it is bought.
+  const suggestions = useMemo(() => {
+    if (!catalogReady || parsed.name.trim().length < 2) return [];
+    return searchFoods(parsed.name, null, { customFoods, recipes }, 6);
+  }, [catalogReady, parsed.name, customFoods, recipes]);
+
+  const { pending, done } = useMemo(() => groupShopping(shopping), [shopping]);
+  const counts = useMemo(() => shoppingCounts(shopping), [shopping]);
+
+  function commit(food?: Food) {
+    const name = food ? food.name : parsed.name;
+    if (!name.trim()) return;
+    addShoppingItem({
+      name,
+      qty: parsed.qty,
+      cat: food ? food.cat : SHOPPING_OTHER,
+      ...(food ? { foodId: food.id } : {}),
+    });
+    setDraft("");
+  }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Lista de la compra">
-      <p className="mb-2 text-sm text-muted-foreground">Elige recetas; se omiten lo que ya tienes.</p>
-      <div className="mb-3 flex flex-wrap gap-1">
-        {(catalogReady ? BASE_RECIPES : []).slice(0, 24).map((r) => (
-          <button
-            key={r.id}
-            type="button"
-            onClick={() => setPicked((p) => (p.includes(r.id) ? p.filter((x) => x !== r.id) : [...p, r.id]))}
-            className={cn(
-              "min-h-11 rounded-full px-3 text-xs",
-              picked.includes(r.id) ? "bg-primary text-primary-foreground" : "bg-muted",
-            )}
-          >
-            {r.name}
-          </button>
-        ))}
-      </div>
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nada que comprar.</p>
-      ) : (
-        <ul className="divide-y divide-border text-sm">
-          {items.map((i) => (
-            <li key={i.name} className="flex min-h-11 items-center justify-between py-2">
-              <span>{i.name}</span>
-              <span className="tabular-nums text-muted-foreground">{nf(i.g, 0)} g</span>
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Lista de la compra"
+      footer={
+        counts.done > 0 ? (
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              className="flex-1"
+              onClick={() => {
+                const n = doneToPantry();
+                if (n) toast.success(plural(n, "producto a la despensa", "productos a la despensa"));
+              }}
+            >
+              Guardar en despensa
+            </Button>
+            <Button variant="outline" className="flex-1" onClick={clearShoppingDone}>
+              Quitar {counts.done}
+            </Button>
+          </div>
+        ) : null
+      }
+    >
+      <form
+        className="mb-1 flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          commit();
+        }}
+      >
+        <Input
+          placeholder="Añade lo que sea: 2 kg naranjas"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          aria-label="Añadir a la lista"
+        />
+        <Button type="submit" disabled={!parsed.name.trim()}>
+          Añadir
+        </Button>
+      </form>
+      <p className="mb-3 text-xs text-muted-foreground">
+        {parsed.qty ? `Cantidad: ${parsed.qty} · producto: ${parsed.name}` : "Puedes empezar por la cantidad."}
+      </p>
+
+      {suggestions.length > 0 ? (
+        <ul className="mb-4 divide-y divide-border rounded-2xl bg-muted/40 px-3">
+          {suggestions.map((f) => (
+            <li key={f.id}>
+              <button
+                type="button"
+                className="flex min-h-11 w-full items-center justify-between gap-2 py-2 text-left text-sm"
+                onClick={() => commit(f)}
+              >
+                <span className="min-w-0 truncate">{f.name}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{aisleName(f.cat)}</span>
+              </button>
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
+
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          {counts.total === 0
+            ? "La lista está vacía."
+            : `${plural(counts.pending, "producto", "productos")} por comprar${
+                counts.done ? ` · ${counts.done} en el carro` : ""
+              }`}
+        </p>
+        <Button size="sm" variant="ghost" onClick={() => setFromRecipes((v) => !v)}>
+          {fromRecipes ? "Ocultar recetas" : "Desde recetas"}
+        </Button>
+      </div>
+
+      {fromRecipes ? <RecipeToListPicker onDone={() => setFromRecipes(false)} /> : null}
+
+      {counts.total === 0 && !fromRecipes ? (
+        <p className="rounded-2xl bg-muted/40 px-4 py-6 text-center text-sm text-muted-foreground">
+          Escribe arriba lo que necesites, o pulsa «Desde recetas» para traer los ingredientes que te falten.
+        </p>
+      ) : null}
+
+      {pending.map((group) => (
+        <div key={group.cat} className="mb-4">
+          <p className="mb-1 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">{group.name}</p>
+          <ul className="divide-y divide-border">
+            {group.items.map((item) => (
+              <ShoppingRow
+                key={item.id}
+                item={item}
+                onToggle={() => toggleShoppingItem(item.id)}
+                onRemove={() => removeShoppingItem(item.id)}
+              />
+            ))}
+          </ul>
+        </div>
+      ))}
+
+      {done.length > 0 ? (
+        <div className="mb-2">
+          <p className="mb-1 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">En el carro</p>
+          <ul className="divide-y divide-border">
+            {done.map((item) => (
+              <ShoppingRow
+                key={item.id}
+                item={item}
+                onToggle={() => toggleShoppingItem(item.id)}
+                onRemove={() => removeShoppingItem(item.id)}
+              />
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </Sheet>
+  );
+}
+
+function ShoppingRow({
+  item,
+  onToggle,
+  onRemove,
+}: {
+  item: ShoppingItem;
+  onToggle: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <li className="flex items-center gap-1">
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={item.done}
+        className="flex min-h-11 flex-1 items-center gap-3 py-2 text-left"
+        onClick={onToggle}
+      >
+        <span
+          aria-hidden
+          className={cn(
+            "grid size-5 shrink-0 place-items-center rounded-md border",
+            item.done ? "border-primary bg-primary text-primary-foreground" : "border-border",
+          )}
+        >
+          {item.done ? <Check className="size-3.5" strokeWidth={3} /> : null}
+        </span>
+        <span className="min-w-0">
+          <span className={cn("block truncate text-sm", item.done && "text-muted-foreground line-through")}>
+            {item.name}
+          </span>
+          {item.qty ? <span className="block text-xs text-muted-foreground">{item.qty}</span> : null}
+        </span>
+      </button>
+      <button
+        type="button"
+        aria-label={`Quitar ${item.name}`}
+        className="grid size-11 shrink-0 place-items-center text-muted-foreground"
+        onClick={onRemove}
+      >
+        <X className="size-4" />
+      </button>
+    </li>
+  );
+}
+
+/** Pulls the ingredients you are missing from any recipe straight onto the list. */
+function RecipeToListPicker({ onDone }: { onDone: () => void }) {
+  const catalog = useCatalog();
+  const pantry = useBrioStore((s) => s.pantry);
+  const settings = useBrioStore((s) => s.settings);
+  const customFoods = useBrioStore((s) => s.customFoods);
+  const recipes = useBrioStore((s) => s.recipes);
+  const favRecipes = useBrioStore((s) => s.favRecipes);
+  const addShoppingItems = useBrioStore((s) => s.addShoppingItems);
+  const [q, setQ] = useState("");
+
+  const list = useMemo(() => {
+    if (!catalog.ready) return [];
+    const query = q.trim();
+    const base = query ? searchRecipes(query, { limit: 12 }) : BASE_RECIPES;
+    if (query) return base;
+    // No query: favourites first, so the recipes you actually cook are on top.
+    const favs = new Set(favRecipes);
+    return [...base].sort((a, b) => Number(favs.has(b.id)) - Number(favs.has(a.id))).slice(0, 12);
+  }, [catalog.ready, q, favRecipes]);
+
+  const state = { pantry, settings, customFoods, recipes };
+
+  if (!catalog.ready) {
+    return <CatalogNotice state={catalog} loadingText="Cargando recetas…" />;
+  }
+
+  return (
+    <div className="mb-4 rounded-2xl bg-muted/40 p-3">
+      <Input placeholder="Buscar receta" value={q} onChange={(e) => setQ(e.target.value)} className="mb-2" />
+      <ul className="divide-y divide-border">
+        {list.map((r) => {
+          const missing = missingIngredients(state, r);
+          return (
+            <li key={r.id}>
+              <button
+                type="button"
+                className="flex min-h-11 w-full items-center justify-between gap-2 py-2 text-left"
+                disabled={missing.length === 0}
+                onClick={() => {
+                  const added = addShoppingItems(
+                    r.ing
+                      .filter((i) => missing.includes(i.name))
+                      .map((i) => ({ name: i.name, qty: `${nf(i.g, 0)} g`, cat: getFood(i.id, { customFoods, recipes })?.cat, foodId: i.id })),
+                  );
+                  if (added) onDone();
+                }}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium">{r.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {missing.length === 0 ? "Ya tienes todo" : plural(missing.length, "ingrediente", "ingredientes")}
+                  </span>
+                </span>
+                {missing.length > 0 ? <Plus className="size-4 shrink-0 text-primary" /> : null}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

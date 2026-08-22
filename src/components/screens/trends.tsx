@@ -1,7 +1,8 @@
 import { lazy, Suspense, useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import { Card, Empty, Screen, SectionLabel, Title } from "@/components/brio/section";
-import { addDays, rangeKeys, sleepDuration, todayKey } from "@/lib/brio/dates";
+import { addDays, rangeKeys, sleepDuration, todayKey, weekColumns, WEEKDAYS } from "@/lib/brio/dates";
 import { nf, plural } from "@/lib/brio/format";
 import { buildMacroSeries, DEFAULT_TREND_RANGE, TREND_RANGES, type TrendRange } from "@/lib/brio/macro-series";
 import {
@@ -115,22 +116,40 @@ function WeekCompareBlock({ curr, prev }: { curr: WeekTotals; prev: WeekTotals }
       ) : prevEmpty ? (
         <p className="mt-2 text-sm text-muted-foreground">La semana anterior aún no tiene datos.</p>
       ) : (
-        <ul className="mt-2 space-y-1.5">
-          {rows.map((r) => (
-            <li key={r.label} className="flex items-baseline justify-between gap-3 text-sm">
-              <span>{r.label}</span>
-              <span className="tabular-nums text-right">
-                {nf(r.curr)}
-                {" · "}
-                <span className="text-muted-foreground">{nf(r.prev)}</span>
-                {" · "}
-                <span className={r.delta.dir === "flat" ? "text-muted-foreground" : "text-foreground"}>
+        // Three bare numbers separated by dots ("940 · 940 · 0 %") gave no way
+        // to tell this week from last, so the columns are labelled and the
+        // current value carries its unit.
+        <div className="mt-2">
+          <div className="grid grid-cols-[1fr_auto_auto_auto] items-baseline gap-x-3 border-b border-border pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="sr-only">Métrica</span>
+            <span className="text-right">Esta</span>
+            <span className="text-right">Anterior</span>
+            <span className="text-right">Cambio</span>
+          </div>
+          <ul>
+            {rows.map((r) => (
+              <li
+                key={r.label}
+                className="grid grid-cols-[1fr_auto_auto_auto] items-baseline gap-x-3 border-b border-border/60 py-1.5 text-sm last:border-0"
+              >
+                <span className="truncate">{r.label}</span>
+                <span className="min-w-14 text-right font-medium tabular-nums">
+                  {nf(r.curr)}
+                  <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">{r.unit}</span>
+                </span>
+                <span className="min-w-12 text-right tabular-nums text-muted-foreground">{nf(r.prev)}</span>
+                <span
+                  className={cn(
+                    "min-w-14 text-right tabular-nums",
+                    r.delta.dir === "flat" ? "text-muted-foreground" : "font-medium text-foreground",
+                  )}
+                >
                   {signedDeltaLabel(r.delta, r.unit)}
                 </span>
-              </span>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );
@@ -155,6 +174,7 @@ export function TrendsScreen() {
     })),
   );
   const setViewDate = useBrioStore((s) => s.setViewDate);
+  const navigate = useNavigate();
   const [range, setRange] = useState<TrendRange>(DEFAULT_TREND_RANGE);
   const data = useMemo(() => {
     const keys = rangeKeys(todayKey(), range);
@@ -169,8 +189,11 @@ export function TrendsScreen() {
         fat: Math.round(t.fat),
         water: waterTotal(snap, k),
         move: workoutMinTotal(snap, k),
-        steps: snap.days[k]?.steps || 0,
-        sleep: sl ? Math.round((sleepDuration(sl.bed, sl.wake) / 60) * 10) / 10 : 0,
+        // null, not 0. A day nobody logged is not a day of zero steps or zero
+        // sleep, and drawing it as one made the line dive to the floor and read
+        // as a terrible night rather than a missing one.
+        steps: snap.days[k]?.steps || null,
+        sleep: sl ? Math.round((sleepDuration(sl.bed, sl.wake) / 60) * 10) / 10 : null,
       };
     });
     return buildMacroSeries(days, {
@@ -185,8 +208,14 @@ export function TrendsScreen() {
   // goalsMet chains into kcalGoalFor → activityKcal → stepsKcal → latestWeight,
   // which filters the whole weights array. Unmemoized that ran 84 times on
   // every render of this screen.
+  // Weeks as columns, weekdays as rows. The old grid poured 84 days into 7
+  // columns, which looks like a calendar but is a wrapping strip: a column only
+  // lands on a weekday if day one happened to be a Monday.
   const heat = useMemo(
-    () => rangeKeys(todayKey(), 84).map((k) => ({ k, c: goalsMet(snap, k).count })),
+    () =>
+      weekColumns(todayKey(), 12).map((col) =>
+        col.map((k) => (k == null ? null : { k, c: goalsMet(snap, k).count })),
+      ),
     [snap],
   );
   const insights = useMemo(() => weeklyInsights(snap), [snap]);
@@ -296,24 +325,51 @@ export function TrendsScreen() {
 
       <SectionLabel>Calendario</SectionLabel>
       <Card className="mb-3">
-        <div className="grid grid-cols-7 gap-1">
-          {heat.map(({ k, c }) => {
-            return (
-              <button
-                key={k}
-                type="button"
-                title={`${k}: ${c}/5`}
-                aria-label={`${k}: ${c} de 5 objetivos`}
-                className={cn(
-                  "aspect-square rounded-sm",
-                  c >= 4 ? "bg-primary" : c >= 3 ? "bg-primary/70" : c > 0 ? "bg-primary/30" : "bg-muted",
-                )}
-                onClick={() => setViewDate(k)}
-              />
-            );
-          })}
+        <div className="flex gap-1.5">
+          <div className="grid shrink-0 grid-rows-7 gap-1 pr-0.5 text-[10px] leading-none text-muted-foreground">
+            {WEEKDAYS.map((w, i) => (
+              // Only alternate rows are labelled; seven 10px labels in a column
+              // this short is noise rather than orientation.
+              <span key={w} className="flex h-3.5 items-center">
+                {i % 2 === 0 ? w : ""}
+              </span>
+            ))}
+          </div>
+          <div className="grid flex-1 grid-flow-col grid-rows-7 gap-1">
+            {heat.map((col, ci) =>
+              col.map((cell, ri) =>
+                cell == null ? (
+                  <span key={`e${ci}-${ri}`} className="h-3.5 rounded-[3px]" aria-hidden />
+                ) : (
+                  <button
+                    key={cell.k}
+                    type="button"
+                    title={`${cell.k}: ${cell.c}/5`}
+                    aria-label={`${cell.k}: ${cell.c} de 5 objetivos`}
+                    className={cn(
+                      "h-3.5 rounded-[3px] transition-colors",
+                      cell.c >= 4
+                        ? "bg-primary"
+                        : cell.c >= 3
+                          ? "bg-primary/70"
+                          : cell.c > 0
+                            ? "bg-primary/30"
+                            : "bg-muted",
+                    )}
+                    onClick={() => {
+                      // The copy promised "toca un día para abrirlo" but only
+                      // set the global date, so nothing visibly happened here
+                      // and the other screens silently moved.
+                      setViewDate(cell.k);
+                      void navigate({ to: "/" });
+                    }}
+                  />
+                ),
+              ),
+            )}
+          </div>
         </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">12 semanas · toca un día para abrirlo</p>
+        <p className="mt-2 text-[11px] text-muted-foreground">12 semanas · toca un día para abrirlo en Hoy</p>
       </Card>
 
       <SectionLabel>Gráficas</SectionLabel>

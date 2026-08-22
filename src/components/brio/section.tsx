@@ -15,7 +15,7 @@ export function Title({ children, sub }: { children: ReactNode; sub?: string }) 
 }
 
 export function Card({ children, className, onClick }: { children: ReactNode; className?: string; onClick?: () => void }) {
-  const cls = cn("rounded-3xl bg-card p-4 shadow-[0_1px_2px_rgba(28,27,22,0.04)]", className);
+  const cls = cn("rounded-3xl bg-card p-4 shadow-card", className);
   if (onClick) {
     return (
       <button type="button" className={cn(cls, "w-full text-left")} onClick={onClick}>

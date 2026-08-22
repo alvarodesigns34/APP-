@@ -20,7 +20,7 @@ export function HoySkeleton() {
         </div>
 
         {/* Rings card — 148px grey tracks + legend, same Card padding */}
-        <div className="mb-4 rounded-3xl bg-card p-4 shadow-[0_1px_2px_rgba(28,27,22,0.04)]">
+        <div className="mb-4 rounded-3xl bg-card p-4 shadow-card">
           <div className="flex items-center gap-4">
             <svg width={148} height={148} viewBox="0 0 140 140" className="shrink-0">
               <circle cx="70" cy="70" r="58" fill="none" stroke="var(--brio-muted)" strokeWidth="9" />

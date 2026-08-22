@@ -37,6 +37,18 @@ export function canPlanFurther(key: string, today: string, maxDaysAhead = MAX_PL
   return key < addDays(today, maxDaysAhead);
 }
 
+/**
+ * Whether the day the app is showing should follow the clock over midnight.
+ *
+ * A PWA left open overnight keeps `viewDate` on the day it was opened, so "Hoy"
+ * quietly becomes yesterday. Roll forward only when the user is actually
+ * sitting on what used to be today — never drag them off a day they chose.
+ */
+export function shouldRollViewDate(viewDate: string, prevToday: string, nextToday: string): boolean {
+  if (prevToday === nextToday) return false;
+  return viewDate === "" || viewDate === prevToday;
+}
+
 export function rangeKeys(endKey: string, n: number): string[] {
   const out: string[] = [];
   for (let i = n - 1; i >= 0; i--) out.push(addDays(endKey, -i));
@@ -100,11 +112,19 @@ export function nowMinutes(): number {
   return n.getHours() * 60 + n.getMinutes();
 }
 
+/**
+ * Which meal an hour belongs to, on Spanish mealtimes.
+ *
+ * The old boundaries sent anything from 21:00 on to "snack", so a 21:30 dinner
+ * — normal here — was filed as a tentempié, and the strip on Hoy titled itself
+ * "Al vuelo · Tentempiés" at dinner time. It also contradicted the app's own
+ * default dinner reminder, which is set to 21:00.
+ */
 export function mealForHour(h = new Date().getHours()): MealId {
   if (h < 11) return "desayuno";
   if (h < 16) return "comida";
-  if (h < 21) return "cena";
-  return "snack";
+  if (h < 20) return "snack";
+  return "cena";
 }
 
 export function fmtMonthYear(key: string): string {
@@ -126,6 +146,32 @@ export function addMonths(key: string, n: number): string {
 }
 
 export const WEEKDAYS = ["L", "M", "X", "J", "V", "S", "D"] as const;
+
+/**
+ * A heat map laid out as weeks-in-columns, Monday at the top of each column,
+ * ending with the week that contains `endKey`.
+ *
+ * The previous layout poured N days into a 7-column grid, which looks like a
+ * calendar but is really a wrapping strip: a column only lines up with a
+ * weekday if the first day happens to be a Monday. Here column = week and row =
+ * weekday always, and days after `endKey` come back as null so the current week
+ * is not padded with squares that have not happened.
+ */
+export function weekColumns(endKey: string, weeks: number): (string | null)[][] {
+  const n = Math.max(1, Math.floor(weeks));
+  const dow = (dateOf(endKey).getDay() + 6) % 7;
+  const start = addDays(endKey, -dow - (n - 1) * 7);
+  const cols: (string | null)[][] = [];
+  for (let w = 0; w < n; w++) {
+    const col: (string | null)[] = [];
+    for (let d = 0; d < 7; d++) {
+      const key = addDays(start, w * 7 + d);
+      col.push(key > endKey ? null : key);
+    }
+    cols.push(col);
+  }
+  return cols;
+}
 
 export function monthGrid(year: number, month: number): (string | null)[] {
   const first = new Date(year, month, 1);

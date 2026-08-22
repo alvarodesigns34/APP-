@@ -4,7 +4,7 @@ import { Activity, Home, Settings2, TrendingUp, Utensils } from "lucide-react";
 import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
 import { useBrioStore } from "@/lib/brio/store";
-import { todayKey } from "@/lib/brio/dates";
+import { shouldRollViewDate, todayKey } from "@/lib/brio/dates";
 import { emitQuickLog, isTypingTarget, resolveHotkey } from "@/lib/brio/hotkeys";
 import { bootShortcut } from "@/lib/brio/shortcut-search";
 import { HoySkeleton } from "@/components/brio/hoy-skeleton";
@@ -52,7 +52,7 @@ function HotkeyHelp({ open, onOpenChange }: { open: boolean; onOpenChange: (v: b
         role="dialog"
         aria-modal="true"
         aria-labelledby="hotkey-help-title"
-        className="w-[min(22rem,calc(100vw-2rem))] rounded-3xl bg-card p-5 text-card-foreground shadow-lg"
+        className="w-[min(22rem,calc(100vw-2rem))] rounded-3xl bg-card p-5 text-card-foreground shadow-raised"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="hotkey-help-title" className="font-display text-xl tracking-tight">
@@ -137,6 +137,28 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (!hydrated) return;
     if (!viewDate) setViewDate(todayKey());
   }, [hydrated, viewDate, setViewDate]);
+
+  // `viewDate` is set once on hydrate, so an installed app left open overnight
+  // kept showing yesterday under the heading "Hoy". Follow the clock, but only
+  // for someone still sitting on what used to be today.
+  useEffect(() => {
+    if (!hydrated) return;
+    let prevToday = todayKey();
+    function check() {
+      const nextToday = todayKey();
+      if (nextToday === prevToday) return;
+      const current = useBrioStore.getState().viewDate;
+      const roll = shouldRollViewDate(current, prevToday, nextToday);
+      prevToday = nextToday;
+      if (roll) setViewDate(nextToday);
+    }
+    const id = window.setInterval(check, 60_000);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, [hydrated, setViewDate]);
 
   useEffect(() => {
     if (!hydrated) return;

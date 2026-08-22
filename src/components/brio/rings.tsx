@@ -1,13 +1,21 @@
 import { cn } from "@/lib/utils";
 
+/**
+ * `overIsBad` decides what going past the goal means. Eating 20 % over your
+ * calories is worth flagging; walking 20 % past your step goal is the point of
+ * having one. The warning treatment used to apply to all three rings, and its
+ * red is the same hue as the Ejercicio ring, so a good day looked like an error.
+ */
 export function Ring({
   r,
   pct,
   color,
+  overIsBad = false,
 }: {
   r: number;
   pct: number;
   color: string;
+  overIsBad?: boolean;
 }) {
   const c = 2 * Math.PI * r;
   // Math.max(0, NaN) is NaN, which would reach strokeDashoffset and make the
@@ -15,7 +23,8 @@ export function Ring({
   const p = Number.isFinite(pct) ? Math.max(0, pct) : 0;
   const fill = Math.min(1, p);
   const extra = Math.max(0, Math.min(1, p - 1));
-  const over = p > 1;
+  const over = p > 1 && overIsBad;
+  const surplus = p > 1 && !overIsBad;
   return (
     <g data-overflow={over ? "true" : "false"}>
       <circle
@@ -24,13 +33,30 @@ export function Ring({
         r={r}
         fill="none"
         stroke={over ? `color-mix(in oklab, ${color} 60%, var(--brio-warn))` : color}
+        data-surplus={surplus ? "true" : undefined}
         strokeWidth="9"
         strokeLinecap="round"
         strokeDasharray={c}
         strokeDashoffset={c * (1 - fill)}
         transform="rotate(-90 70 70)"
-        className="transition-[stroke-dashoffset] duration-500 ease-out"
+        className="transition-[stroke-dashoffset] duration-500 [transition-timing-function:var(--ease-entrance)]"
       />
+      {surplus ? (
+        <circle
+          data-surplus-arc=""
+          cx="70"
+          cy="70"
+          r={r}
+          fill="none"
+          stroke={`color-mix(in oklab, ${color} 55%, white)`}
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - extra)}
+          transform="rotate(-90 70 70)"
+          className="transition-[stroke-dashoffset] duration-500 [transition-timing-function:var(--ease-entrance)]"
+        />
+      ) : null}
       {over ? (
         <circle
           data-overflow-arc=""
@@ -44,7 +70,7 @@ export function Ring({
           strokeDasharray={c}
           strokeDashoffset={c * (1 - extra)}
           transform="rotate(-90 70 70)"
-          className="transition-[stroke-dashoffset] duration-500 ease-out"
+          className="transition-[stroke-dashoffset] duration-500 [transition-timing-function:var(--ease-entrance)]"
         />
       ) : null}
       {over ? (
@@ -79,7 +105,8 @@ export function Rings({
       <circle cx="70" cy="70" r="58" fill="none" stroke="var(--brio-muted)" strokeWidth="9" />
       <circle cx="70" cy="70" r="46" fill="none" stroke="var(--brio-muted)" strokeWidth="9" />
       <circle cx="70" cy="70" r="34" fill="none" stroke="var(--brio-muted)" strokeWidth="9" />
-      <Ring r={58} pct={kcal} color="var(--brio-kcal)" />
+      {/* Only calories are worth warning about when exceeded. */}
+      <Ring r={58} pct={kcal} color="var(--brio-kcal)" overIsBad />
       <Ring r={46} pct={steps} color="var(--brio-steps)" />
       <Ring r={34} pct={move} color="var(--brio-move)" />
     </svg>
@@ -118,7 +145,7 @@ export function Bar({ pct, color, compact }: { pct: number; color: string; compa
   return (
     <div className={cn("overflow-hidden rounded-full bg-muted", compact ? "h-1.5" : "h-2")}>
       <div
-        className="h-full rounded-full transition-[width] duration-500 ease-out"
+        className="h-full rounded-full transition-[width] duration-500 [transition-timing-function:var(--ease-entrance)]"
         style={{ width: `${w}%`, background: color }}
       />
     </div>

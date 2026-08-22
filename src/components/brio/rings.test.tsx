@@ -2,8 +2,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Bar, Ring, Rings } from "./rings";
 
+/** The calories ring: going over is worth a warning. */
 function markup(pct: number) {
-  return renderToStaticMarkup(<Ring r={58} pct={pct} color="var(--brio-kcal)" />);
+  return renderToStaticMarkup(<Ring r={58} pct={pct} color="var(--brio-kcal)" overIsBad />);
+}
+
+/** The steps / exercise rings: going over is the point. */
+function surplusMarkup(pct: number) {
+  return renderToStaticMarkup(<Ring r={46} pct={pct} color="var(--brio-steps)" />);
 }
 
 describe("Ring overflow", () => {
@@ -93,5 +99,29 @@ describe("non-finite ratios", () => {
   it("still clamps a normal Bar to 0..100", () => {
     expect(renderToStaticMarkup(<Bar pct={-20} color="red" />)).toContain("width:0%");
     expect(renderToStaticMarkup(<Bar pct={250} color="red" />)).toContain("width:100%");
+  });
+});
+
+describe("beating a goal is not an error", () => {
+  it("does not warn when a steps or exercise ring goes past its goal", () => {
+    const over = surplusMarkup(1.4);
+    expect(over).toContain('data-overflow="false"');
+    expect(over).not.toContain("data-overflow-arc");
+    expect(over).not.toContain("data-overflow-tick");
+    expect(over).not.toContain("var(--brio-bad)");
+    expect(over).not.toContain("var(--brio-warn)");
+  });
+
+  it("still shows the surplus, just not as a warning", () => {
+    const over = surplusMarkup(1.4);
+    expect(over).toContain("data-surplus-arc");
+    expect(surplusMarkup(1)).not.toContain("data-surplus-arc");
+  });
+
+  it("keeps the warning treatment for calories", () => {
+    const over = markup(1.4);
+    expect(over).toContain('data-overflow="true"');
+    expect(over).toContain("var(--brio-bad)");
+    expect(over).not.toContain("data-surplus-arc");
   });
 });

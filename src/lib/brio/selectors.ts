@@ -1,11 +1,12 @@
 import { addDays, dateOf, mealForHour, nowMinutes, rangeKeys, sleepDuration, todayKey } from "./dates";
 import { kcalFloor, kcalFromSteps, macrosFromKcal } from "./domain";
+import { nf } from "./format";
 import { emptyDay } from "./persist";
-import type { DayLog, FastingId, MealEntry, MealId, PersistedState } from "./types";
+import type { DayLog, FastingId, MealEntry, MealId, SelectorState } from "./types";
 import { FASTING_PRESETS, MEALS } from "./types";
 import { kcalForWeekday } from "./weekday-goals";
 
-export function dayOf(s: PersistedState, key: string): DayLog {
+export function dayOf(s: SelectorState, key: string): DayLog {
   return s.days[key] ?? emptyDay();
 }
 
@@ -21,7 +22,7 @@ export function sumEntries(entries: MealEntry[]) {
   return t;
 }
 
-export function dayFoodTotals(s: PersistedState, key: string) {
+export function dayFoodTotals(s: SelectorState, key: string) {
   const d = dayOf(s, key);
   const t = { kcal: 0, prot: 0, carb: 0, fat: 0, fib: 0 };
   for (const m of MEALS) {
@@ -35,25 +36,25 @@ export function dayFoodTotals(s: PersistedState, key: string) {
   return t;
 }
 
-export function waterTotal(s: PersistedState, key: string): number {
+export function waterTotal(s: SelectorState, key: string): number {
   return dayOf(s, key).water.reduce((a, w) => a + w.ml, 0);
 }
 
-export function workoutMinTotal(s: PersistedState, key: string): number {
+export function workoutMinTotal(s: SelectorState, key: string): number {
   return dayOf(s, key).workouts.reduce((a, w) => a + w.min, 0);
 }
 
-export function workoutKcalTotal(s: PersistedState, key: string): number {
+export function workoutKcalTotal(s: SelectorState, key: string): number {
   return dayOf(s, key).workouts.reduce((a, w) => a + w.kcal, 0);
 }
 
-export function stepsKcal(s: PersistedState, key: string): number {
+export function stepsKcal(s: SelectorState, key: string): number {
   const d = dayOf(s, key);
   const w = latestWeight(s, key)?.kg ?? s.profile.weight;
   return kcalFromSteps(d.steps || 0, s.profile.sex, s.profile.height, w);
 }
 
-export function activityKcal(s: PersistedState, key: string): number {
+export function activityKcal(s: SelectorState, key: string): number {
   return workoutKcalTotal(s, key) + stepsKcal(s, key);
 }
 
@@ -68,7 +69,7 @@ export function activityKcal(s: PersistedState, key: string): number {
  * profile is already Ligero/Moderado/Alto — the Settings copy warns; the
  * arithmetic is left as-is this round.
  */
-export function kcalGoalFor(s: PersistedState, key: string): number {
+export function kcalGoalFor(s: SelectorState, key: string): number {
   let k = s.goals.kcal;
   if (s.settings.weekdayPlan?.enabled) {
     k = kcalForWeekday(k, s.settings.weekdayPlan.training, dateOf(key).getDay(), kcalFloor(s.profile.sex));
@@ -84,7 +85,7 @@ export function kcalGoalFor(s: PersistedState, key: string): number {
  * bonus: that extra allowance has no defined split, so it stays a kcal-only
  * buffer, same as the "Incluye X kcal de actividad" note already shows it.
  */
-export function macroGoalsFor(s: PersistedState, key: string): { prot: number; carb: number; fat: number } {
+export function macroGoalsFor(s: SelectorState, key: string): { prot: number; carb: number; fat: number } {
   if (!s.settings.weekdayPlan?.enabled) {
     return { prot: s.goals.prot, carb: s.goals.carb, fat: s.goals.fat };
   }
@@ -98,16 +99,16 @@ export function macroGoalsFor(s: PersistedState, key: string): { prot: number; c
   return macrosFromKcal(k, s.settings.macroPct);
 }
 
-export function latestWeight(s: PersistedState, beforeKey?: string) {
+export function latestWeight(s: SelectorState, beforeKey?: string) {
   const ws = beforeKey ? s.weights.filter((w) => w.date <= beforeKey) : s.weights;
   return ws.length ? ws[ws.length - 1] : null;
 }
 
-export function currentWeightKg(s: PersistedState): number {
+export function currentWeightKg(s: SelectorState): number {
   return latestWeight(s)?.kg ?? s.profile.weight;
 }
 
-export function moveGoal(s: PersistedState): number {
+export function moveGoal(s: SelectorState): number {
   return Math.max(10, Math.round(s.goals.activityMin / 7));
 }
 
@@ -131,7 +132,7 @@ const EMPTY_GOALS: GoalFlags = {
   total: 5,
 };
 
-export function goalsMet(s: PersistedState, key: string): GoalFlags {
+export function goalsMet(s: SelectorState, key: string): GoalFlags {
   const d = s.days[key];
   if (!d) return EMPTY_GOALS;
   const food = dayFoodTotals(s, key);
@@ -147,7 +148,7 @@ export function goalsMet(s: PersistedState, key: string): GoalFlags {
   return { ...flags, count, total: 5 };
 }
 
-export function currentStreak(s: PersistedState): number {
+export function currentStreak(s: SelectorState): number {
   const today = todayKey();
   let n = 0;
   let k = today;
@@ -160,7 +161,7 @@ export function currentStreak(s: PersistedState): number {
   return n;
 }
 
-export function habitualFoodIds(s: PersistedState, limit = 12): string[] {
+export function habitualFoodIds(s: SelectorState, limit = 12): string[] {
   const counts = new Map<string, number>();
   for (const k of rangeKeys(todayKey(), 21)) {
     const d = s.days[k];
@@ -219,7 +220,7 @@ export function fastingStatus(id: FastingId, now = nowMinutes()): FastingStatus 
   };
 }
 
-export function weightTrend(s: PersistedState) {
+export function weightTrend(s: SelectorState) {
   const ws = s.weights.slice(-21);
   if (ws.length < 2) return null;
   const first = ws[0];
@@ -234,7 +235,7 @@ export function weightTrend(s: PersistedState) {
   return { rate, current, goal, remaining, eta, weeks: eta != null ? eta / 7 : null };
 }
 
-export function weeklyInsights(s: PersistedState): string[] {
+export function weeklyInsights(s: SelectorState): string[] {
   const keys = rangeKeys(todayKey(), 7);
   const insights: string[] = [];
   let kcal = 0,
@@ -274,12 +275,12 @@ export function weeklyInsights(s: PersistedState): string[] {
   if (daysLogged) {
     const avg = Math.round(kcal / daysLogged);
     const delta = avg - s.goals.kcal;
-    if (Math.abs(delta) < 80) insights.push(`Has rondado tu objetivo: ${avg} kcal de media.`);
-    else if (delta > 0) insights.push(`Esta semana has comido unas ${delta} kcal más de las previstas al día.`);
-    else insights.push(`Has quedado unas ${-delta} kcal por debajo del objetivo al día.`);
+    if (Math.abs(delta) < 80) insights.push(`Has rondado tu objetivo: ${nf(avg)} kcal de media.`);
+    else if (delta > 0) insights.push(`Esta semana has comido unas ${nf(delta)} kcal más de las previstas al día.`);
+    else insights.push(`Has quedado unas ${nf(-delta)} kcal por debajo del objetivo al día.`);
     const p = Math.round(prot / daysLogged);
-    if (p < s.goals.prot * 0.85) insights.push(`La proteína media (${p} g) está por debajo de tu meta.`);
-    else insights.push(`Proteína media en ${p} g: vas bien.`);
+    if (p < s.goals.prot * 0.85) insights.push(`La proteína media (${nf(p)} g) está por debajo de tu meta.`);
+    else insights.push(`Proteína media en ${nf(p)} g: vas bien.`);
   } else {
     insights.push("Registra comidas unos días para ver el recap semanal.");
   }
@@ -291,24 +292,26 @@ export function weeklyInsights(s: PersistedState): string[] {
     const avgW = Math.round(water / waterDays);
     insights.push(
       avgW >= s.goals.water
-        ? `Agua media ${avgW} ml en los días con registro, por encima de la meta.`
-        : `Agua media ${avgW} ml al día en los días con registro.`,
+        ? `Agua media ${nf(avgW)} ml en los días con registro, por encima de la meta.`
+        : `Agua media ${nf(avgW)} ml al día en los días con registro.`,
     );
   }
   if (stepDays) {
     const avgS = Math.round(steps / stepDays);
     insights.push(
       avgS >= s.goals.steps
-        ? `Pasos: ${avgS.toLocaleString("es-ES")} de media, por encima de la meta.`
-        : `Pasos medios: ${avgS.toLocaleString("es-ES")}.`,
+        // nf() is the app's Spanish number format everywhere else; toLocaleString
+        // here was the only place that grouped digits by a different route.
+        ? `Pasos: ${nf(avgS)} de media, por encima de la meta.`
+        : `Pasos medios: ${nf(avgS)}.`,
     );
   }
   if (move > 0) {
     const goal = s.goals.activityMin;
     insights.push(
       move >= goal
-        ? `Has cubierto los ${goal} min de ejercicio de la semana.`
-        : `Llevas ${move} de ${goal} min de ejercicio esta semana.`,
+        ? `Has cubierto los ${nf(goal)} min de ejercicio de la semana.`
+        : `Llevas ${nf(move)} de ${nf(goal)} min de ejercicio esta semana.`,
     );
   }
   const streak = currentStreak(s);

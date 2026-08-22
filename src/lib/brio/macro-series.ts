@@ -63,6 +63,20 @@ export function loggedDayMean<T extends MacroDayIn>(
   return sum / n;
 }
 
+/**
+ * Rounds a chart maximum up to a readable one: 2440.8 becomes 2500, not a tick
+ * labelled "2.440,8" that gets clipped by a narrow axis.
+ */
+export function niceCeil(max: number): number {
+  if (!Number.isFinite(max) || max <= 0) return 1;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(max)));
+  for (const step of [1, 1.5, 2, 2.5, 5, 7.5]) {
+    const candidate = step * magnitude;
+    if (candidate >= max) return candidate;
+  }
+  return 10 * magnitude;
+}
+
 /** Attach 7-day logged-day MA and a constant goal line for kcal / prot / carb / fat. */
 export function buildMacroSeries<T extends MacroDayIn>(days: T[], goals: MacroGoals): MacroSeriesPoint<T>[] {
   return days.map((day, i) => ({

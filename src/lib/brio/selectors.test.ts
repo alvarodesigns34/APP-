@@ -17,7 +17,9 @@ describe("weeklyInsights water average", () => {
     s.days[today] = a;
     s.days[addDays(today, -1)] = b;
     const text = weeklyInsights(s).join(" ");
-    expect(text).toMatch(/2000 ml/);
+    // 4000 ml over the two days that have a log, not over all 7 (which would
+    // be 571). Grouped the Spanish way, like every other figure in the app.
+    expect(text).toMatch(/2\.000 ml/);
     expect(text).toMatch(/días con registro/);
     expect(text).not.toMatch(/571 ml/);
   });

@@ -1,12 +1,21 @@
 import { BASE_RECIPES, defaultServing, getFood, isPantryBasic } from "./catalog";
 import { mealForHour, rangeKeys, todayKey } from "./dates";
 import { dayFoodTotals, kcalGoalFor } from "./selectors";
-import type { MealId, PersistedState, Recipe } from "./types";
+import type { MealId, SelectorState, Recipe } from "./types";
 import { MEALS } from "./types";
 
 export type SuggestedRecipe = { recipe: Recipe; miss: number };
 
-export function missingIngredients(s: PersistedState, recipe: Recipe): string[] {
+/**
+ * What deciding "do I have this ingredient?" actually needs. Narrower than the
+ * whole state so a screen that only holds these four slices can call it
+ * without inventing the rest.
+ */
+export type PantryState = Pick<SelectorState, "pantry" | "customFoods" | "recipes"> & {
+  settings: Pick<SelectorState["settings"], "pantryBasics">;
+};
+
+export function missingIngredients(s: PantryState, recipe: Recipe): string[] {
   return recipe.ing
     .filter((i) => {
       if (s.pantry.includes(i.id)) return false;
@@ -18,7 +27,7 @@ export function missingIngredients(s: PersistedState, recipe: Recipe): string[] 
 
 export function pickSuggestedRecipes(
   recipes: Recipe[],
-  s: PersistedState,
+  s: PantryState,
   remKcal: number,
   remProt: number,
   limit = 3,
@@ -42,7 +51,7 @@ export function pantryHint(miss: number): string | null {
   return null;
 }
 
-export function suggestRecipes(s: PersistedState, key: string, limit = 3) {
+export function suggestRecipes(s: SelectorState, key: string, limit = 3) {
   const food = dayFoodTotals(s, key);
   const remKcal = kcalGoalFor(s, key) - food.kcal;
   const remProt = s.goals.prot - food.prot;
@@ -52,7 +61,7 @@ export function suggestRecipes(s: PersistedState, key: string, limit = 3) {
 
 export type LastPortion = { grams: number; qty: number; unitName: string; meal: MealId; kcal: number };
 
-export function lastPortion(s: PersistedState, foodId: string): LastPortion | null {
+export function lastPortion(s: SelectorState, foodId: string): LastPortion | null {
   const keys = rangeKeys(todayKey(), 60).reverse();
   for (const k of keys) {
     const d = s.days[k];

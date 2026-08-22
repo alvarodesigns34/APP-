@@ -1,7 +1,7 @@
 import { activityOf } from "./domain";
 import { rangeKeys, todayKey } from "./dates";
 import { workoutMinTotal } from "./selectors";
-import type { PersistedState, WorkoutEntry } from "./types";
+import type { SelectorState, WorkoutEntry } from "./types";
 
 export type WorkoutSession = WorkoutEntry & { date: string };
 
@@ -15,7 +15,7 @@ export type SportMark = {
   weekMin: number;
 };
 
-export function allSessions(s: PersistedState): WorkoutSession[] {
+export function allSessions(s: SelectorState): WorkoutSession[] {
   const out: WorkoutSession[] = [];
   for (const [date, day] of Object.entries(s.days)) {
     for (const w of day.workouts) out.push({ ...w, date });
@@ -23,11 +23,11 @@ export function allSessions(s: PersistedState): WorkoutSession[] {
   return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
 }
 
-export function weekWorkoutMin(s: PersistedState): number {
+export function weekWorkoutMin(s: SelectorState): number {
   return rangeKeys(todayKey(), 7).reduce((n, k) => n + workoutMinTotal(s, k), 0);
 }
 
-export function sportMarks(s: PersistedState): SportMark[] {
+export function sportMarks(s: SelectorState): SportMark[] {
   const week = new Set(rangeKeys(todayKey(), 7));
   const map = new Map<string, SportMark>();
   for (const sess of allSessions(s)) {

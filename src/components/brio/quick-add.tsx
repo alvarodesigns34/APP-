@@ -93,7 +93,7 @@ export function QuickAddStrip({ date }: { date: string }) {
             <button
               key={f.id}
               type="button"
-              className="min-h-16 shrink-0 rounded-2xl bg-card px-3 py-2 text-left shadow-[0_1px_2px_rgba(28,27,22,0.04)]"
+              className="min-h-16 shrink-0 rounded-2xl bg-card px-3 py-2 text-left shadow-card"
               onClick={() => {
                 addMeal(date, slot, f, portion.grams, portion.qty, portion.unitName);
               }}

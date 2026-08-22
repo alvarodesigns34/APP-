@@ -111,6 +111,26 @@ export type DayLog = {
   note: string;
 };
 
+/**
+ * One line on the shopping list.
+ *
+ * The list is a first-class list of its own, not a view over recipes: an item
+ * can come from a recipe (`foodId` set) or be anything the user types.
+ */
+export type ShoppingItem = {
+  id: string;
+  name: string;
+  /** Free text as typed — "2 kg", "un paquete". Empty when the user gave none. */
+  qty: string;
+  done: boolean;
+  /** A CATEGORIES id used to group by supermarket aisle, or "otros". */
+  cat: string;
+  /** Set when the item came from the catalog, so it can go to the pantry once bought. */
+  foodId?: string;
+  /** When it was added (ms epoch). */
+  t: number;
+};
+
 export type WeightEntry = {
   date: string;
   kg: number;
@@ -196,7 +216,18 @@ export type PersistedState = {
   favRecipes: string[];
   pantry: string[];
   recents: string[];
+  shopping: ShoppingItem[];
 };
+
+/**
+ * What the read-only selectors actually need.
+ *
+ * The shopping list is deliberately excluded: nothing derived from a day, a
+ * goal or a weigh-in reads it, so screens can subscribe to a slice that does
+ * not change when you tick something off the list. A full `PersistedState` is
+ * assignable here, so the store keeps working everywhere.
+ */
+export type SelectorState = Omit<PersistedState, "shopping">;
 
 export const MEALS: { id: MealId; n: string }[] = [
   { id: "desayuno", n: "Desayuno" },

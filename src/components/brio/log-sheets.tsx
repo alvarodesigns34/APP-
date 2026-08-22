@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { ACTIVITIES, ACTIVITY_GROUPS, INTENSITIES } from "@/lib/brio/domain";
 import { useBrioStore } from "@/lib/brio/store";
 import { latestWeight } from "@/lib/brio/selectors";
-import { parseNum, parsePositive } from "@/lib/brio/format";
+import { nf, parseNum, parsePositive, round } from "@/lib/brio/format";
 import { clockToMinutes, fmtDateRelative, minutesToClock, minutesToHM, sleepDuration } from "@/lib/brio/dates";
 import {
   displayToKg,
@@ -307,13 +307,24 @@ export function WeightSheet({
   const weights = useBrioStore((s) => s.weights);
   const profileWeight = useBrioStore((s) => s.profile.weight);
   const state = useBrioStore.getState();
-  const current = weights.find((w) => w.date === date)?.kg ?? latestWeight(state, date)?.kg ?? profileWeight;
+  const today = weights.find((w) => w.date === date);
+  const current = today?.kg ?? latestWeight(state, date)?.kg ?? profileWeight;
   const [v, setV] = useState(String(kgToDisplay(current, units)));
+  // Body composition is optional and most days it is not filled in, so the two
+  // fields stay folded away until asked for. The data model, the undo path and
+  // the CSV export already carried them; nothing could enter them until now.
+  const [fat, setFat] = useState("");
+  const [muscle, setMuscle] = useState("");
+  const [showComp, setShowComp] = useState(false);
   const inputRef = useOpenFocus(open, true);
 
   useEffect(() => {
-    if (open) setV(String(kgToDisplay(current, units)));
-  }, [open, date, units, current]);
+    if (!open) return;
+    setV(String(kgToDisplay(current, units)));
+    setFat(today?.fat != null ? String(today.fat) : "");
+    setMuscle(today?.muscle != null ? String(today.muscle) : "");
+    setShowComp(today?.fat != null || today?.muscle != null);
+  }, [open, date, units, current, today?.fat, today?.muscle]);
 
   const start = Math.max(0, weights.length - 8);
 
@@ -329,7 +340,13 @@ export function WeightSheet({
             const n = parsePositive(v);
             if (!n) return;
             const kg = displayToKg(n, units);
-            upsert(date, kg);
+            const pct = (raw: string) => {
+              const p = parsePositive(raw);
+              return Number.isFinite(p) && p <= 100 ? round(p, 1) : undefined;
+            };
+            const f = pct(fat);
+            const m = pct(muscle);
+            upsert(date, kg, f != null || m != null ? { fat: f, muscle: m } : undefined);
             patchProfile({ weight: kg });
             onOpenChange(false);
           }}
@@ -338,8 +355,51 @@ export function WeightSheet({
         </Button>
       }
     >
-      <label className="text-sm font-medium">Peso ({weightUnit(units)})</label>
-      <Input ref={inputRef} className="mb-4" inputMode="decimal" value={v} onChange={(e) => setV(e.target.value)} />
+      <label className="text-sm font-medium" htmlFor="weight-kg">
+        Peso ({weightUnit(units)})
+      </label>
+      <Input
+        id="weight-kg"
+        ref={inputRef}
+        className="mb-3"
+        inputMode="decimal"
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+      />
+
+      {showComp ? (
+        <div className="mb-4 grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-muted-foreground" htmlFor="weight-fat">
+              Grasa (%)
+            </label>
+            <Input
+              id="weight-fat"
+              inputMode="decimal"
+              placeholder="opcional"
+              value={fat}
+              onChange={(e) => setFat(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground" htmlFor="weight-muscle">
+              Músculo (%)
+            </label>
+            <Input
+              id="weight-muscle"
+              inputMode="decimal"
+              placeholder="opcional"
+              value={muscle}
+              onChange={(e) => setMuscle(e.target.value)}
+            />
+          </div>
+        </div>
+      ) : (
+        <Button variant="ghost" size="sm" className="mb-4 w-full" onClick={() => setShowComp(true)}>
+          Añadir grasa y músculo
+        </Button>
+      )}
+
       {weights.length === 0 ? (
         <p className="text-sm text-muted-foreground">Sin registros de peso.</p>
       ) : (
@@ -351,7 +411,11 @@ export function WeightSheet({
               <li key={w.date} className="flex items-center justify-between py-2 text-sm">
                 <span>
                   {fmtDateRelative(w.date)}
-                  <span className="block text-xs text-muted-foreground">{fmtWeight(w.kg, units)}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {fmtWeight(w.kg, units)}
+                    {w.fat != null ? ` · ${nf(w.fat, 1)} % grasa` : ""}
+                    {w.muscle != null ? ` · ${nf(w.muscle, 1)} % músculo` : ""}
+                  </span>
                 </span>
                 <button
                   type="button"

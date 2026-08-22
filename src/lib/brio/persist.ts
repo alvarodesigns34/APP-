@@ -18,9 +18,11 @@ import {
   type Settings,
   type Goals,
   type UserRecipe,
+  type WeightEntry,
   type WorkoutEntry,
 } from "./types";
 import { normalizeEan } from "./barcode";
+import { parseShopping } from "./shopping";
 
 export function emptyDay(): DayLog {
   return {
@@ -77,6 +79,7 @@ export function defaultState(): PersistedState {
     favRecipes: [],
     pantry: [],
     recents: [],
+    shopping: [],
   };
 }
 
@@ -178,6 +181,25 @@ function parseMealEntry(v: unknown, index: number): MealEntry | null {
     sat: macro(v.sat),
     sod: macro(v.sod),
   };
+}
+
+/**
+ * Body-fat and muscle percentages reach the CSV export and the weight history,
+ * so they get the same validation as everything else rather than being passed
+ * through from the file untouched.
+ */
+function parseWeight(v: unknown): WeightEntry | null {
+  if (!isObj(v)) return null;
+  if (typeof v.date !== "string" || !v.date) return null;
+  const kg = numOrNull(v.kg);
+  if (kg == null || kg <= 0) return null;
+  const pct = (x: unknown): number | undefined => {
+    const n = numOrNull(x);
+    return n != null && n > 0 && n <= 100 ? n : undefined;
+  };
+  const fat = pct(v.fat);
+  const muscle = pct(v.muscle);
+  return { date: v.date, kg, ...(fat != null ? { fat } : {}), ...(muscle != null ? { muscle } : {}) };
 }
 
 function parseFood(v: unknown): Food | null {
@@ -345,8 +367,9 @@ export function migrate(raw: unknown): PersistedState {
     goals,
     days,
     weights: Array.isArray(out.weights)
-      ? (out.weights as PersistedState["weights"])
-          .filter((w) => w && typeof w.date === "string" && typeof w.kg === "number")
+      ? out.weights
+          .map(parseWeight)
+          .filter((w): w is WeightEntry => w != null)
           .sort((a, b) => (a.date < b.date ? -1 : 1))
       : [],
     customFoods: Array.isArray(out.customFoods)
@@ -359,6 +382,8 @@ export function migrate(raw: unknown): PersistedState {
     favRecipes: strIds(out.favRecipes),
     pantry: strIds(out.pantry),
     recents: strIds(out.recents),
+    // Additive: saves from before the shopping list existed simply have none.
+    shopping: parseShopping(out.shopping),
   };
 }
 
