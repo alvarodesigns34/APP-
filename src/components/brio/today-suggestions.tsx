@@ -9,7 +9,8 @@ import { useCatalog } from "@/lib/brio/use-catalog";
 import type { Recipe } from "@/lib/brio/types";
 
 export function TodaySuggestions({ date }: { date: string }) {
-  const ready = useCatalog();
+  const catalog = useCatalog();
+  const ready = catalog.ready;
   const snap = useBrioStore(
     useShallow((s) => ({
       days: s.days,

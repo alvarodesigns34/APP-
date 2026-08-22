@@ -18,7 +18,8 @@ export function RoutinesSheet({
 }) {
   const purpose = useBrioStore((s) => s.profile.purpose);
   const addWorkout = useBrioStore((s) => s.addWorkout);
-  const catalogReady = useCatalog();
+  const catalog = useCatalog();
+  const catalogReady = catalog.ready;
   const [id, setId] = useState<string | null>(null);
   const [session, setSession] = useState(0);
   const routine = ROUTINES.find((r) => r.id === id);

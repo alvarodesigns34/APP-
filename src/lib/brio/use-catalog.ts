@@ -1,18 +1,42 @@
-import { useEffect, useState } from "react";
-import { ensureCatalog, isCatalogReady } from "./catalog";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { ensureCatalog, getCatalogStatus, retryCatalog, subscribeCatalog, type CatalogStatus } from "./catalog";
 
-/** True once `ensureCatalog()` has filled the sync snapshot. */
-export function useCatalog(): boolean {
-  const [ready, setReady] = useState(isCatalogReady);
+export type CatalogState = {
+  status: CatalogStatus;
+  /** Snapshot is filled and safe to read synchronously. */
+  ready: boolean;
+  /** The fetch failed; the screen should offer `retry`. */
+  failed: boolean;
+  retry: () => void;
+};
+
+/**
+ * Loads the builtin catalog on first use and reports progress.
+ *
+ * Status is module-level, so every screen agrees and a retry from one clears the
+ * error in all of them. A rejected fetch settles on `error` (never an unhandled
+ * rejection) and stays retryable.
+ */
+export function useCatalog(): CatalogState {
+  const status = useSyncExternalStore(subscribeCatalog, getCatalogStatus, getCatalogStatus);
+
   useEffect(() => {
-    if (ready) return;
-    let live = true;
-    void ensureCatalog().then(() => {
-      if (live) setReady(true);
+    if (status !== "idle") return;
+    void ensureCatalog().catch(() => {
+      /* surfaced as status "error" */
     });
-    return () => {
-      live = false;
-    };
-  }, [ready]);
-  return ready;
+  }, [status]);
+
+  const retry = useCallback(() => {
+    void retryCatalog().catch(() => {
+      /* surfaced as status "error" */
+    });
+  }, []);
+
+  return {
+    status,
+    ready: status === "ready",
+    failed: status === "error",
+    retry,
+  };
 }

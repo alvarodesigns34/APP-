@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Sheet } from "@/components/ui/sheet";
 import { currentStreak, goalsMet } from "@/lib/brio/selectors";
@@ -33,29 +33,34 @@ export function StreakSheet({ open, onOpenChange }: { open: boolean; onOpenChang
     })),
   );
   const setViewDate = useBrioStore((s) => s.setViewDate);
-  const streak = useMemo(() => currentStreak(snap), [snap]);
-  const last14 = rangeKeys(todayKey(), 14);
+
+  // The sheet stays mounted so vaul can animate it both ways, which means this
+  // body re-renders on every store change. `currentStreak` walks back up to 400
+  // days and the strip adds 14 more `goalsMet` passes, so both are gated on
+  // `open`: closed, this component costs nothing.
+  const streak = useMemo(() => (open ? currentStreak(snap) : 0), [snap, open]);
+  const stripCounts = useMemo(
+    () => (open ? rangeKeys(todayKey(), 14).map((k) => ({ k, c: goalsMet(snap, k).count })) : []),
+    [snap, open],
+  );
+  const countFor = useCallback((k: string) => goalsMet(snap, k).count, [snap]);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Racha">
       <p className="mb-1 font-display text-3xl tabular-nums">{streak} días</p>
-      <p className="mb-4 text-sm text-muted-foreground">
-        Cumple 3 objetivos en un día para que cuente en la racha.
-      </p>
+      <p className="mb-4 text-sm text-muted-foreground">Cumple 3 objetivos en un día para que cuente en la racha.</p>
       <div className="mb-6 grid grid-cols-7 gap-1">
-        {last14.map((k) => {
-          const c = goalsMet(snap, k).count;
-          return (
-            <div
-              key={k}
-              className={cn("aspect-square rounded-md", c >= 3 ? "bg-primary" : c > 0 ? "bg-primary/40" : "bg-muted")}
-              title={k}
-            />
-          );
-        })}
+        {stripCounts.map(({ k, c }) => (
+          <div
+            key={k}
+            className={cn("aspect-square rounded-md", c >= 3 ? "bg-primary" : c > 0 ? "bg-primary/40" : "bg-muted")}
+            title={k}
+          />
+        ))}
       </div>
       <MonthCal
         open={open}
-        countFor={(k) => goalsMet(snap, k).count}
+        countFor={countFor}
         onSelect={(k) => {
           setViewDate(k);
           onOpenChange(false);

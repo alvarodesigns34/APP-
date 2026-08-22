@@ -1,4 +1,4 @@
-const CACHE = "brio-v4.2";
+const CACHE = "brio-v4.3";
 const PRECACHE = [
   "/",
   "/index.html",
@@ -36,6 +36,23 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
+
+  // SPA routes (/comida, /tendencias…) are not cached under their own URL, so
+  // offline navigations must fall back to the cached shell. Without this a
+  // refresh — or a tap on a meal reminder, which deep-links to /comida — lands
+  // on the browser's network-error page.
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).catch(() =>
+        caches
+          .match("/index.html")
+          .then((shell) => shell || caches.match("/"))
+          .then((shell) => shell || Response.error()),
+      ),
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const fetched = fetch(event.request)
@@ -46,7 +63,9 @@ self.addEventListener("fetch", (event) => {
           }
           return res;
         })
-        .catch(() => cached);
+        // Never resolve to undefined: respondWith(undefined) surfaces as a
+        // network error even when we simply have nothing cached.
+        .catch(() => cached || Response.error());
       return cached || fetched;
     }),
   );

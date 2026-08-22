@@ -3,8 +3,9 @@ import { todayKey } from "@/lib/brio/dates";
 import { dueReminders } from "@/lib/brio/reminders";
 import { waterTotal } from "@/lib/brio/selectors";
 import { useBrioStore } from "@/lib/brio/store";
+import { AUX_STORE_KEYS } from "@/lib/brio/types";
 
-const FIRED_KEY = "brio.reminders.fired";
+const FIRED_KEY = AUX_STORE_KEYS[1];
 
 function loadLastFired(): Record<string, number> {
   if (typeof localStorage === "undefined") return {};

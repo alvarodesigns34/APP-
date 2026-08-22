@@ -33,7 +33,7 @@ import {
 import { useBrioStore } from "@/lib/brio/store";
 import { combinedCsv } from "@/lib/brio/export-csv";
 import { nf, parseNum } from "@/lib/brio/format";
-import { DEFAULT_WEEKDAY_PLAN, kcalForWeekday } from "@/lib/brio/weekday-goals";
+import { DEFAULT_WEEKDAY_PLAN, MIN_DAY_KCAL, kcalForWeekday } from "@/lib/brio/weekday-goals";
 import {
   cmToDisplay,
   displayToCm,
@@ -48,6 +48,14 @@ import {
   type UnitSystem,
 } from "@/lib/brio/units";
 import { cn } from "@/lib/utils";
+
+/** Lower bounds applied when a goal field loses focus. */
+const GOAL_MIN: Partial<Record<"kcal" | "prot" | "steps" | "water", number>> = {
+  kcal: MIN_DAY_KCAL,
+  prot: 0,
+  steps: 0,
+  water: 0,
+};
 
 export function SettingsScreen() {
   const profile = useBrioStore((s) => s.profile);
@@ -268,9 +276,19 @@ export function SettingsScreen() {
                 const n = parseNum(e.target.value) || 0;
                 patchGoals({ [k]: k === "water" ? displayToMl(n, units) : n });
               }}
+              // Clamp on blur, not on change: clamping mid-typing makes the
+              // field impossible to clear and retype.
+              onBlur={() => {
+                const min = GOAL_MIN[k];
+                if (min != null && goals[k] < min) patchGoals({ [k]: min });
+              }}
             />
           </Field>
         ))}
+        <p className="pt-1 text-xs text-muted-foreground">
+          El objetivo de calorías no baja de {nf(GOAL_MIN.kcal)} kcal. Consulta a un profesional antes de fijar un
+          objetivo agresivo.
+        </p>
         <div className="pt-1">
           <p className="mb-2 text-sm text-muted-foreground">Reparto de macros</p>
           <div className="flex flex-wrap gap-2">
@@ -420,8 +438,7 @@ export function SettingsScreen() {
           {kcalForWeekday(goals.kcal, weekdayPlan.training, 0)} kcal
         </p>
         <p className="text-xs text-muted-foreground">
-          La media de la semana sigue siendo tu objetivo. Las kcal de actividad se siguen sumando si lo tienes
-          activado.
+          La media de la semana sigue siendo tu objetivo. Las kcal de actividad se siguen sumando si lo tienes activado.
         </p>
       </Card>
 
@@ -445,7 +462,11 @@ export function SettingsScreen() {
         </label>
         <div className="grid grid-cols-3 gap-2">
           <Field label="Desayuno">
-            <Input type="time" value={reminders.desayuno} onChange={(e) => onReminderTime("desayuno", e.target.value)} />
+            <Input
+              type="time"
+              value={reminders.desayuno}
+              onChange={(e) => onReminderTime("desayuno", e.target.value)}
+            />
           </Field>
           <Field label="Comida">
             <Input type="time" value={reminders.comida} onChange={(e) => onReminderTime("comida", e.target.value)} />

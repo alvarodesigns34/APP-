@@ -3,6 +3,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { BASE_RECIPES, getFood, searchFoods } from "@/lib/brio/catalog";
 import { useCatalog } from "@/lib/brio/use-catalog";
+import { CatalogNotice } from "@/components/brio/catalog-state";
 import { useBrioStore } from "@/lib/brio/store";
 import { missingIngredients } from "@/lib/brio/selectors-catalog";
 import { nf } from "@/lib/brio/format";
@@ -10,7 +11,8 @@ import type { Food } from "@/lib/brio/types";
 import { cn } from "@/lib/utils";
 
 export function PantrySheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const catalogReady = useCatalog();
+  const catalog = useCatalog();
+  const catalogReady = catalog.ready;
   const pantry = useBrioStore((s) => s.pantry);
   const toggle = useBrioStore((s) => s.togglePantry);
   const customFoods = useBrioStore((s) => s.customFoods);
@@ -46,7 +48,11 @@ export function PantrySheet({ open, onOpenChange }: { open: boolean; onOpenChang
       </p>
       <Input placeholder="Buscar o añadir alimento" value={q} onChange={(e) => setQ(e.target.value)} />
       <ul className="mt-3 divide-y divide-border">
-        {list.length === 0 ? (
+        {!catalogReady ? (
+          <li>
+            <CatalogNotice state={catalog} loadingText="Cargando alimentos…" />
+          </li>
+        ) : list.length === 0 ? (
           <li className="py-6 text-center text-sm text-muted-foreground">
             {query ? "No hay resultados." : "La despensa está vacía."}
           </li>
@@ -83,7 +89,8 @@ export function PantrySheet({ open, onOpenChange }: { open: boolean; onOpenChang
 }
 
 export function ShoppingSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const catalogReady = useCatalog();
+  const catalog = useCatalog();
+  const catalogReady = catalog.ready;
   const pantry = useBrioStore((s) => s.pantry);
   const favRecipes = useBrioStore((s) => s.favRecipes);
   const [picked, setPicked] = useState<string[]>(favRecipes.slice(0, 4));

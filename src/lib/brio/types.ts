@@ -3,6 +3,12 @@ export const APP_VERSION = "4.1.0";
 export const SCHEMA_VERSION = 4;
 export const STORE_KEY = "brio.v4";
 export const LEGACY_STORE_KEYS = ["brio.v1", "salud.v1"] as const;
+/**
+ * Side keys kept outside the main store. They are not part of the exported
+ * backup, but "borrar todos los datos" must still clear them — otherwise the
+ * wipe leaves the last search and the reminder bookkeeping behind.
+ */
+export const AUX_STORE_KEYS = ["brio.search-prefs", "brio.reminders.fired"] as const;
 export const NOTE_MAX = 600;
 
 export type Sex = "h" | "m" | "nb";

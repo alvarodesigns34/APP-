@@ -2,6 +2,7 @@ import { DEFAULT_MACRO_PCT, clampMacroPct, isMacroPresetId, pctForPreset } from 
 import { DEFAULT_REMINDERS, parseReminders } from "./reminders";
 import { DEFAULT_WEEKDAY_PLAN, parseWeekdayPlan } from "./weekday-goals";
 import {
+  AUX_STORE_KEYS,
   LEGACY_STORE_KEYS,
   MEALS,
   NOTE_MAX,
@@ -277,6 +278,22 @@ export function saveState(state: PersistedState): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Removes the keys that live outside the main store. `resetAll` rewrites
+ * `STORE_KEY` with a fresh state, which leaves these untouched, so a wipe has to
+ * clear them explicitly for "borrar todos los datos" to mean what it says.
+ */
+export function clearAuxStorage(): void {
+  if (typeof localStorage === "undefined") return;
+  for (const k of [...AUX_STORE_KEYS, ...LEGACY_STORE_KEYS]) {
+    try {
+      localStorage.removeItem(k);
+    } catch {
+      /* private mode */
+    }
   }
 }
 
