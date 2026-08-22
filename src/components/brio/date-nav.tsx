@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { addDays, fmtDateRelative, todayKey } from "@/lib/brio/dates";
+import { addDays, canPlanFurther, fmtDateRelative, todayKey } from "@/lib/brio/dates";
 import { useBrioStore } from "@/lib/brio/store";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -9,7 +9,7 @@ export const DateNav = memo(function DateNav({ subtitle }: { subtitle?: string }
   const viewDate = useBrioStore((s) => s.viewDate);
   const setViewDate = useBrioStore((s) => s.setViewDate);
   const key = viewDate || todayKey();
-  const isToday = key === todayKey();
+  const atMax = !canPlanFurther(key, todayKey());
   return (
     <div className="mb-4 flex items-center justify-between gap-2">
       <Button
@@ -28,10 +28,10 @@ export const DateNav = memo(function DateNav({ subtitle }: { subtitle?: string }
         variant="ghost"
         size="icon"
         aria-label="Día siguiente"
-        title={isToday ? "Ya estás en hoy" : "Día siguiente"}
-        disabled={isToday}
-        className={cn(isToday && "bg-muted text-muted-foreground disabled:opacity-30")}
-        onClick={() => !isToday && setViewDate(addDays(key, 1))}
+        title={atMax ? "No se puede planificar más de una semana por delante" : "Día siguiente"}
+        disabled={atMax}
+        className={cn(atMax && "bg-muted text-muted-foreground disabled:opacity-30")}
+        onClick={() => !atMax && setViewDate(addDays(key, 1))}
       >
         <ChevronRight className="size-5" />
       </Button>

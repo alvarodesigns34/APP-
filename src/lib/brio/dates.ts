@@ -29,6 +29,14 @@ export function addDays(key: string, n: number): string {
   return keyOf(d);
 }
 
+/** How far ahead a day can be planned — see MAX_PLAN_DAYS_AHEAD in date-nav.tsx. */
+export const MAX_PLAN_DAYS_AHEAD = 7;
+
+/** True while `key` is still within the plannable window ahead of `today`. */
+export function canPlanFurther(key: string, today: string, maxDaysAhead = MAX_PLAN_DAYS_AHEAD): boolean {
+  return key < addDays(today, maxDaysAhead);
+}
+
 export function rangeKeys(endKey: string, n: number): string[] {
   const out: string[] = [];
   for (let i = n - 1; i >= 0; i--) out.push(addDays(endKey, -i));

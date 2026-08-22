@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addMonths, fmtMonthYear, monthGrid, monthStart } from "./dates";
+import { addDays, addMonths, canPlanFurther, fmtMonthYear, MAX_PLAN_DAYS_AHEAD, monthGrid, monthStart } from "./dates";
 
 describe("month helpers", () => {
   it("monthStart pins to day 01", () => {
@@ -33,5 +33,29 @@ describe("month helpers", () => {
     expect(cells.slice(0, 3).every((k) => k == null)).toBe(true);
     expect(cells[3]).toBe("2026-01-01");
     expect(cells.filter(Boolean)).toHaveLength(31);
+  });
+});
+
+describe("canPlanFurther", () => {
+  const today = "2026-08-22";
+
+  it("allows advancing through today and the plannable window", () => {
+    expect(canPlanFurther(today, today)).toBe(true);
+    expect(canPlanFurther(addDays(today, 1), today)).toBe(true);
+    expect(canPlanFurther(addDays(today, MAX_PLAN_DAYS_AHEAD - 1), today)).toBe(true);
+  });
+
+  it("stops exactly at today + MAX_PLAN_DAYS_AHEAD", () => {
+    expect(canPlanFurther(addDays(today, MAX_PLAN_DAYS_AHEAD), today)).toBe(false);
+    expect(canPlanFurther(addDays(today, MAX_PLAN_DAYS_AHEAD + 3), today)).toBe(false);
+  });
+
+  it("allows any day in the past", () => {
+    expect(canPlanFurther(addDays(today, -30), today)).toBe(true);
+  });
+
+  it("respects a custom window", () => {
+    expect(canPlanFurther(addDays(today, 2), today, 2)).toBe(false);
+    expect(canPlanFurther(addDays(today, 1), today, 2)).toBe(true);
   });
 });
