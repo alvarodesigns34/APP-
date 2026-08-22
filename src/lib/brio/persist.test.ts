@@ -260,3 +260,36 @@ describe("migrate", () => {
     });
   });
 });
+
+describe("weights", () => {
+  it("drops rows without a usable date or weight", () => {
+    const s = migrate({
+      weights: [null, "nope", { date: "2026-08-22" }, { kg: 70 }, { date: "2026-08-22", kg: -70 }, { date: "2026-08-22", kg: 70 }],
+    });
+    expect(s.weights).toEqual([{ date: "2026-08-22", kg: 70 }]);
+  });
+
+  it("keeps body composition only when it is a sane percentage", () => {
+    const s = migrate({
+      weights: [
+        { date: "2026-08-20", kg: 70, fat: 18.4, muscle: 41 },
+        { date: "2026-08-21", kg: 70, fat: 250, muscle: -3 },
+        { date: "2026-08-22", kg: 70, fat: "mucha" },
+      ],
+    });
+    expect(s.weights[0]).toEqual({ date: "2026-08-20", kg: 70, fat: 18.4, muscle: 41 });
+    expect(s.weights[1]).toEqual({ date: "2026-08-21", kg: 70 });
+    expect(s.weights[2]).toEqual({ date: "2026-08-22", kg: 70 });
+  });
+
+  it("sorts by date ascending, which latestWeight relies on", () => {
+    const s = migrate({
+      weights: [
+        { date: "2026-08-22", kg: 70 },
+        { date: "2026-08-01", kg: 72 },
+        { date: "2026-08-10", kg: 71 },
+      ],
+    });
+    expect(s.weights.map((w) => w.date)).toEqual(["2026-08-01", "2026-08-10", "2026-08-22"]);
+  });
+});
