@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { todayKey } from "@/lib/brio/dates";
 import { dueReminders } from "@/lib/brio/reminders";
 import { fireDueReminders } from "@/lib/brio/reminders-fire";
-import { waterTotal } from "@/lib/brio/selectors";
+import { currentStreak, goalsMet, waterTotal } from "@/lib/brio/selectors";
 import { useBrioStore } from "@/lib/brio/store";
 import { AUX_STORE_KEYS } from "@/lib/brio/types";
 
@@ -54,6 +54,8 @@ function tick() {
     waterMl: waterTotal(s, day),
     waterGoal: s.goals.water,
     weighedToday: s.weights.some((w) => w.date === day),
+    streakDays: currentStreak(s),
+    goalsMetToday: goalsMet(s, day).count,
   });
   if (!due.length) return;
   if (!("serviceWorker" in navigator)) return;

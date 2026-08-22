@@ -14,6 +14,8 @@ const emptyCtx = {
   waterMl: 0,
   waterGoal: 2000,
   weighedToday: false,
+  streakDays: 0,
+  goalsMetToday: 0,
 };
 
 function on(patch: Partial<ReminderSettings> = {}): ReminderSettings {
@@ -186,5 +188,42 @@ describe("dueReminders", () => {
     expect(notices[0].url).toBe("/");
     expect(dueReminders(now, w, {}, { ...emptyCtx, weighedToday: true })).toEqual([]);
     expect(dueReminders(now, w, { "2026-08-22:peso": now.getTime() }, emptyCtx)).toEqual([]);
+  });
+
+  it("fires the streak-at-risk reminder in the evening when a streak is going and today isn't safe yet", () => {
+    const now = new Date(2026, 7, 22, 20, 0);
+    const s = on({ streak: true, meals: false });
+    const notices = dueReminders(now, s, {}, { ...emptyCtx, streakDays: 5, goalsMetToday: 1 });
+    expect(ids(notices)).toEqual(["streak"]);
+    expect(notices[0].url).toBe("/");
+    expect(notices[0].body).toBe("Llevas 5 días seguidos. Hoy van 1 de 5.");
+  });
+
+  it("uses the singular for a one-day streak", () => {
+    const now = new Date(2026, 7, 22, 20, 0);
+    const s = on({ streak: true, meals: false });
+    const notices = dueReminders(now, s, {}, { ...emptyCtx, streakDays: 1, goalsMetToday: 0 });
+    expect(notices[0].body).toBe("Llevas 1 día seguido. Hoy van 0 de 5.");
+  });
+
+  it("does not fire the streak reminder before its time, when disabled, or without an active streak", () => {
+    const s = on({ streak: true, meals: false });
+    const ctx = { ...emptyCtx, streakDays: 5, goalsMetToday: 1 };
+    expect(dueReminders(new Date(2026, 7, 22, 19, 59), s, {}, ctx)).toEqual([]);
+    expect(dueReminders(new Date(2026, 7, 22, 20, 0), on({ streak: false, meals: false }), {}, ctx)).toEqual([]);
+    expect(dueReminders(new Date(2026, 7, 22, 20, 0), s, {}, { ...ctx, streakDays: 0 })).toEqual([]);
+  });
+
+  it("does not fire the streak reminder once today's own goals are already on track", () => {
+    const now = new Date(2026, 7, 22, 20, 0);
+    const s = on({ streak: true, meals: false });
+    expect(dueReminders(now, s, {}, { ...emptyCtx, streakDays: 5, goalsMetToday: 3 })).toEqual([]);
+  });
+
+  it("does not fire the streak reminder twice in a day", () => {
+    const now = new Date(2026, 7, 22, 20, 30);
+    const s = on({ streak: true, meals: false });
+    const ctx = { ...emptyCtx, streakDays: 5, goalsMetToday: 1 };
+    expect(dueReminders(now, s, { "2026-08-22:streak": now.getTime() }, ctx)).toEqual([]);
   });
 });

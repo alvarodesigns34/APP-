@@ -133,11 +133,13 @@ export type ReminderSettings = {
   meals: boolean;
   water: boolean;
   weight: boolean;
+  streak: boolean;
   desayuno: string;
   comida: string;
   cena: string;
   aguaEveryMin: number;
   peso: string;
+  streakTime: string;
 };
 
 export type WeekdayPlan = {
