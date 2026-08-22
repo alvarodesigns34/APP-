@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { Ring, Rings } from "./rings";
+import { Bar, Ring, Rings } from "./rings";
 
 function markup(pct: number) {
   return renderToStaticMarkup(<Ring r={58} pct={pct} color="var(--brio-kcal)" />);
@@ -68,5 +68,30 @@ describe("Rings layout", () => {
     const html = renderToStaticMarkup(<Rings kcal={1.2} steps={1} move={0.4} />);
     expect(html.match(/data-overflow="true"/g)?.length).toBe(1);
     expect(html.match(/data-overflow="false"/g)?.length).toBe(2);
+  });
+});
+
+describe("non-finite ratios", () => {
+  it("renders Ring as empty instead of vanishing when pct is NaN", () => {
+    const nan = markup(NaN);
+    expect(nan).toBe(markup(0));
+    expect(nan).not.toContain("NaN");
+    expect(nan).toContain('data-overflow="false"');
+  });
+
+  it("renders Ring as empty for Infinity rather than an overflow arc", () => {
+    expect(markup(Infinity)).not.toContain("NaN");
+    expect(markup(-Infinity)).toBe(markup(0));
+  });
+
+  it("renders Bar at 0% instead of an invalid width", () => {
+    const nan = renderToStaticMarkup(<Bar pct={NaN} color="var(--brio-kcal)" />);
+    expect(nan).toContain("width:0%");
+    expect(nan).not.toContain("NaN");
+  });
+
+  it("still clamps a normal Bar to 0..100", () => {
+    expect(renderToStaticMarkup(<Bar pct={-20} color="red" />)).toContain("width:0%");
+    expect(renderToStaticMarkup(<Bar pct={250} color="red" />)).toContain("width:100%");
   });
 });

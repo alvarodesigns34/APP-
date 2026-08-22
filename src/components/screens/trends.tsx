@@ -182,7 +182,13 @@ export function TrendsScreen() {
   }, [snap, range]);
   const week = rangeKeys(todayKey(), 7);
   const prevWeek = rangeKeys(addDays(todayKey(), -7), 7);
-  const heat = rangeKeys(todayKey(), 84);
+  // goalsMet chains into kcalGoalFor → activityKcal → stepsKcal → latestWeight,
+  // which filters the whole weights array. Unmemoized that ran 84 times on
+  // every render of this screen.
+  const heat = useMemo(
+    () => rangeKeys(todayKey(), 84).map((k) => ({ k, c: goalsMet(snap, k).count })),
+    [snap],
+  );
   const insights = useMemo(() => weeklyInsights(snap), [snap]);
   const wChart = useMemo(() => {
     const pts = buildWeightChart(snap.weights, snap.goals.weight);
@@ -192,15 +198,36 @@ export function TrendsScreen() {
   const trend = useMemo(() => weightTrend(snap), [snap]);
   const units = snap.settings.units;
 
-  const weekKcal = week.reduce((a, k) => a + dayFoodTotals(snap, k).kcal, 0);
-  const weekProt = week.reduce((a, k) => a + dayFoodTotals(snap, k).prot, 0);
-  const logged = week.filter((k) => dayFoodTotals(snap, k).kcal > 0).length;
-  const hasAny = logged > 0 || snap.weights.length > 0 || week.some((k) => (snap.days[k]?.steps || 0) > 0);
-  const foodOf = (k: string) => dayFoodTotals(snap, k);
-  const stepsOf = (k: string) => snap.days[k]?.steps || 0;
-  const moveOf = (k: string) => workoutMinTotal(snap, k);
-  const thisWeekTotals = weekTotals(week, foodOf, stepsOf, moveOf);
-  const prevWeekTotals = weekTotals(prevWeek, foodOf, stepsOf, moveOf);
+  // One pass over the week instead of the five separate dayFoodTotals sweeps
+  // (weekKcal, weekProt, logged, hasAny, and foodOf inside weekTotals) this
+  // used to run on every render.
+  const summary = useMemo(() => {
+    let weekKcal = 0;
+    let weekProt = 0;
+    let logged = 0;
+    let anySteps = false;
+    for (const k of week) {
+      const t = dayFoodTotals(snap, k);
+      weekKcal += t.kcal;
+      weekProt += t.prot;
+      if (t.kcal > 0) logged += 1;
+      if ((snap.days[k]?.steps || 0) > 0) anySteps = true;
+    }
+    const foodOf = (k: string) => dayFoodTotals(snap, k);
+    const stepsOf = (k: string) => snap.days[k]?.steps || 0;
+    const moveOf = (k: string) => workoutMinTotal(snap, k);
+    return {
+      weekKcal,
+      weekProt,
+      logged,
+      hasAny: logged > 0 || snap.weights.length > 0 || anySteps,
+      thisWeekTotals: weekTotals(week, foodOf, stepsOf, moveOf),
+      prevWeekTotals: weekTotals(prevWeek, foodOf, stepsOf, moveOf),
+    };
+    // `week`/`prevWeek` are derived from todayKey() and change only with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snap]);
+  const { weekKcal, weekProt, logged, hasAny, thisWeekTotals, prevWeekTotals } = summary;
 
   return (
     <Screen>
@@ -270,8 +297,7 @@ export function TrendsScreen() {
       <SectionLabel>Calendario</SectionLabel>
       <Card className="mb-3">
         <div className="grid grid-cols-7 gap-1">
-          {heat.map((k) => {
-            const c = goalsMet(snap, k).count;
+          {heat.map(({ k, c }) => {
             return (
               <button
                 key={k}

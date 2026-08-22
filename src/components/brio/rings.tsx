@@ -10,7 +10,9 @@ export function Ring({
   color: string;
 }) {
   const c = 2 * Math.PI * r;
-  const p = Math.max(0, pct);
+  // Math.max(0, NaN) is NaN, which would reach strokeDashoffset and make the
+  // arc vanish rather than render empty. Treat a non-finite ratio as 0.
+  const p = Number.isFinite(pct) ? Math.max(0, pct) : 0;
   const fill = Math.min(1, p);
   const extra = Math.max(0, Math.min(1, p - 1));
   const over = p > 1;
@@ -110,7 +112,9 @@ export function LegendRow({
 }
 
 export function Bar({ pct, color, compact }: { pct: number; color: string; compact?: boolean }) {
-  const w = Math.max(0, Math.min(100, pct));
+  // Same reason as Ring: "width: NaN%" is dropped by the browser, so the bar
+  // would silently disappear instead of showing as empty.
+  const w = Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : 0;
   return (
     <div className={cn("overflow-hidden rounded-full bg-muted", compact ? "h-1.5" : "h-2")}>
       <div

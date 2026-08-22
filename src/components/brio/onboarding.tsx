@@ -49,7 +49,7 @@ export function Onboarding() {
     });
   }, [draft]);
 
-  function finish(useComputed: boolean) {
+  function finish() {
     const h = parseNum(draft.height) || 175;
     const w = parseNum(draft.weight) || 70;
     const g = computed ?? computeGoals({
@@ -71,7 +71,10 @@ export function Onboarding() {
         purpose: draft.purpose,
       },
       goals: {
-        kcal: useComputed ? g.kcal : 2200,
+        // Always the computed target: the only caller confirms the plan it was
+        // just shown. A literal 2200 here would have left prot/carb/fat as the
+        // macros for a different kcal total.
+        kcal: g.kcal,
         prot: g.prot,
         carb: g.carb,
         fat: g.fat,
@@ -110,7 +113,7 @@ export function Onboarding() {
       }
     }
     if (step === 4) {
-      finish(true);
+      finish();
       return;
     }
     setStep((s) => s + 1);
