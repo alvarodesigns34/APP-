@@ -54,3 +54,8 @@ export function fmtHeight(cm: number, units: UnitSystem): string {
   const inches = totalIn % 12;
   return `${ft}'${inches}"`;
 }
+
+/** The custom glass-size preset plus the two fixed ones, without repeating a value the user already set as their glass size. */
+export function uniqueGlassAmounts(glass: number): number[] {
+  return [...new Set([glass, 200, 500])];
+}
