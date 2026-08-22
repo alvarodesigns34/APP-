@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RECIPE_CATS, RECIPE_FILTERS, filterName, recipeAsFood, searchRecipes } from "@/lib/brio/catalog";
+import { RECIPE_CATS, RECIPE_FILTERS, filterName, getFood, recipeAsFood, searchRecipes } from "@/lib/brio/catalog";
 import { RECIPE_SORTS, sortRecipes, type RecipeSortId } from "@/lib/brio/sort-recipes";
 import { HighlightText } from "@/components/brio/highlight-text";
 import { useCatalog } from "@/lib/brio/use-catalog";
@@ -143,6 +143,10 @@ export function RecipeDetail({
   const toggle = useBrioStore((s) => s.toggleFavRecipe);
   const favRecipes = useBrioStore((s) => s.favRecipes);
   const pantry = useBrioStore((s) => s.pantry);
+  const customFoods = useBrioStore((s) => s.customFoods);
+  const userRecipes = useBrioStore((s) => s.recipes);
+  const addShoppingItems = useBrioStore((s) => s.addShoppingItems);
+  const catalogCtx = useMemo(() => ({ customFoods, recipes: userRecipes }), [customFoods, userRecipes]);
   const fav = favRecipes.includes(recipe.id);
   const missing = useMemo(() => missingIngredients({ ...useBrioStore.getState(), pantry }, recipe), [pantry, recipe]);
   const [meal, setMeal] = useState<MealId>("comida");
@@ -247,7 +251,25 @@ export function RecipeDetail({
         ))}
       </ul>
       {missing.length ? (
-        <p className="mb-3 text-xs text-muted-foreground">Te falta: {missing.slice(0, 6).join(", ")}</p>
+        <div className="mb-3 rounded-2xl bg-muted/50 px-3 py-2">
+          <p className="text-xs text-muted-foreground">Te falta: {missing.slice(0, 6).join(", ")}</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-2 w-full"
+            onClick={() => {
+              const added = addShoppingItems(
+                // Scaled grams, so the list matches the servings you picked.
+                scaled.ingredients
+                  .filter((i) => missing.includes(i.name))
+                  .map((i) => ({ name: i.name, qty: `${nf(i.g, 0)} ${i.base}`, cat: getFood(i.id, catalogCtx)?.cat, foodId: i.id })),
+              );
+              if (!added) toast.success("Ya lo tienes todo en la lista");
+            }}
+          >
+            Añadir a la lista de la compra
+          </Button>
+        </div>
       ) : (
         <p className="mb-3 text-xs text-primary">Tienes lo necesario en la despensa.</p>
       )}

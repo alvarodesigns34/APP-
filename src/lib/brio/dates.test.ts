@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, addMonths, canPlanFurther, fmtMonthYear, MAX_PLAN_DAYS_AHEAD, monthGrid, monthStart } from "./dates";
+import { addDays, addMonths, canPlanFurther, fmtMonthYear, MAX_PLAN_DAYS_AHEAD, monthGrid, monthStart, shouldRollViewDate } from "./dates";
 
 describe("month helpers", () => {
   it("monthStart pins to day 01", () => {
@@ -57,5 +57,27 @@ describe("canPlanFurther", () => {
   it("respects a custom window", () => {
     expect(canPlanFurther(addDays(today, 2), today, 2)).toBe(false);
     expect(canPlanFurther(addDays(today, 1), today, 2)).toBe(true);
+  });
+});
+
+describe("shouldRollViewDate", () => {
+  it("does nothing while the day has not changed", () => {
+    expect(shouldRollViewDate("2026-08-22", "2026-08-22", "2026-08-22")).toBe(false);
+    expect(shouldRollViewDate("2026-08-15", "2026-08-22", "2026-08-22")).toBe(false);
+  });
+
+  it("rolls someone sitting on today over to the new day", () => {
+    expect(shouldRollViewDate("2026-08-22", "2026-08-22", "2026-08-23")).toBe(true);
+  });
+
+  it("rolls an unset viewDate too", () => {
+    expect(shouldRollViewDate("", "2026-08-22", "2026-08-23")).toBe(true);
+  });
+
+  it("leaves a day the user deliberately opened alone", () => {
+    // Reviewing last Tuesday at 00:01 must not yank the screen to the new today.
+    expect(shouldRollViewDate("2026-08-18", "2026-08-22", "2026-08-23")).toBe(false);
+    // Nor a future day being planned.
+    expect(shouldRollViewDate("2026-08-27", "2026-08-22", "2026-08-23")).toBe(false);
   });
 });

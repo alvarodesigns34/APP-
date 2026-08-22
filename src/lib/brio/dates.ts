@@ -37,6 +37,18 @@ export function canPlanFurther(key: string, today: string, maxDaysAhead = MAX_PL
   return key < addDays(today, maxDaysAhead);
 }
 
+/**
+ * Whether the day the app is showing should follow the clock over midnight.
+ *
+ * A PWA left open overnight keeps `viewDate` on the day it was opened, so "Hoy"
+ * quietly becomes yesterday. Roll forward only when the user is actually
+ * sitting on what used to be today — never drag them off a day they chose.
+ */
+export function shouldRollViewDate(viewDate: string, prevToday: string, nextToday: string): boolean {
+  if (prevToday === nextToday) return false;
+  return viewDate === "" || viewDate === prevToday;
+}
+
 export function rangeKeys(endKey: string, n: number): string[] {
   const out: string[] = [];
   for (let i = n - 1; i >= 0; i--) out.push(addDays(endKey, -i));

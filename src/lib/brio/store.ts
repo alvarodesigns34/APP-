@@ -52,7 +52,6 @@ export type BrioStore = PersistedState & {
   copyMeal: (fromKey: string, toKey: string, meal: MealId) => string[];
   cloneMealEntries: (toKey: string, meal: MealId, entries: MealEntry[]) => string[];
   addWater: (key: string, ml: number) => string;
-  undoWater: (key: string) => void;
   removeWater: (key: string, id: string) => void;
   setSteps: (key: string, steps: number) => void;
   addWorkout: (key: string, type: string, min: number, intensity: IntensityId) => string;
@@ -391,15 +390,6 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       get().removeWater(key, id);
     });
     return id;
-  },
-  undoWater: (key) => {
-    const s = get();
-    set({
-      days: withDay(s, key, (d) => {
-        if (d.water.length) d.water.pop();
-      }),
-    });
-    get().persist();
   },
   removeWater: (key, id) => {
     const s = get();
