@@ -2,15 +2,18 @@ import { describe, expect, it } from "vitest";
 import { scaleRecipe } from "./scale-recipe";
 import type { Recipe } from "./types";
 
-const recipe: Pick<Recipe, "servings" | "servingG" | "ing" | "perServing"> = {
+// per100 × servingG(250) / 100 reproduces the old perServing figures exactly
+// (400, 30.2, 40.4, 12.6, 5.1), so switching the fixture to per100 keeps every
+// existing expectation below unchanged.
+const recipe: Pick<Recipe, "servings" | "servingG" | "ing" | "per100"> = {
   servings: 4,
   servingG: 250,
-  perServing: {
-    kcal: 400,
-    prot: 30.2,
-    carb: 40.4,
-    fat: 12.6,
-    fib: 5.1,
+  per100: {
+    kcal: 160,
+    prot: 12.08,
+    carb: 16.16,
+    fat: 5.04,
+    fib: 2.04,
     sug: null,
     sat: null,
     sod: null,
@@ -88,6 +91,26 @@ describe("scaleRecipe", () => {
     expect(high.grams).toBe(5000);
     expect(high.ingredients[0].g).toBe(1000);
     expect(high.macros.kcal).toBe(8000);
+  });
+
+  it("derives macros from per100 × the rounded grams shown, matching what actually gets logged", () => {
+    // totalG/servings = 700/3 = 233.33…, so servingG (already rounded upstream
+    // by buildRecipe) is 233, not the exact figure. Macros must come from
+    // per100 × 233, the same grams the recipe is logged with via
+    // recipeAsFood() + scaleMacros() — not a separately-rounded perServing
+    // that would silently drift from the logged entry.
+    const uneven: Pick<Recipe, "servings" | "servingG" | "ing" | "per100"> = {
+      servings: 3,
+      servingG: 233,
+      per100: { kcal: 150, prot: 8, carb: 20, fat: 4, fib: 2, sug: null, sat: null, sod: null },
+      ing: [],
+    };
+    const out = scaleRecipe(uneven, 1);
+    expect(out.grams).toBe(233);
+    expect(out.macros.kcal).toBe(Math.round((150 * 233) / 100));
+    expect(out.macros.prot).toBeCloseTo((8 * 233) / 100, 1);
+    expect(out.macros.carb).toBeCloseTo((20 * 233) / 100, 1);
+    expect(out.macros.fat).toBeCloseTo((4 * 233) / 100, 1);
   });
 
   it("does not mutate the input recipe ingredients", () => {

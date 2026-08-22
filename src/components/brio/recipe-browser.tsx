@@ -189,9 +189,14 @@ export function RecipeDetail({
           </span>
         ))}
       </div>
+      {/* Fixed recipe facts (per serving) — the "Raciones" stepper below and the
+          register button already show the amount scaled to what's selected, so
+          this line stays a constant reference instead of mixing a total serving
+          count with a kcal figure that only applies to the current selection. */}
       <p className="mb-3 text-sm text-muted-foreground">
-        {recipe.minutes} min · {recipe.servings} raciones · {nf(scaled.macros.kcal)} kcal · {nf(scaled.macros.prot, 1)}{" "}
-        g prot · {nf(scaled.macros.carb, 1)} g carb · {nf(scaled.macros.fat, 1)} g grasa
+        {recipe.minutes} min · {recipe.servings} raciones · {nf(recipe.perServing.kcal)} kcal/ración ·{" "}
+        {nf(recipe.perServing.prot, 1)} g prot · {nf(recipe.perServing.carb, 1)} g carb ·{" "}
+        {nf(recipe.perServing.fat, 1)} g grasa
       </p>
       <div className="mb-3 flex items-center justify-between rounded-2xl bg-muted/50 px-3 py-2">
         <span className="text-sm font-medium">Raciones</span>
