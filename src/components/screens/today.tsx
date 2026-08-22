@@ -4,12 +4,12 @@ import { useShallow } from "zustand/react/shallow";
 import { Dumbbell, Droplets, Flame, Footprints, Moon, Pencil, Scale, Utensils, type LucideIcon } from "lucide-react";
 import { DateNav } from "@/components/brio/date-nav";
 import { FastingCard } from "@/components/brio/fasting";
-import { Bar, LabeledBar, LegendRow, Rings } from "@/components/brio/rings";
+import { LabeledBar, LegendRow, Rings } from "@/components/brio/rings";
 import { Card, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { capitalize, fmtDateLong, greeting, minutesToHM, rangeKeys, sleepDuration, todayKey } from "@/lib/brio/dates";
-import { nf } from "@/lib/brio/format";
+import { nf, plural } from "@/lib/brio/format";
 import { mealEntryCount } from "@/lib/brio/meals";
 import {
   activityKcal,
@@ -156,6 +156,9 @@ export function TodayScreen() {
       </Title>
       <DateNav subtitle={`${met.count} de ${met.total} objetivos cumplidos`} />
 
+      {/* Calories used to appear twice: here, and again ~900px down in a
+          separate "Resumen" card with its own bar. One card now carries the
+          rings, the day's headline number and the macro split. */}
       <Card className="mb-4">
         <div className="flex items-center gap-4">
           <Rings kcal={rv.kcal} steps={rv.steps} move={rv.move} />
@@ -165,6 +168,43 @@ export function TodayScreen() {
             <LegendRow label="Ejercicio" value={`${nf(woMin)}`} hint={`/ ${nf(move)} min`} color="var(--brio-move)" />
           </div>
         </div>
+
+        <div className="mt-4 border-t border-border pt-3">
+          <div className="mb-2 flex items-baseline justify-between gap-3">
+            <span className="text-sm font-medium">
+              {remaining >= 0 ? "Te quedan" : "Te has pasado"}
+            </span>
+            <span className="font-display text-2xl tabular-nums">
+              {nf(Math.abs(remaining))} <span className="text-sm text-muted-foreground">kcal</span>
+            </span>
+          </div>
+          <div className="space-y-3">
+            <LabeledBar
+              label="Proteína"
+              value={`${nf(t.prot)} g`}
+              hint={`/ ${nf(mg.prot)} g`}
+              pct={mg.prot ? (t.prot / mg.prot) * 100 : 0}
+              color="var(--brio-kcal)"
+            />
+            <LabeledBar
+              label="Hidratos"
+              value={`${nf(t.carb)} g`}
+              hint={`/ ${nf(mg.carb)} g`}
+              pct={mg.carb ? (t.carb / mg.carb) * 100 : 0}
+              color="var(--brio-steps)"
+            />
+            <LabeledBar
+              label="Grasa"
+              value={`${nf(t.fat)} g`}
+              hint={`/ ${nf(mg.fat)} g`}
+              pct={mg.fat ? (t.fat / mg.fat) * 100 : 0}
+              color="var(--brio-move)"
+            />
+          </div>
+          {snap.settings.activityAdjust && actKcal > 0 ? (
+            <p className="mt-3 text-xs text-muted-foreground">Incluye {nf(actKcal)} kcal de actividad.</p>
+          ) : null}
+        </div>
       </Card>
 
       <Card className="mb-2" onClick={() => setStreakOpen(true)}>
@@ -172,7 +212,7 @@ export function TodayScreen() {
           <Flame className={cn("size-6", streak > 0 ? "text-move" : "text-muted-foreground")} />
           <div className="min-w-0 flex-1">
             <div className="font-medium">
-              {streak > 0 ? `${streak} ${streak === 1 ? "día seguido" : "días seguidos"}` : "Sin racha en marcha"}
+              {streak > 0 ? plural(streak, "día seguido", "días seguidos") : "Empieza tu racha"}
             </div>
             <div className="text-xs text-muted-foreground">
               {streak > 0 ? "Tres o más objetivos al día" : "Cumple tres objetivos hoy para empezar"}
@@ -238,42 +278,9 @@ export function TodayScreen() {
         </div>
       </Card>
 
-      <SectionLabel>Resumen</SectionLabel>
-      <Card className="mb-3">
-        <div className="mb-2 flex justify-between text-sm">
-          <span className="font-medium">Calorías</span>
-          <span className="text-muted-foreground">
-            {remaining >= 0 ? `${nf(remaining)} restantes` : `${nf(-remaining)} de más`}
-          </span>
-        </div>
-        <Bar pct={kg ? (t.kcal / kg) * 100 : 0} color={remaining >= 0 ? "var(--brio-kcal)" : "var(--brio-bad)"} />
-        <div className="mt-4 space-y-3">
-          <LabeledBar
-            label="Prot"
-            value={`${nf(t.prot)} g`}
-            hint={`/ ${nf(mg.prot)} g`}
-            pct={mg.prot ? (t.prot / mg.prot) * 100 : 0}
-            color="var(--brio-kcal)"
-          />
-          <LabeledBar
-            label="HC"
-            value={`${nf(t.carb)} g`}
-            hint={`/ ${nf(mg.carb)} g`}
-            pct={mg.carb ? (t.carb / mg.carb) * 100 : 0}
-            color="var(--brio-steps)"
-          />
-          <LabeledBar
-            label="Grasa"
-            value={`${nf(t.fat)} g`}
-            hint={`/ ${nf(mg.fat)} g`}
-            pct={mg.fat ? (t.fat / mg.fat) * 100 : 0}
-            color="var(--brio-move)"
-          />
-        </div>
-        {snap.settings.activityAdjust && actKcal > 0 ? (
-          <p className="mt-3 text-xs text-muted-foreground">Incluye {nf(actKcal)} kcal de actividad.</p>
-        ) : null}
-      </Card>
+      {/* Agua / entrenos / sueño used to hang under the "Resumen" heading that
+          belonged to the calorie card above it. */}
+      <SectionLabel>El resto del día</SectionLabel>
       <Card>
         <div className="flex items-center justify-between text-sm">
           <span className="flex items-center gap-2 font-medium">
