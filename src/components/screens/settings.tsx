@@ -234,7 +234,7 @@ export function SettingsScreen() {
             type="button"
             onClick={() => patchProfile({ activity: a.id as ActivityId })}
             className={cn(
-              "w-full rounded-2xl px-3 py-2 text-left text-sm",
+              "flex min-h-11 w-full items-center rounded-2xl px-3 py-2 text-left text-sm",
               profile.activity === a.id ? "bg-primary/10 text-primary" : "bg-muted/40",
             )}
           >

@@ -24,6 +24,10 @@ PWA: `public/manifest.webmanifest`, iconos 180/192/512 y un service worker (`pub
 - Anillos, rachas, tendencias y proyección de peso
 - Unidades métricas o imperiales (altura imperial en pies y pulgadas)
 - Exportar e importar JSON
+- Búsqueda insensible a acentos en alimentos **y** recetas, con la coincidencia
+  resaltada y el número de resultados
+- Recetas ordenables por relevancia, calorías, proteína o tiempo
+- La app se actualiza sola cuando se publica una versión nueva
 
 Brío no sustituye el consejo de un profesional sanitario.
 

@@ -1,6 +1,7 @@
 import type { Food, Recipe, RecipeSource, UserRecipe } from "./types";
 import { round } from "./format";
 import { buildFoodIndex, searchIndexed, type FoodIndexEntry } from "./search";
+import { buildRecipeIndex, searchRecipesIndexed, type RecipeIndexEntry } from "./search-recipes";
 
 export { scaleMacros } from "./scale-macros";
 
@@ -172,6 +173,7 @@ export function recipeAsFood(r: Recipe): Food {
 export let RECIPE_FOODS: Food[] = [];
 
 let builtinIndex: FoodIndexEntry[] = [];
+let recipeIndex: RecipeIndexEntry[] = [];
 
 export const RECIPE_CATS = [
   { id: "desayuno", n: "Desayunos" },
@@ -272,6 +274,14 @@ export function searchFoods(q: string, cat: string | null, ctx: CatalogContext, 
   return searchIndexed(q, cat, builtinIndex, ctxFoods(ctx), limit);
 }
 
+/** Same accent- and word-aware matching as `searchFoods`, over the recipes. */
+export function searchRecipes(
+  q: string,
+  opts: { cat?: string | null; badge?: string | null; limit?: number } = {},
+): Recipe[] {
+  return searchRecipesIndexed(q, recipeIndex, opts);
+}
+
 export function filterName(id: string): string {
   return RECIPE_FILTERS.find((f) => f.id === id)?.n ?? id;
 }
@@ -356,6 +366,7 @@ function applySnapshot(foods: Food[], sources: RecipeSource[], routines: Routine
   RECIPE_FOODS = BASE_RECIPES.map(recipeAsFood);
   for (const f of RECIPE_FOODS) FOOD_BY_ID[f.id] = f;
   builtinIndex = buildFoodIndex([...BASE_FOODS, ...RECIPE_FOODS]);
+  recipeIndex = buildRecipeIndex(BASE_RECIPES);
   ROUTINES = routines;
   catalogReady = true;
 }
