@@ -361,10 +361,13 @@ function applySnapshot(foods: Food[], sources: RecipeSource[], routines: Routine
 }
 
 async function loadCatalog(): Promise<void> {
+  // BASE_URL is "/" locally and "/APP-/" on GitHub Pages; a hardcoded "/data/…"
+  // would 404 under the Pages subpath and leave the catalog in its error state.
+  const base = import.meta.env.BASE_URL;
   const [foods, sources, routines] = await Promise.all([
-    fetchJson<Food[]>("/data/foods.json"),
-    fetchJson<RecipeSource[]>("/data/recipes.json"),
-    fetchJson<Routine[]>("/data/routines.json"),
+    fetchJson<Food[]>(`${base}data/foods.json`),
+    fetchJson<RecipeSource[]>(`${base}data/recipes.json`),
+    fetchJson<Routine[]>(`${base}data/routines.json`),
   ]);
   applySnapshot(foods, sources, routines);
 }

@@ -12,7 +12,10 @@ createRoot(document.getElementById("root")!).render(
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {
+    // BASE_URL is "/" locally and "/APP-/" on GitHub Pages; a hardcoded
+    // "/sw.js" would 404 under the Pages subpath.
+    const base = import.meta.env.BASE_URL;
+    navigator.serviceWorker.register(`${base}sw.js`, { scope: base }).catch(() => {
       /* offline register can fail on first visit */
     });
   });

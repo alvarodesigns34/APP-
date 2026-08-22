@@ -8,10 +8,15 @@ import sw from "../../../public/sw.js?raw";
  * with `undefined`.
  */
 describe("service worker offline navigation", () => {
-  it("precaches the SPA shell and the catalog data", () => {
-    for (const asset of ["/index.html", "/data/foods.json", "/data/recipes.json", "/data/routines.json"]) {
+  it("precaches the SPA shell and the catalog data, relative to its own script", () => {
+    // No leading "/": this file is a raw public/ copy Vite never rewrites, so a
+    // root-absolute path would point at the domain root instead of the actual
+    // site root — "/" locally, "/APP-/" on GitHub Pages. Relative entries
+    // resolve against the SW's own URL and work under either.
+    for (const asset of ["./index.html", "./data/foods.json", "./data/recipes.json", "./data/routines.json"]) {
       expect(sw).toContain(asset);
     }
+    expect(sw).not.toMatch(/["'](?:\/index\.html|\/data\/)/);
   });
 
   it("handles navigation requests separately from asset requests", () => {
@@ -24,7 +29,7 @@ describe("service worker offline navigation", () => {
     const navBlock = sw.slice(sw.indexOf('request.mode === "navigate"'), sw.indexOf("caches.match(event.request)"));
     expect(navBlock).toContain("catch");
     // Whitespace-insensitive: Prettier reflows this block freely.
-    expect(navBlock.replace(/\s+/g, " ")).toMatch(/caches\s*\.match\("\/index\.html"\)/);
+    expect(navBlock.replace(/\s+/g, " ")).toMatch(/caches\s*\.match\("\.\/index\.html"\)/);
   });
 
   it("never resolves respondWith with undefined", () => {
@@ -32,5 +37,12 @@ describe("service worker offline navigation", () => {
     // the only real problem is an empty cache.
     expect(sw).toContain("Response.error()");
     expect(sw).not.toMatch(/\.catch\(\(\)\s*=>\s*cached\)/);
+  });
+
+  it("resolves the notification fallback against the SW's own scope, not the domain root", () => {
+    // A bare "/" default would open the site's domain root instead of
+    // "/APP-/" on a GitHub Pages project-page deploy.
+    expect(sw).toContain("self.registration.scope");
+    expect(sw).not.toMatch(/notification\.data\.url\)\s*\|\|\s*"\/"/);
   });
 });

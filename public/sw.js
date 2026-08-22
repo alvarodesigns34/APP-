@@ -1,17 +1,21 @@
-const CACHE = "brio-v4.3";
+const CACHE = "brio-v4.4";
+// Deployment-agnostic on purpose: this file is a raw public/ asset, so Vite
+// never rewrites it. Every entry is relative (no leading "/"), which the Cache
+// API resolves against this script's own URL — the site root whether that is
+// "/" (local, a custom domain) or "/APP-/" (GitHub Pages project site).
 const PRECACHE = [
-  "/",
-  "/index.html",
-  "/manifest.webmanifest",
-  "/favicon.svg",
-  "/icon-180.png",
-  "/icon-192.png",
-  "/icon-512.png",
-  "/fonts/outfit-latin-wght.woff2",
-  "/fonts/fraunces-latin-opsz-wght.woff2",
-  "/data/foods.json",
-  "/data/recipes.json",
-  "/data/routines.json",
+  "./",
+  "./index.html",
+  "./manifest.webmanifest",
+  "./favicon.svg",
+  "./icon-180.png",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./fonts/outfit-latin-wght.woff2",
+  "./fonts/fraunces-latin-opsz-wght.woff2",
+  "./data/foods.json",
+  "./data/recipes.json",
+  "./data/routines.json",
 ];
 
 self.addEventListener("install", (event) => {
@@ -45,8 +49,8 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request).catch(() =>
         caches
-          .match("/index.html")
-          .then((shell) => shell || caches.match("/"))
+          .match("./index.html")
+          .then((shell) => shell || caches.match("./"))
           .then((shell) => shell || Response.error()),
       ),
     );
@@ -73,7 +77,9 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "/";
+  // The app supplies a full deployed path (reminders-boot.tsx bakes BASE_URL
+  // in); this scope fallback is only for the rare case it did not.
+  const url = (event.notification.data && event.notification.data.url) || self.registration.scope;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsArr) => {
       for (const c of clientsArr) {
