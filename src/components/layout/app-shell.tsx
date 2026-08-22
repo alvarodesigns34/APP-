@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useBrioStore } from "@/lib/brio/store";
 import { todayKey } from "@/lib/brio/dates";
 import { emitQuickLog, isTypingTarget, resolveHotkey } from "@/lib/brio/hotkeys";
+import { parseShortcutSearch, stripShortcutSearch } from "@/lib/brio/shortcut-search";
 import { HoySkeleton } from "@/components/brio/hoy-skeleton";
 import { Onboarding } from "@/components/brio/onboarding";
 import { RemindersBoot } from "@/components/brio/reminders-boot";
@@ -101,6 +102,35 @@ function Hotkeys() {
   return <HotkeyHelp open={helpOpen} onOpenChange={setHelpOpen} />;
 }
 
+function ShortcutBoot() {
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const kind = parseShortcutSearch(window.location.search);
+    if (!kind) return;
+    const nextSearch = stripShortcutSearch(window.location.search);
+    const url = `${window.location.pathname}${nextSearch}${window.location.hash}`;
+    window.history.replaceState(window.history.state, "", url);
+    const go = () => {
+      if (kind === "food" && pathname !== "/comida") {
+        void navigate({ to: "/comida" }).then(() => emitQuickLog("food"));
+        return;
+      }
+      if ((kind === "water" || kind === "weight") && pathname !== "/") {
+        void navigate({ to: "/" }).then(() => emitQuickLog(kind));
+        return;
+      }
+      emitQuickLog(kind);
+    };
+    const id = window.setTimeout(go, 0);
+    return () => window.clearTimeout(id);
+  }, [navigate, pathname]);
+
+  return null;
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const hydrate = useBrioStore((s) => s.hydrate);
   const hydrated = useBrioStore((s) => s.hydrated);
@@ -176,6 +206,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
       <ScrollRestore />
       <Hotkeys />
+      <ShortcutBoot />
       <RemindersBoot />
       <Toaster position="top-center" richColors />
     </div>

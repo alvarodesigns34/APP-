@@ -45,9 +45,20 @@ describe("runtime code has no root-absolute static paths", () => {
     const raw = await import("../../../public/manifest.webmanifest?raw").then(
       (m) => m.default as unknown as string,
     );
-    const manifest = JSON.parse(raw) as { start_url: string; icons: { src: string }[] };
+    const manifest = JSON.parse(raw) as {
+      start_url: string;
+      icons: { src: string }[];
+      shortcuts: { name: string; url: string; icons: { src: string }[] }[];
+    };
     expect(manifest.start_url.startsWith("/")).toBe(false);
     expect(manifest.icons.length).toBeGreaterThan(0);
     for (const icon of manifest.icons) expect(icon.src.startsWith("/")).toBe(false);
+    expect(manifest.shortcuts).toHaveLength(3);
+    expect(manifest.shortcuts.map((s) => s.name)).toEqual(["Añadir comida", "Registrar agua", "Pesarme"]);
+    for (const s of manifest.shortcuts) {
+      expect(s.url.startsWith("./")).toBe(true);
+      expect(s.url.startsWith("/")).toBe(false);
+      for (const icon of s.icons) expect(icon.src.startsWith("/")).toBe(false);
+    }
   });
 });
