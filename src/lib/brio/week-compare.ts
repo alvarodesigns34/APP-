@@ -46,6 +46,11 @@ export function weekTotals(
   };
 }
 
+/** True when a week has no logged data at all — nothing to compare against. */
+export function isWeekEmpty(w: WeekTotals): boolean {
+  return w.foodDays === 0 && w.stepsAvg === 0 && w.moveMin === 0;
+}
+
 export function delta(curr: number, prev: number): WeekDelta {
   const abs = curr - prev;
   const pct = prev === 0 ? null : Math.round((abs / prev) * 100);

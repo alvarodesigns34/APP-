@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PersistedState } from "./types";
-import { compareWeeks, delta, weekTotals, type WeekTotals } from "./week-compare";
+import { compareWeeks, delta, isWeekEmpty, weekTotals, type WeekTotals } from "./week-compare";
 
 const days: PersistedState["days"] = {};
 const KEYS = ["a", "b", "c", "d", "e", "f", "g"];
@@ -86,5 +86,22 @@ describe("compareWeeks", () => {
     expect(c.prot).toEqual({ abs: 0, pct: 0, dir: "flat" });
     expect(c.steps).toEqual({ abs: 0, pct: 0, dir: "flat" });
     expect(c.move).toEqual({ abs: 0, pct: 0, dir: "flat" });
+  });
+});
+
+describe("isWeekEmpty", () => {
+  it("is true only when food, steps and move are all zero", () => {
+    expect(isWeekEmpty(emptyWeek)).toBe(true);
+    expect(isWeekEmpty({ ...emptyWeek, foodDays: 1 })).toBe(false);
+    expect(isWeekEmpty({ ...emptyWeek, stepsAvg: 500 })).toBe(false);
+    expect(isWeekEmpty({ ...emptyWeek, moveMin: 20 })).toBe(false);
+  });
+
+  it("flags a week with no logs yet even when the other week is not empty", () => {
+    // This is what stops the UI from showing a misleading "-100%" for a
+    // current week that simply has no data logged yet.
+    const withData: WeekTotals = { kcalAvg: 1800, protAvg: 100, stepsAvg: 6000, moveMin: 60, foodDays: 5 };
+    expect(isWeekEmpty(emptyWeek)).toBe(true);
+    expect(isWeekEmpty(withData)).toBe(false);
   });
 });
