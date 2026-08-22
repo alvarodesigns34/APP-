@@ -29,7 +29,7 @@ export function Ring({
         strokeDasharray={c}
         strokeDashoffset={c * (1 - fill)}
         transform="rotate(-90 70 70)"
-        className="transition-[stroke-dashoffset] duration-500 ease-out"
+        className="transition-[stroke-dashoffset] duration-500 [transition-timing-function:var(--ease-entrance)]"
       />
       {over ? (
         <circle
@@ -44,7 +44,7 @@ export function Ring({
           strokeDasharray={c}
           strokeDashoffset={c * (1 - extra)}
           transform="rotate(-90 70 70)"
-          className="transition-[stroke-dashoffset] duration-500 ease-out"
+          className="transition-[stroke-dashoffset] duration-500 [transition-timing-function:var(--ease-entrance)]"
         />
       ) : null}
       {over ? (
@@ -118,7 +118,7 @@ export function Bar({ pct, color, compact }: { pct: number; color: string; compa
   return (
     <div className={cn("overflow-hidden rounded-full bg-muted", compact ? "h-1.5" : "h-2")}>
       <div
-        className="h-full rounded-full transition-[width] duration-500 ease-out"
+        className="h-full rounded-full transition-[width] duration-500 [transition-timing-function:var(--ease-entrance)]"
         style={{ width: `${w}%`, background: color }}
       />
     </div>

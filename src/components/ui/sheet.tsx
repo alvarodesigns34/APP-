@@ -32,7 +32,7 @@ export function Sheet({
         <Drawer.Content
           style={{ zIndex: z + 1 }}
           className={cn(
-            "fixed inset-x-0 bottom-0 mx-auto flex max-h-[92dvh] w-full max-w-md flex-col rounded-t-3xl bg-card text-card-foreground shadow-lg",
+            "fixed inset-x-0 bottom-0 mx-auto flex max-h-[92dvh] w-full max-w-md flex-col rounded-t-3xl bg-card text-card-foreground shadow-raised",
           )}
         >
           <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-muted" />

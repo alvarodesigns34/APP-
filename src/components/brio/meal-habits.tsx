@@ -61,7 +61,7 @@ export function MealHabits({ date }: { date: string }) {
           <button
             key={h.sig}
             type="button"
-            className="min-w-[13.5rem] rounded-2xl bg-card p-3 text-left shadow-[0_1px_2px_rgba(28,27,22,0.04)]"
+            className="min-w-[13.5rem] rounded-2xl bg-card p-3 text-left shadow-card"
             onClick={() => {
               setSlot(h.meal);
               setOpen(h);

@@ -52,7 +52,7 @@ function HotkeyHelp({ open, onOpenChange }: { open: boolean; onOpenChange: (v: b
         role="dialog"
         aria-modal="true"
         aria-labelledby="hotkey-help-title"
-        className="w-[min(22rem,calc(100vw-2rem))] rounded-3xl bg-card p-5 text-card-foreground shadow-lg"
+        className="w-[min(22rem,calc(100vw-2rem))] rounded-3xl bg-card p-5 text-card-foreground shadow-raised"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="hotkey-help-title" className="font-display text-xl tracking-tight">
