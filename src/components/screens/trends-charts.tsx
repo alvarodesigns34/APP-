@@ -25,8 +25,9 @@ export type DayPoint = MacroSeriesPoint<{
   fat: number;
   water: number;
   move: number;
-  steps: number;
-  sleep: number;
+  /** null on a day nobody logged, so the line breaks instead of dropping to 0. */
+  steps: number | null;
+  sleep: number | null;
 }>;
 
 export type PesoPoint = {
@@ -197,7 +198,15 @@ export function TrendsCharts({
             <XAxis dataKey="d" tick={{ fontSize: 10 }} />
             <YAxis tick={{ fontSize: 10 }} width={46} allowDecimals={false} tickFormatter={(v) => nf(Number(v))} />
             <Tooltip formatter={(v) => [`${v} h`, "Sueño"]} />
-            <Line type="monotone" dataKey="sleep" stroke="var(--brio-sleep)" strokeWidth={2} dot={false} />
+            {/* connectNulls={false}: a gap is the honest rendering of a day with no log. */}
+            <Line
+              type="monotone"
+              dataKey="sleep"
+              stroke="var(--brio-sleep)"
+              strokeWidth={2}
+              dot={{ r: 2 }}
+              connectNulls={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       </Card>
@@ -209,7 +218,14 @@ export function TrendsCharts({
             <XAxis dataKey="d" tick={{ fontSize: 10 }} />
             <YAxis tick={{ fontSize: 10 }} width={46} allowDecimals={false} tickFormatter={(v) => nf(Number(v))} />
             <Tooltip formatter={(v) => [`${v}`, "Pasos"]} />
-            <Line type="monotone" dataKey="steps" stroke="var(--brio-steps)" strokeWidth={2} dot={false} />
+            <Line
+              type="monotone"
+              dataKey="steps"
+              stroke="var(--brio-steps)"
+              strokeWidth={2}
+              dot={{ r: 2 }}
+              connectNulls={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       </Card>

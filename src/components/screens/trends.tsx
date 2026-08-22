@@ -189,8 +189,11 @@ export function TrendsScreen() {
         fat: Math.round(t.fat),
         water: waterTotal(snap, k),
         move: workoutMinTotal(snap, k),
-        steps: snap.days[k]?.steps || 0,
-        sleep: sl ? Math.round((sleepDuration(sl.bed, sl.wake) / 60) * 10) / 10 : 0,
+        // null, not 0. A day nobody logged is not a day of zero steps or zero
+        // sleep, and drawing it as one made the line dive to the floor and read
+        // as a terrible night rather than a missing one.
+        steps: snap.days[k]?.steps || null,
+        sleep: sl ? Math.round((sleepDuration(sl.bed, sl.wake) / 60) * 10) / 10 : null,
       };
     });
     return buildMacroSeries(days, {
