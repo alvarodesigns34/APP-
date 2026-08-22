@@ -514,7 +514,8 @@ export function SettingsScreen() {
           />
         </Field>
         <p className="text-xs text-muted-foreground">
-          Los avisos salen en este dispositivo, sin cuenta. Si cierras la app del todo, el sistema puede retrasarlos.
+          Los avisos salen en este dispositivo, sin cuenta. Necesitan la app abierta o recién cerrada: si la cierras
+          del todo, sobre todo en iPhone, pueden no sonar hasta que la abras de nuevo.
         </p>
       </Card>
 
