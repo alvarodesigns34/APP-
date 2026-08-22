@@ -60,15 +60,20 @@ export function lastLogged(
     const date = addDays(today, -n);
     const day = days[date];
     if (!day) continue;
+    // A food can appear in more than one meal slot on the same day; MEALS order
+    // is not chronological, so pick the entry with the latest timestamp instead
+    // of the first one found. Entries saved before `t` existed sort as oldest.
+    let best: { meal: MealId; grams: number; kcal: number; t: number } | null = null;
     for (const m of MEALS) {
       const entries = day.meals[m.id];
       if (!entries) continue;
       for (const e of entries) {
-        if (e.foodId === foodId) {
-          return { date, meal: m.id, grams: e.grams, kcal: e.kcal };
-        }
+        if (e.foodId !== foodId) continue;
+        const t = e.t ?? 0;
+        if (!best || t > best.t) best = { meal: m.id, grams: e.grams, kcal: e.kcal, t };
       }
     }
+    if (best) return { date, meal: best.meal, grams: best.grams, kcal: best.kcal };
   }
   return null;
 }

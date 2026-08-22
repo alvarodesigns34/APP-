@@ -86,6 +86,8 @@ export type MealEntry = {
   qty: number;
   unitName: string;
   grams: number;
+  /** When this entry was logged (ms epoch). Absent on entries saved before this field existed. */
+  t?: number;
 } & Macros;
 
 export type WaterEntry = { id: string; t: number; ml: number };
