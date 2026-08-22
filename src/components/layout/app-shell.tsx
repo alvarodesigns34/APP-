@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useBrioStore } from "@/lib/brio/store";
 import { todayKey } from "@/lib/brio/dates";
 import { emitQuickLog, isTypingTarget, resolveHotkey } from "@/lib/brio/hotkeys";
+import { bootShortcut } from "@/lib/brio/shortcut-search";
 import { HoySkeleton } from "@/components/brio/hoy-skeleton";
 import { Onboarding } from "@/components/brio/onboarding";
 import { RemindersBoot } from "@/components/brio/reminders-boot";
@@ -101,6 +102,24 @@ function Hotkeys() {
   return <HotkeyHelp open={helpOpen} onOpenChange={setHelpOpen} />;
 }
 
+function ShortcutBoot() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    void bootShortcut({
+      search: window.location.search,
+      pathname: window.location.pathname,
+      hash: window.location.hash,
+      navigate: (to) => navigate({ to }),
+      emit: emitQuickLog,
+      replaceUrl: (url) => window.history.replaceState(window.history.state, "", url),
+    });
+  }, [navigate]);
+
+  return null;
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const hydrate = useBrioStore((s) => s.hydrate);
   const hydrated = useBrioStore((s) => s.hydrated);
@@ -176,6 +195,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
       <ScrollRestore />
       <Hotkeys />
+      <ShortcutBoot />
       <RemindersBoot />
       <Toaster position="top-center" richColors />
     </div>
