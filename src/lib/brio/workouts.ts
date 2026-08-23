@@ -1,5 +1,6 @@
-import { activityOf } from "./domain";
+import { ACTIVITIES, activityOf, type Sport } from "./domain";
 import { rangeKeys, todayKey } from "./dates";
+import { norm } from "./format";
 import { workoutMinTotal } from "./selectors";
 import type { SelectorState, WorkoutEntry } from "./types";
 
@@ -15,12 +16,46 @@ export type SportMark = {
   weekMin: number;
 };
 
-export function allSessions(s: SelectorState): WorkoutSession[] {
+/** Every logged session, newest first. Takes only `days` so a component can subscribe to that slice alone. */
+export function allSessions(s: Pick<SelectorState, "days">): WorkoutSession[] {
   const out: WorkoutSession[] = [];
   for (const [date, day] of Object.entries(s.days)) {
     for (const w of day.workouts) out.push({ ...w, date });
   }
   return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
+}
+
+/**
+ * The last `limit` distinct sports the user actually logged, most recent first.
+ *
+ * The workout sheet showed 45 chips in four groups and nothing else, so the two
+ * sports somebody trains every week were as far away as the ones they will
+ * never pick. Sessions whose `type` is no longer in activities.json are skipped:
+ * `activityOf` falls back to the first sport for an unknown id, which would put
+ * a chip in the row that lies about what it logs.
+ */
+export function recentSports(s: Pick<SelectorState, "days">, limit = 4): Sport[] {
+  const out: Sport[] = [];
+  for (const sess of allSessions(s)) {
+    if (out.length >= limit) break;
+    if (out.some((a) => a.id === sess.type)) continue;
+    const sport = ACTIVITIES.find((a) => a.id === sess.type);
+    if (sport) out.push(sport);
+  }
+  return out;
+}
+
+/**
+ * Accent-insensitive sport filter: "padel" finds "Pádel", "natac" finds
+ * "Natación". Prefix hits lead so typing "remo" puts "Remo" above the sports
+ * that merely contain it.
+ */
+export function searchSports(q: string, list: Sport[] = ACTIVITIES): Sport[] {
+  const needle = norm(q).trim();
+  if (!needle) return list;
+  return list
+    .filter((a) => norm(a.n).includes(needle))
+    .sort((a, b) => Number(norm(b.n).startsWith(needle)) - Number(norm(a.n).startsWith(needle)));
 }
 
 export function weekWorkoutMin(s: SelectorState): number {

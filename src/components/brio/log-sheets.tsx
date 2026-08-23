@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ACTIVITIES, ACTIVITY_GROUPS, INTENSITIES } from "@/lib/brio/domain";
+import { ACTIVITIES, ACTIVITY_GROUPS, INTENSITIES, activityOf, type Sport } from "@/lib/brio/domain";
 import { useBrioStore } from "@/lib/brio/store";
+import { recentSports, searchSports } from "@/lib/brio/workouts";
 import { latestWeight } from "@/lib/brio/selectors";
 import { nf, parseNum, parsePositive, round } from "@/lib/brio/format";
 import { clockToMinutes, fmtDateRelative, minutesToClock, minutesToHM, sleepDuration } from "@/lib/brio/dates";
@@ -217,6 +218,23 @@ export function SleepSheet({
   );
 }
 
+/** One sport chip. Same look wherever it appears: Recientes, a group, or a search hit. */
+function SportChip({ sport, on, onPick }: { sport: Sport; on: boolean; onPick: (id: string) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(sport.id)}
+      aria-pressed={on}
+      className={cn(
+        "min-h-11 rounded-full px-3 py-1 text-xs",
+        on ? "bg-primary text-primary-foreground" : "bg-muted",
+      )}
+    >
+      {sport.n}
+    </button>
+  );
+}
+
 export function WorkoutSheet({
   open,
   onOpenChange,
@@ -227,15 +245,22 @@ export function WorkoutSheet({
   date: string;
 }) {
   const add = useBrioStore((s) => s.addWorkout);
+  const days = useBrioStore((s) => s.days);
   const [type, setType] = useState(ACTIVITIES[0].id);
   const [min, setMin] = useState("45");
   const [intensity, setIntensity] = useState<IntensityId>("media");
+  const [q, setQ] = useState("");
   useEffect(() => {
     if (!open) return;
     setType(ACTIVITIES[0].id);
     setMin("45");
     setIntensity("media");
+    setQ("");
   }, [open]);
+  // The four sports you actually train beat 45 chips sorted by category.
+  const recent = useMemo(() => recentSports({ days }, 4), [days]);
+  const query = q.trim();
+  const hits = useMemo(() => (query ? searchSports(query) : []), [query]);
   return (
     <Sheet
       open={open}
@@ -249,30 +274,54 @@ export function WorkoutSheet({
             onOpenChange(false);
           }}
         >
-          Guardar
+          {/* Naming the sport here matters now that search can hide the selected
+              chip: otherwise you type "pádel", forget to tap it and save fuerza. */}
+          Guardar · {activityOf(type).n}
         </Button>
       }
     >
-      {ACTIVITY_GROUPS.map((g) => (
-        <div key={g.id} className="mb-3">
-          <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">{g.n}</p>
-          <div className="flex flex-wrap gap-1">
-            {ACTIVITIES.filter((a) => a.g === g.id).map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() => setType(a.id)}
-                className={cn(
-                  "min-h-11 rounded-full px-3 py-1 text-xs",
-                  type === a.id ? "bg-primary text-primary-foreground" : "bg-muted",
-                )}
-              >
-                {a.n}
-              </button>
+      <Input
+        className="mb-3"
+        type="search"
+        placeholder="Buscar deporte"
+        aria-label="Buscar deporte"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      {query ? (
+        hits.length === 0 ? (
+          <p className="mb-3 text-sm text-muted-foreground">Ningún deporte coincide</p>
+        ) : (
+          <div className="mb-3 flex flex-wrap gap-1">
+            {hits.map((a) => (
+              <SportChip key={a.id} sport={a} on={type === a.id} onPick={setType} />
             ))}
           </div>
-        </div>
-      ))}
+        )
+      ) : (
+        <>
+          {recent.length > 0 ? (
+            <div className="mb-3">
+              <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">Recientes</p>
+              <div className="flex flex-wrap gap-1">
+                {recent.map((a) => (
+                  <SportChip key={a.id} sport={a} on={type === a.id} onPick={setType} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {ACTIVITY_GROUPS.map((g) => (
+            <div key={g.id} className="mb-3">
+              <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">{g.n}</p>
+              <div className="flex flex-wrap gap-1">
+                {ACTIVITIES.filter((a) => a.g === g.id).map((a) => (
+                  <SportChip key={a.id} sport={a} on={type === a.id} onPick={setType} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
       <label className="text-sm font-medium">Minutos</label>
       <Input className="mb-3" inputMode="numeric" value={min} onChange={(e) => setMin(e.target.value)} />
       <div className="flex gap-2">
