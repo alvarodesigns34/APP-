@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { migrate } from "./persist";
+import { defaultState, migrate } from "./persist";
 import { DEFAULT_REMINDERS } from "./reminders";
 import { DEFAULT_WEEKDAY_PLAN } from "./weekday-goals";
 
@@ -398,5 +398,25 @@ describe("migrate: datos de fuera que no son de fiar", () => {
   it("un aviso de agua ausente cae en el intervalo por defecto, no en el suelo", () => {
     expect(migrate({ settings: { reminders: { aguaEveryMin: null } } }).settings.reminders.aguaEveryMin).toBe(120);
     expect(migrate({ settings: { reminders: { aguaEveryMin: 90 } } }).settings.reminders.aguaEveryMin).toBe(90);
+  });
+});
+
+describe("el ajuste de actividad no cuenta dos veces de salida", () => {
+  it("un usuario nuevo arranca con el ajuste apagado", () => {
+    // El aviso de Ajustes dice que el nivel de actividad ya cuenta el
+    // movimiento habitual. Con esto en `true` por defecto y el nivel Ligero,
+    // todo usuario nuevo empezaba sumando los entrenos otra vez, sin haber
+    // visto nunca ese aviso — y quien omitía el onboarding, sin haber
+    // contestado nada.
+    expect(defaultState().settings.activityAdjust).toBe(false);
+  });
+
+  it("respeta un valor guardado explícitamente", () => {
+    expect(migrate({ settings: { activityAdjust: true } }).settings.activityAdjust).toBe(true);
+    expect(migrate({ settings: { activityAdjust: false } }).settings.activityAdjust).toBe(false);
+  });
+
+  it("un guardado antiguo sin la clave sigue cayendo en apagado", () => {
+    expect(migrate({ settings: {} }).settings.activityAdjust).toBe(false);
   });
 });

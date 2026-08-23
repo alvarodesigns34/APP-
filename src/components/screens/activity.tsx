@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { SleepSheet, StepsSheet, WaterSheet, WeightSheet, WorkoutSheet } from "@/components/brio/log-sheets";
 import { RoutinesSheet } from "@/components/brio/routines";
 import { WorkoutHistorySheet, WorkoutWeekCard } from "@/components/brio/workout-history";
-import { todayKey, minutesToHM, sleepDuration, fmtDateRelative } from "@/lib/brio/dates";
+import { capitalize, fmtDateLong, fmtDateRelative, minutesToHM, sleepDuration, todayKey } from "@/lib/brio/dates";
 import { nf } from "@/lib/brio/format";
 import { bmi, bmiCategory, distanceFromSteps, activityOf } from "@/lib/brio/domain";
 import { currentWeightKg, waterTotal, workoutMinTotal } from "@/lib/brio/selectors";
@@ -35,7 +35,9 @@ export function ActivityScreen() {
   );
   const viewDate = useBrioStore((s) => s.viewDate);
   const removeWorkout = useBrioStore((s) => s.removeWorkout);
+  const setViewDate = useBrioStore((s) => s.setViewDate);
   const key = viewDate || todayKey();
+  const isFuture = key > todayKey();
   const d = snap.days[key];
   const units = snap.settings.units;
   const [steps, setSteps] = useState(false);
@@ -54,6 +56,29 @@ export function ActivityScreen() {
   const glassesEst = snap.settings.glass ? Math.round(wt / snap.settings.glass) : 0;
   const dayLabel = fmtDateRelative(key).toLowerCase();
   const woMin = useMemo(() => workoutMinTotal(snap, key), [snap, key]);
+
+  // Hoy bloquea los días futuros y dice por qué ("los pasos, el agua, el sueño
+  // y el peso solo se registran el día que pasan"); Actividad no lo miraba, así
+  // que con el mismo `viewDate` de mañana sí se podía guardar un entreno, un
+  // vaso, una noche o un pesaje. El pesaje era el peor: de él se deriva el peso
+  // del perfil, o sea el IMC y el TDEE, a partir de un día que no ha llegado.
+  if (isFuture) {
+    return (
+      <Screen>
+        <Title sub={capitalize(fmtDateLong(key))}>Actividad</Title>
+        <DateNav />
+        <Card className="mb-3">
+          <p className="text-sm text-muted-foreground">
+            Los pasos, el agua, el sueño y el peso solo se registran el día que pasan. Las comidas sí se pueden
+            adelantar.
+          </p>
+        </Card>
+        <Button className="w-full" variant="outline" onClick={() => setViewDate(todayKey())}>
+          Volver a hoy
+        </Button>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>

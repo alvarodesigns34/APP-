@@ -59,7 +59,22 @@ export function defaultState(): PersistedState {
       units: "met",
       glass: 250,
       pantryBasics: true,
-      activityAdjust: true,
+      /**
+       * Apagado de salida, como ya hacía `migrate` con los guardados antiguos.
+       *
+       * El aviso de Ajustes dice, con estas palabras, que "tu nivel de
+       * actividad ya cuenta el movimiento habitual" y que activando esto "los
+       * entrenos y los pasos de hoy se suman otra vez". Con el nivel por
+       * defecto (Ligero, PAL 1,375) y esta clave en `true`, todo usuario nuevo
+       * arrancaba justo en el estado contra el que la app avisa — y sin haber
+       * visto el aviso, que solo aparece en Ajustes. Quien omitía el
+       * onboarding, además, llegaba ahí sin haber contestado nada.
+       *
+       * Quien lo quiera lo enciende en Ajustes, que es donde está el aviso. Los
+       * que ya lo tuvieran guardado explícitamente no se ven afectados:
+       * `migrate` respeta un booleano explícito.
+       */
+      activityAdjust: false,
       fasting: "off",
       // Matches FASTING_PRESETS' own "16-8" start (12:00); irrelevant while
       // fasting is "off", but a real default avoids a 00:00 fallback the one
