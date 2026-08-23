@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildUserRecipe, scaleUserRecipe, userRecipePerServing, type RecipeDraftItem } from "./user-recipes";
 
-const chicken: RecipeDraftItem["food"] = { id: "f1", name: "Pollo", kcal: 165, prot: 31, carb: 0, fat: 3.6, fib: 0 };
-const rice: RecipeDraftItem["food"] = { id: "f2", name: "Arroz", kcal: 130, prot: 2.7, carb: 28, fat: 0.3, fib: 0.4 };
+const chicken: RecipeDraftItem["food"] = { id: "f1", name: "Pollo", kcal: 165, prot: 31, carb: 0, fat: 3.6, fib: 0, sug: 0, sat: 1, sod: 0.07 };
+const rice: RecipeDraftItem["food"] = { id: "f2", name: "Arroz", kcal: 130, prot: 2.7, carb: 28, fat: 0.3, fib: 0.4, sug: 0.1, sat: 0.1, sod: 0.001 };
+/** Sin azúcar declarada: un ingrediente así vuelve "no lo sabemos" a toda la receta. */
+const mystery: RecipeDraftItem["food"] = { id: "f3", name: "Salsa", kcal: 90, prot: 1, carb: 6, fat: 7, fib: 0, sug: null, sat: 1.2, sod: 0.5 };
 
 describe("buildUserRecipe", () => {
   it("aggregates items into a per-100g recipe", () => {
@@ -101,5 +103,34 @@ describe("scaleUserRecipe", () => {
   it("clamps target servings to 0.5..20", () => {
     expect(scaleUserRecipe(ur, 0).servings).toBe(0.5);
     expect(scaleUserRecipe(ur, 100).servings).toBe(20);
+  });
+});
+
+describe("buildUserRecipe: azúcar, saturada y sodio", () => {
+  it("los suma como el catálogo, en vez de tirarlos", () => {
+    // 200 g pollo + 150 g arroz = 350 g.
+    const ur = buildUserRecipe(null, "Pollo con arroz", [
+      { food: chicken, grams: 200 },
+      { food: rice, grams: 150 },
+    ], 2)!;
+    // sat: 1·2 + 0,1·1,5 = 2,15 g sobre 350 g ⇒ 0,614 g/100 g
+    expect(ur.per100.sat).toBeCloseTo(0.614, 3);
+    // sug: 0·2 + 0,1·1,5 = 0,15 g ⇒ 0,043 g/100 g. A un decimal esto sería
+    // 0,0, que es justo el dato que se perdía: por eso no se redondean.
+    expect(ur.per100.sug).toBeCloseTo(0.043, 3);
+    // sod (en mg/100 g): 0,07·2 + 0,001·1,5 = 0,1415 ⇒ 0,040 mg/100 g
+    expect(ur.per100.sod).toBeCloseTo(0.04, 3);
+  });
+
+  it("si a un ingrediente le falta el dato, el total es null y no una suma a medias", () => {
+    const ur = buildUserRecipe(null, "Pollo con salsa", [
+      { food: chicken, grams: 200 },
+      { food: mystery, grams: 50 },
+    ], 1)!;
+    // La salsa no declara azúcar: decir "0,0 g" sería inventarse el dato.
+    expect(ur.per100.sug).toBeNull();
+    // Los otros dos sí los traen los dos ingredientes.
+    expect(ur.per100.sat).not.toBeNull();
+    expect(ur.per100.sod).not.toBeNull();
   });
 });

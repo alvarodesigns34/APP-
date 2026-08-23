@@ -111,7 +111,7 @@ describe("searchFoods", () => {
       items: [],
       servings: 1,
       servingG: 250,
-      per100: { kcal: 120, prot: 5, carb: 20, fat: 2, fib: 3 },
+      per100: { kcal: 120, prot: 5, carb: 20, fat: 2, fib: 3, sug: null, sat: null, sod: null },
     };
     const hits = searchFoods("quinoa lunar", null, { customFoods: [], recipes: [recipe] });
     expect(hits.some((f) => f.id === "ur-bowl")).toBe(true);

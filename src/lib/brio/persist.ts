@@ -237,12 +237,16 @@ function parseFood(v: unknown): Food | null {
   if (typeof v.name !== "string" || !v.name) return null;
   if (typeof v.cat !== "string" || !v.cat) return null;
   if (v.base !== "g" && v.base !== "ml") return null;
-  const kcal = Number(v.kcal);
-  const prot = Number(v.prot);
-  const carb = Number(v.carb);
-  const fat = Number(v.fat);
-  const fib = Number(v.fib);
-  if (![kcal, prot, carb, fat, fib].every(Number.isFinite)) return null;
+  // `numOrNull` y no `Number`, por lo mismo que en `parseMealEntry` y en
+  // `parseWorkout`: `Number(null)` es 0 y 0 es finito, así que un alimento
+  // propio con `kcal: null` entraba declarando cero calorías, y ese cero se
+  // suma al día como si fuera un dato medido en vez de un hueco.
+  const kcal = numOrNull(v.kcal);
+  const prot = numOrNull(v.prot);
+  const carb = numOrNull(v.carb);
+  const fat = numOrNull(v.fat);
+  const fib = numOrNull(v.fib);
+  if (kcal == null || prot == null || carb == null || fat == null || fib == null) return null;
   const units = Array.isArray(v.units) ? v.units.filter(isFoodUnit) : [];
   const opt = (x: unknown): number | null => {
     if (x == null) return null;
@@ -283,20 +287,28 @@ function parseUserRecipe(v: unknown): UserRecipe | null {
     const grams = Number(it.grams);
     return typeof it.foodId === "string" && it.foodId.length > 0 && Number.isFinite(grams) && grams > 0;
   });
+  // Una receta sin ingredientes que sobrevivan al filtro no es una receta: se
+  // quedaría en la lista de "Mis recetas" sin nada dentro y sin poder
+  // reescalarse, porque `buildUserRecipe` divide por el total en gramos.
+  if (items.length === 0) return null;
+  // Mismo motivo que en `parseFood`: `num()` cae en 0 ante un `null`, así que
+  // una receta propia sin `per100` entraba como 0/0/0/0/0 y parecía válida.
   const per = isObj(v.per100) ? v.per100 : {};
+  const kcal = numOrNull(per.kcal);
+  const prot = numOrNull(per.prot);
+  const carb = numOrNull(per.carb);
+  const fat = numOrNull(per.fat);
+  const fib = numOrNull(per.fib);
+  if (kcal == null || prot == null || carb == null || fat == null || fib == null) return null;
   return {
     id: v.id,
     name: v.name,
     items,
     servings,
     servingG,
-    per100: {
-      kcal: num(per.kcal),
-      prot: num(per.prot),
-      carb: num(per.carb),
-      fat: num(per.fat),
-      fib: num(per.fib),
-    },
+    // Estos tres sí admiten `null`: es el valor legítimo de "algún ingrediente
+    // no traía el dato", igual que en las comidas y en las recetas del catálogo.
+    per100: { kcal, prot, carb, fat, fib, sug: numOrNull(per.sug), sat: numOrNull(per.sat), sod: numOrNull(per.sod) },
   };
 }
 

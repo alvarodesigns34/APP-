@@ -226,9 +226,11 @@ function ctxFoods(ctx: CatalogContext): Food[] {
     carb: r.per100.carb,
     fat: r.per100.fat,
     fib: r.per100.fib,
-    sug: null,
-    sat: null,
-    sod: null,
+    // Ya no se fuerzan a null: `UserRecipe.per100` los lleva desde que
+    // `buildUserRecipe` los suma, con el mismo criterio que el catálogo.
+    sug: r.per100.sug,
+    sat: r.per100.sat,
+    sod: r.per100.sod,
     units: [{ name: "ración", g: r.servingG }],
     base: "g" as const,
   }));
@@ -250,9 +252,9 @@ export function getFood(id: string, ctx: CatalogContext): Food | undefined {
       carb: ur.per100.carb,
       fat: ur.per100.fat,
       fib: ur.per100.fib,
-      sug: null,
-      sat: null,
-      sod: null,
+      sug: ur.per100.sug,
+      sat: ur.per100.sat,
+      sod: ur.per100.sod,
       units: [{ name: "ración", g: ur.servingG }],
       base: "g",
     };

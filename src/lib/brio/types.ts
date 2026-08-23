@@ -236,7 +236,13 @@ export type UserRecipe = {
   items: RecipeItem[];
   servings: number;
   servingG: number;
-  per100: Pick<Macros, "kcal" | "prot" | "carb" | "fat" | "fib">;
+  /**
+   * `Macros` entero, no solo los cinco de siempre. Las recetas del catálogo
+   * conservan azúcar, saturada y sodio y las propias los tiraban, así que
+   * cocinar en casa borraba esos tres del total del día. Los tres pueden ser
+   * `null`: significa "algún ingrediente no traía el dato", no cero.
+   */
+  per100: Macros;
 };
 
 export type PersistedState = {
