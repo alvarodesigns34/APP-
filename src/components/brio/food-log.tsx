@@ -1,6 +1,6 @@
 import { EmptyLine } from "@/components/brio/section";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Info, Plus, ScanBarcode, Star, X } from "lucide-react";
+import { Globe, Info, Plus, ScanBarcode, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -22,13 +22,16 @@ import {
   decodeBarcodeZXing,
   detectBarcodeFromImage,
   fetchOffProduct,
+  fetchOffSearch,
   findFoodByBarcode,
   foodDraftHasMacros,
   hasBarcodeDetector,
   isValidEan,
   mapOffProduct,
+  mapOffSearch,
   normalizeEan,
   pickDetectedCode,
+  type OffFoodDraft,
 } from "@/lib/brio/barcode";
 import { cn } from "@/lib/utils";
 
@@ -94,6 +97,9 @@ export function FoodLogSheet({
    * se va con la hoja.
    */
   const [pendingFood, setPendingFood] = useState<Food | null>(null);
+  /** Resultados de Open Food Facts por nombre; null = no se ha buscado aún. */
+  const [offHits, setOffHits] = useState<OffFoodDraft[] | null>(null);
+  const [offBusy, setOffBusy] = useState(false);
 
   const editing = !!edit;
 
@@ -106,6 +112,8 @@ export function FoodLogSheet({
       setScanOpen(false);
       setDetailFood(null);
       setPendingFood(null);
+      setOffHits(null);
+      setOffBusy(false);
       // Cerrar la hoja invalida cualquier búsqueda de código de barras que
       // siga en el aire, para que no vuelva a abrir nada por su cuenta.
       lookupIdRef.current += 1;
@@ -141,6 +149,13 @@ export function FoodLogSheet({
     // por defecto. Lo que de verdad necesitaba el catálogo es reintentar la
     // búsqueda del alimento que se está editando, y eso es el efecto de abajo.
   }, [open, edit, defaultMeal]);
+
+  // Cambiar la consulta invalida lo que trajo Open Food Facts: si no, seguir
+  // escribiendo dejaba en pantalla los resultados de la palabra anterior, que
+  // ya no tienen nada que ver con lo que se está buscando.
+  useEffect(() => {
+    setOffHits(null);
+  }, [q]);
 
   // Al editar un registro cuyo alimento vive en el catálogo builtin, la primera
   // pasada no lo encuentra si el catálogo aún no ha cargado. Se reintenta solo
@@ -261,6 +276,59 @@ export function FoodLogSheet({
     setScanOpen(false);
     setCreateDraft({ name, barcode });
     setCreateOpen(true);
+  }
+
+  /**
+   * Busca el texto escrito en Open Food Facts.
+   *
+   * Solo a petición, con un botón: son 719 alimentos locales que resuelven la
+   * mayoría de las búsquedas al instante y sin red, y salir a internet en cada
+   * tecla gastaría datos y traería resultados peores que los del catálogo.
+   *
+   * Comparte el contador de cancelación con el escáner: los dos escriben en
+   * la misma hoja, así que cerrarla o lanzar otra búsqueda invalida la que
+   * estuviera en el aire.
+   */
+  async function searchOff() {
+    const query = q.trim();
+    if (query.length < 2) return;
+    const mine = ++lookupIdRef.current;
+    setOffBusy(true);
+    setOffHits(null);
+    try {
+      const payload = await fetchOffSearch(query);
+      if (lookupIdRef.current !== mine) return;
+      setOffHits(mapOffSearch(payload));
+    } catch {
+      if (lookupIdRef.current !== mine) return;
+      setOffHits([]);
+      toast.error("No se ha podido buscar en Open Food Facts");
+    } finally {
+      if (lookupIdRef.current === mine) setOffBusy(false);
+    }
+  }
+
+  /** Un resultado de OFF se elige igual que uno escaneado: no se guarda hasta registrar. */
+  function pickOff(draft: OffFoodDraft) {
+    const food: Food = {
+      id: uid("cf"),
+      name: draft.name,
+      cat: "propio",
+      custom: true,
+      kcal: draft.kcal,
+      prot: draft.prot,
+      carb: draft.carb,
+      fat: draft.fat,
+      fib: draft.fib,
+      sug: draft.sug,
+      sat: draft.sat,
+      sod: draft.sod,
+      units: draft.units,
+      base: draft.base,
+      ...(draft.barcode ? { barcode: draft.barcode } : {}),
+    };
+    setPendingFood(food);
+    pick(food);
   }
 
   async function handleBarcode(raw: string) {
@@ -618,6 +686,46 @@ export function FoodLogSheet({
                 })
               )}
             </ul>
+
+            {/* Open Food Facts, solo a petición y solo en la pestaña de buscar.
+                El catálogo local resuelve la mayoría de las búsquedas al
+                instante y sin red; esto es la salida para lo que no está en él
+                —una marca concreta, un producto de una tienda— sin tener que
+                teclear las macros a mano. */}
+            {tab === "buscar" && q.trim().length >= 2 ? (
+              <div className="mt-3 border-t border-border pt-3">
+                {offHits == null ? (
+                  <Button type="button" variant="outline" className="w-full" disabled={offBusy} onClick={searchOff}>
+                    <Globe className="size-4" />
+                    {offBusy ? "Buscando…" : `Buscar "${q.trim()}" en Open Food Facts`}
+                  </Button>
+                ) : offHits.length === 0 ? (
+                  <EmptyLine>Open Food Facts tampoco lo tiene. Puedes crearlo tú.</EmptyLine>
+                ) : (
+                  <>
+                    <p className="mb-1 text-xs text-muted-foreground" aria-live="polite">
+                      {offHits.length} en Open Food Facts · se guardan en Mis alimentos al registrarlos
+                    </p>
+                    <ul className="divide-y divide-border">
+                      {offHits.map((h) => (
+                        <li key={h.barcode || h.name}>
+                          <button
+                            type="button"
+                            className="min-h-11 w-full py-1 text-left"
+                            onClick={() => pickOff(h)}
+                          >
+                            <div className="truncate font-medium">{h.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {nf(h.kcal)} kcal / 100 {h.base} · {nf(h.prot)} g prot
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            ) : null}
           </div>
         )}
       </Sheet>

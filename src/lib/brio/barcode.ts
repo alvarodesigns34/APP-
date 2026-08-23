@@ -166,6 +166,74 @@ export function mapOffProduct(payload: unknown, ean: string): OffFoodDraft | nul
   };
 }
 
+/**
+ * Búsqueda por nombre en Open Food Facts.
+ *
+ * El código de barras cubre el súper, con el bote en la mano. En casa, con el
+ * producto ya volcado en un táper o sin código legible, la única salida era
+ * crear el alimento a mano con sus macros. Esto es la misma API, el mismo
+ * mapeo y el mismo tiempo de espera; solo cambia la consulta.
+ */
+export const OFF_SEARCH_URL = "https://world.openfoodfacts.org/cgi/search.pl";
+
+export function offSearchUrl(q: string, limit = 20): string {
+  const params = new URLSearchParams({
+    search_terms: q,
+    search_simple: "1",
+    action: "process",
+    json: "1",
+    page_size: String(limit),
+    // Pedir solo lo que se usa: la respuesta completa de OFF ronda los cientos
+    // de kB por producto y esto se abre desde el móvil, a menudo con datos.
+    fields: "code,product_name,product_name_es,generic_name,generic_name_es,nutriments,serving_quantity",
+  });
+  return `${OFF_SEARCH_URL}?${params.toString()}`;
+}
+
+/** Un resultado sin nombre real: `mapOffProduct` lo rellena con el código. */
+const UNNAMED = /^Producto \d+$/;
+
+export function mapOffSearch(payload: unknown, limit = 20): OffFoodDraft[] {
+  if (!isObj(payload)) return [];
+  const products = Array.isArray(payload.products) ? payload.products : [];
+  const out: OffFoodDraft[] = [];
+  const seen = new Set<string>();
+  for (const raw of products) {
+    if (!isObj(raw)) continue;
+    // Se reutiliza el mapeo del código de barras tal cual, envolviendo cada
+    // resultado como si fuera una respuesta de producto: así los kJ, el
+    // sodio a partir de la sal y la detección de líquidos se comportan igual
+    // por los dos caminos, en vez de tener dos mapeos que se separan.
+    const draft = mapOffProduct({ status: 1, product: raw }, asStr(raw.code) || "");
+    if (!draft) continue;
+    // Sin macros no hay nada que registrar, y un "Producto 84001234" en una
+    // lista de resultados no le dice nada a nadie.
+    if (!foodDraftHasMacros(draft) || UNNAMED.test(draft.name)) continue;
+    const key = draft.barcode || draft.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(draft);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+export async function fetchOffSearch(q: string, fetchImpl: typeof fetch = fetch): Promise<unknown> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), OFF_TIMEOUT_MS);
+  try {
+    const res = await fetchImpl(offSearchUrl(q), {
+      method: "GET",
+      signal: ctrl.signal,
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`off ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function offProductUrl(ean: string): string {
   return `${OFF_PRODUCT_URL}/${encodeURIComponent(normalizeEan(ean))}.json`;
 }

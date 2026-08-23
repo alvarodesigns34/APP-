@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  fetchOffSearch,
   findFoodByBarcode,
   foodDraftHasMacros,
   gs1ChecksumOk,
   isValidEan,
   isWellFormedEan,
   mapOffProduct,
+  mapOffSearch,
   normalizeEan,
   offProductUrl,
+  offSearchUrl,
   pickDetectedCode,
 } from "./barcode";
 import type { Food } from "./types";
@@ -295,5 +298,96 @@ describe("decodeBarcodeZXing", () => {
     await decodeBarcodeZXing({} as HTMLVideoElement);
     await decodeBarcodeZXing({} as HTMLImageElement);
     expect(constructed).toBe(1);
+  });
+});
+
+describe("búsqueda en Open Food Facts por nombre", () => {
+  function producto(over: Record<string, unknown> = {}) {
+    return {
+      code: "8410128750121",
+      product_name: "Garbanzos cocidos",
+      nutriments: { "energy-kcal_100g": 120, proteins_100g: 7, carbohydrates_100g: 16, fat_100g: 2.5 },
+      ...over,
+    };
+  }
+
+  it("pide solo los campos que se usan", () => {
+    const url = new URL(offSearchUrl("garbanzos"));
+    expect(url.searchParams.get("search_terms")).toBe("garbanzos");
+    expect(url.searchParams.get("json")).toBe("1");
+    // La respuesta completa de OFF ronda cientos de kB por producto.
+    expect(url.searchParams.get("fields")).toContain("nutriments");
+    expect(url.searchParams.get("fields")).not.toContain("images");
+  });
+
+  it("escapa la consulta", () => {
+    const url = new URL(offSearchUrl("queso & jamón"));
+    expect(url.searchParams.get("search_terms")).toBe("queso & jamón");
+  });
+
+  it("mapea los resultados con el mismo mapeo que el código de barras", () => {
+    const hits = mapOffSearch({ products: [producto()] });
+    expect(hits).toHaveLength(1);
+    expect(hits[0].name).toBe("Garbanzos cocidos");
+    expect(hits[0].kcal).toBe(120);
+    expect(hits[0].barcode).toBe("8410128750121");
+  });
+
+  it("prefiere el nombre en español, como el escáner", () => {
+    const hits = mapOffSearch({ products: [producto({ product_name_es: "Garbanzos de bote" })] });
+    expect(hits[0].name).toBe("Garbanzos de bote");
+  });
+
+  it("hereda la conversión de kJ y el sodio a partir de la sal", () => {
+    const hits = mapOffSearch({
+      products: [producto({ nutriments: { "energy-kj_100g": 418.4, proteins_100g: 7, salt_100g: 1 } })],
+    });
+    expect(hits[0].kcal).toBe(100);
+    expect(hits[0].sod).toBe(400);
+  });
+
+  it("descarta lo que no se puede registrar", () => {
+    const hits = mapOffSearch({
+      products: [
+        producto({ nutriments: {} }), // sin macros
+        producto({ code: "111", product_name: "" }), // sin nombre real
+        producto(),
+      ],
+    });
+    expect(hits.map((h) => h.name)).toEqual(["Garbanzos cocidos"]);
+  });
+
+  it("quita duplicados por código", () => {
+    expect(mapOffSearch({ products: [producto(), producto()] })).toHaveLength(1);
+  });
+
+  it("respeta el límite", () => {
+    const muchos = Array.from({ length: 30 }, (_, i) => producto({ code: `840012375012${i}` }));
+    expect(mapOffSearch({ products: muchos }, 5)).toHaveLength(5);
+  });
+
+  it("no se rompe con una respuesta rara", () => {
+    expect(mapOffSearch(null)).toEqual([]);
+    expect(mapOffSearch({})).toEqual([]);
+    expect(mapOffSearch({ products: "no soy una lista" })).toEqual([]);
+    expect(mapOffSearch({ products: [null, 3, "x"] })).toEqual([]);
+  });
+
+  it("aborta a los 8 s, como la consulta por código", async () => {
+    const fetchImpl = ((_u: string, init?: RequestInit) =>
+      new Promise((_res, rej) => {
+        init?.signal?.addEventListener("abort", () => rej(new Error("abortada")));
+      })) as unknown as typeof fetch;
+    vi.useFakeTimers();
+    const p = fetchOffSearch("garbanzos", fetchImpl);
+    const assertion = expect(p).rejects.toThrow("abortada");
+    await vi.advanceTimersByTimeAsync(8000);
+    await assertion;
+    vi.useRealTimers();
+  });
+
+  it("una respuesta no-ok es un error, no una lista vacía", async () => {
+    const fetchImpl = (async () => new Response("", { status: 503 })) as unknown as typeof fetch;
+    await expect(fetchOffSearch("x", fetchImpl)).rejects.toThrow("off 503");
   });
 });
