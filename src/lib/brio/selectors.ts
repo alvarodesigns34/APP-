@@ -301,7 +301,9 @@ export function weeklyInsights(s: SelectorState): string[] {
   }
   if (sleepN) {
     const h = sleepMin / sleepN / 60;
-    insights.push(`Has dormido de media ${h.toFixed(1)} h.`);
+    // toFixed writes "7.5"; every other figure in the recap goes through nf(),
+    // which is the Spanish "7,5". Same slip the steps line already had.
+    insights.push(`Has dormido de media ${nf(h, 1)} h.`);
   }
   if (waterDays) {
     const avgW = Math.round(water / waterDays);

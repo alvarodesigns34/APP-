@@ -25,6 +25,20 @@ describe("weeklyInsights water average", () => {
   });
 });
 
+describe("weeklyInsights sleep average", () => {
+  it("writes the average with a Spanish decimal comma", () => {
+    const s = defaultState();
+    const today = todayKey();
+    // 7 h 30 min: the only figure in the recap that is not a whole number.
+    const night = emptyDay();
+    night.sleep = { bed: 23 * 60, wake: 6 * 60 + 30 };
+    s.days[today] = night;
+    const text = weeklyInsights(s).join(" ");
+    expect(text).toMatch(/de media 7,5 h/);
+    expect(text).not.toMatch(/7\.5 h/);
+  });
+});
+
 describe("latestWeight as of a date", () => {
   it("uses the weight valid on that date, not the newest absolute", () => {
     const s = defaultState();
