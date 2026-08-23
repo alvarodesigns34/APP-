@@ -76,6 +76,62 @@ export function parseShoppingInput(raw: string): ParsedShoppingInput {
   return { name: m[3].trim(), qty: `${amount}${unit}` };
 }
 
+/**
+ * Unidades que se pueden sumar entre sí, normalizadas a una forma canónica.
+ * «gr», «gramos» y «g» son la misma unidad escrita de tres maneras, y quien
+ * manda ingredientes desde dos recetas distintas no debería quedarse corto por
+ * eso.
+ */
+const UNIT_ALIASES: Record<string, string> = {
+  g: "g", gr: "g", gramo: "g", gramos: "g",
+  kg: "kg", kilo: "kg", kilos: "kg",
+  l: "l", litro: "l", litros: "l",
+  ml: "ml", cl: "cl",
+  ud: "ud", uds: "ud", unidad: "ud", unidades: "ud",
+};
+
+type Amount = { n: number; unit: string };
+
+/** «200 g» → {n:200, unit:"g"}; «un paquete» → null, porque no se puede sumar. */
+function parseAmount(qty: string): Amount | null {
+  const m = /^(\d+(?:[.,]\d+)?)\s*([a-zá-ú]*)$/i.exec(qty.trim());
+  if (!m) return null;
+  const n = Number(m[1].replace(",", "."));
+  if (!Number.isFinite(n)) return null;
+  const raw = m[2].toLowerCase();
+  if (!raw) return { n, unit: "" };
+  const unit = UNIT_ALIASES[raw];
+  return unit ? { n, unit } : null;
+}
+
+function fmtAmount(a: Amount): string {
+  // Español: coma decimal, y sin decimales cuando no hacen falta.
+  const n = Math.round(a.n * 100) / 100;
+  const txt = Number.isInteger(n) ? String(n) : String(n).replace(".", ",");
+  return a.unit ? `${txt} ${a.unit}` : txt;
+}
+
+/**
+ * Junta dos cantidades del mismo producto.
+ *
+ * Mandar a la lista los ingredientes de dos recetas que llevan arroz dejaba
+ * solo la cantidad de la primera: la segunda se descartaba sin decir nada y en
+ * el súper te quedabas corto. Se suman cuando las dos son un número con la
+ * misma unidad; si alguna es texto libre («un paquete») se conservan las dos
+ * separadas por «+», que es peor de leer pero nunca pierde información.
+ */
+export function mergeQty(a: string, b: string): string {
+  const left = a.trim();
+  const right = b.trim();
+  if (!left) return right;
+  if (!right) return left;
+  if (left === right) return left;
+  const pa = parseAmount(left);
+  const pb = parseAmount(right);
+  if (pa && pb && pa.unit === pb.unit) return fmtAmount({ n: pa.n + pb.n, unit: pa.unit });
+  return `${left} + ${right}`;
+}
+
 /** Match key for "is this already on the list": accent- and case-insensitive. */
 export function shoppingKey(name: string): string {
   return norm(name).trim();

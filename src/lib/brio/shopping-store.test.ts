@@ -44,3 +44,36 @@ describe("addShoppingItems", () => {
     expect(names()).toEqual(["Arroz ✓"]);
   });
 });
+
+describe("cantidades al repetir un producto", () => {
+  it("suma la cantidad en vez de descartar la nueva", () => {
+    // El caso que lo motivó: mandar a la lista los ingredientes de dos recetas
+    // que llevan arroz. Antes quedaba solo «200 g» y en el súper te faltaba.
+    const s = useBrioStore.getState();
+    s.addShoppingItem({ name: "Arroz", qty: "200 g" });
+    s.addShoppingItem({ name: "arroz", qty: "150 g" });
+    const list = useBrioStore.getState().shopping;
+    expect(list).toHaveLength(1);
+    expect(list[0].qty).toBe("350 g");
+  });
+
+  it("suma también por el camino de «añadir ingredientes» de una receta", () => {
+    const s = useBrioStore.getState();
+    s.addShoppingItems([{ name: "Arroz", qty: "200 g" }]);
+    s.addShoppingItems([{ name: "Arroz", qty: "150 g" }]);
+    const list = useBrioStore.getState().shopping;
+    expect(list).toHaveLength(1);
+    expect(list[0].qty).toBe("350 g");
+  });
+
+  it("al revivir una línea ya comprada también suma", () => {
+    const s = useBrioStore.getState();
+    const id = s.addShoppingItem({ name: "Arroz", qty: "200 g" })!;
+    useBrioStore.getState().toggleShoppingItem(id);
+    expect(useBrioStore.getState().shopping[0].done).toBe(true);
+    useBrioStore.getState().addShoppingItem({ name: "Arroz", qty: "150 g" });
+    const item = useBrioStore.getState().shopping[0];
+    expect(item.done).toBe(false);
+    expect(item.qty).toBe("350 g");
+  });
+});

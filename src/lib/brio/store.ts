@@ -20,7 +20,7 @@ import { fmtDateRelative } from "./dates";
 import { kcalFromWorkout } from "./domain";
 import { latestWeight } from "./selectors";
 import { applyUndo, clearUndo, isApplyingUndo, popUndo, pushUndo } from "./undo";
-import { findShoppingItem, makeShoppingItem } from "./shopping";
+import { findShoppingItem, makeShoppingItem, mergeQty } from "./shopping";
 
 export type BrioStore = PersistedState & {
   hydrated: boolean;
@@ -648,9 +648,13 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     const existing = findShoppingItem(get().shopping, name);
     if (existing) {
       // Adding the same thing twice should not produce two lines to tick off.
-      // An already-bought line comes back as pending instead.
-      if (existing.done) {
-        set((s) => ({ shopping: s.shopping.map((i) => (i.id === existing.id ? { ...i, done: false } : i)) }));
+      // An already-bought line comes back as pending, and the amounts are
+      // merged: keeping only the first one meant coming home short.
+      const qty = mergeQty(existing.qty, input.qty ?? "");
+      if (existing.done || qty !== existing.qty) {
+        set((s) => ({
+          shopping: s.shopping.map((i) => (i.id === existing.id ? { ...i, done: false, qty } : i)),
+        }));
         get().persist();
       }
       return existing.id;
@@ -672,10 +676,12 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       const existing = findShoppingItem(next, name);
       if (existing) {
         // Same rule as addShoppingItem: a line already ticked off comes back as
-        // pending. Skipping it left an ingredient the user had just asked for
-        // sitting in the "comprados" section, invisible while shopping.
-        if (existing.done) {
-          next[next.indexOf(existing)] = { ...existing, done: false };
+        // pending, and the amounts are merged. Skipping it left an ingredient
+        // the user had just asked for sitting in the "comprados" section,
+        // invisible while shopping — and dropped the second recipe's amount.
+        const qty = mergeQty(existing.qty, input.qty ?? "");
+        if (existing.done || qty !== existing.qty) {
+          next[next.indexOf(existing)] = { ...existing, done: false, qty };
           revivedIds.push(existing.id);
         }
         continue;
