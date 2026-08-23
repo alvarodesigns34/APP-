@@ -3,3 +3,11 @@ dist
 coverage
 src/routeTree.gen.ts
 package-lock.json
+
+# Los catálogos, fuera. `npm run format` es un script publicado del proyecto y
+# formatea JSON por defecto, así que ejecutarlo reescribía src/data —intocable
+# por regla de la casa— con un diff de cientos de kB. El test que vigila que
+# src/data y public/data no diverjan tampoco lo habría cazado, porque reformatea
+# las dos copias igual.
+src/data
+public/data

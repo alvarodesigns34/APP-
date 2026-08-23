@@ -6,6 +6,9 @@
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "strict": true,
+    // Salen limpios hoy, así que activarlos es gratis y evita que entre basura.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true,
@@ -15,6 +18,9 @@
     "baseUrl": ".",
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src"]
-
+  // Los ficheros de configuración también. Con `include: ["src"]` a secas,
+  // vite.config.ts, vitest.config.ts y vitest.setup.ts no los typechequeaba
+  // nadie: Vite los compila con esbuild, que borra los tipos sin comprobarlos,
+  // así que un error ahí no lo veían ni `npm run typecheck` ni el build.
+  "include": ["src", "vite.config.ts", "vitest.config.ts", "vitest.setup.ts", "scripts", "eslint.config.js"]
 }

@@ -26,6 +26,16 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Las mismas comprobaciones que CI, aquí dentro y antes de construir.
+      # CI y este workflow se disparan en paralelo con el mismo `push` a main y
+      # no había ningún `needs:` entre ellos, así que un merge que rompiera
+      # treinta tests pero compilara se publicaba igual: los usuarios con la
+      # PWA instalada recibían el código roto —el worker los actualiza solo— y
+      # la única señal era una cruz roja en la pestaña Actions, fácil de pasar
+      # por alto porque "la web se ha desplegado bien".
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run lint
       - run: npm run build:pages
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
