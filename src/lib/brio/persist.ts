@@ -1,4 +1,5 @@
 import { DEFAULT_ACCENT, isAccentId } from "./accent";
+import { isMeasureInRange } from "./measures";
 import { DEFAULT_MACRO_PCT, clampMacroPct, isMacroPresetId, pctForPreset } from "./domain";
 import { DEFAULT_REMINDERS, parseReminders } from "./reminders";
 import { DEFAULT_WEEKDAY_PLAN, parseWeekdayPlan } from "./weekday-goals";
@@ -6,6 +7,7 @@ import {
   AUX_STORE_KEYS,
   LEGACY_STORE_KEYS,
   MEALS,
+  MEASURES,
   NOTE_MAX,
   SCHEMA_VERSION,
   STORE_KEY,
@@ -14,6 +16,7 @@ import {
   type FoodUnit,
   type IntensityId,
   type MealEntry,
+  type MeasureId,
   type PersistedState,
   type Profile,
   type Settings,
@@ -206,7 +209,14 @@ function parseWeight(v: unknown): WeightEntry | null {
   };
   const fat = pct(v.fat);
   const muscle = pct(v.muscle);
-  return { date: v.date, kg, ...(fat != null ? { fat } : {}), ...(muscle != null ? { muscle } : {}) };
+  // Las medidas se recorren desde MEASURES para que añadir una no exija
+  // acordarse de tocar también esta función.
+  const measures: Partial<Record<MeasureId, number>> = {};
+  for (const m of MEASURES) {
+    const n = numOrNull(v[m.id]);
+    if (n != null && isMeasureInRange(n)) measures[m.id] = n;
+  }
+  return { date: v.date, kg, ...(fat != null ? { fat } : {}), ...(muscle != null ? { muscle } : {}), ...measures };
 }
 
 function parseFood(v: unknown): Food | null {

@@ -5,6 +5,7 @@ import { Card, Empty, Screen, SectionLabel, Title } from "@/components/brio/sect
 import { addDays, rangeKeys, sleepDuration, todayKey, weekColumns, WEEKDAYS } from "@/lib/brio/dates";
 import { nf, plural } from "@/lib/brio/format";
 import { buildMacroSeries, DEFAULT_TREND_RANGE, TREND_RANGES, type TrendRange } from "@/lib/brio/macro-series";
+import { latestWaist, measureChanges, waistToHeight } from "@/lib/brio/measures";
 import {
   dayFoodTotals,
   goalsMet,
@@ -225,6 +226,8 @@ export function TrendsScreen() {
   }, [snap.weights, snap.goals.weight]);
   const pesoDomain = useMemo(() => pesoYDomain(wChart), [wChart]);
   const trend = useMemo(() => weightTrend(snap), [snap]);
+  const measures = useMemo(() => measureChanges(snap.weights), [snap.weights]);
+  const waist = useMemo(() => waistToHeight(latestWaist(snap.weights), snap.profile.height), [snap.weights, snap.profile.height]);
   const units = snap.settings.units;
 
   // One pass over the week instead of the five separate dayFoodTotals sweeps
@@ -319,6 +322,54 @@ export function TrendsScreen() {
             ) : (
               <p className="mt-2 text-sm">Estás en tu peso objetivo.</p>
             )}
+          </Card>
+        </>
+      ) : null}
+
+      {measures.length > 0 || waist != null ? (
+        <>
+          <SectionLabel>Medidas</SectionLabel>
+          <Card className="mb-3 space-y-3">
+            {waist != null ? (
+              <div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm text-muted-foreground">Cintura / altura</span>
+                  <span className="tabular-nums font-medium">{nf(waist.ratio, 2)}</span>
+                </div>
+                <p
+                  className={cn(
+                    "mt-0.5 text-sm",
+                    waist.tone === "ok" ? "text-primary" : waist.tone === "warn" ? "text-[var(--brio-warn)]" : "text-destructive",
+                  )}
+                >
+                  {waist.n}
+                </p>
+                {/* La regla que hay detrás del número, porque un 0,48 a secas
+                    no le dice nada a nadie que no la conozca. */}
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  La referencia es que la cintura mida menos de la mitad de tu altura.
+                </p>
+              </div>
+            ) : null}
+            {measures.length > 0 ? (
+              <ul className={cn("space-y-1", waist != null && "border-t border-border pt-3")}>
+                {measures.map((m) => (
+                  <li key={m.id} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="text-muted-foreground">{m.n}</span>
+                    <span className="tabular-nums">
+                      <b className="font-medium">{nf(m.last, 1)} cm</b>
+                      {m.delta != null && Math.abs(m.delta) >= 0.05 ? (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          {m.delta < 0 ? "−" : "+"}
+                          {nf(Math.abs(m.delta), 1)}
+                        </span>
+                      ) : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </Card>
         </>
       ) : null}

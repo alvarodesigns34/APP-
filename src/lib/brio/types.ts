@@ -133,12 +133,36 @@ export type ShoppingItem = {
   t: number;
 };
 
+/**
+ * Las medidas que se pueden apuntar junto al peso, en centímetros.
+ *
+ * Viven aquí, junto a MEALS y compañía, para que el tipo de `WeightEntry`
+ * pueda derivarse de la lista: así añadir una medida es tocar un sitio, y la
+ * hoja de registro, la validación al cargar y el CSV recorren todas la misma
+ * fuente en vez de repetir la lista tres veces.
+ */
+export const MEASURES = [
+  { id: "waist", n: "Cintura" },
+  { id: "chest", n: "Pecho" },
+  { id: "hip", n: "Cadera" },
+  { id: "arm", n: "Brazo" },
+  { id: "thigh", n: "Muslo" },
+] as const;
+
+export type MeasureId = (typeof MEASURES)[number]["id"];
+
+/**
+ * Un pesaje y, opcionalmente, lo que te midieras esa misma mañana. Es una
+ * entrada por fecha y no una colección aparte a propósito: quien se mide lo
+ * hace el mismo día que se pesa, y así las dos series comparten eje temporal
+ * sin tener que cruzarlas.
+ */
 export type WeightEntry = {
   date: string;
   kg: number;
   fat?: number;
   muscle?: number;
-};
+} & Partial<Record<MeasureId, number>>;
 
 export type Profile = {
   name: string;

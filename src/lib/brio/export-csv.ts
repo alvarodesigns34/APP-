@@ -1,4 +1,4 @@
-import { MEALS, type MealEntry, type MealId, type PersistedState, type WeightEntry, type WorkoutEntry } from "./types";
+import { MEALS, MEASURES, type MealEntry, type MealId, type PersistedState, type WeightEntry, type WorkoutEntry } from "./types";
 
 /**
  * CSV export for Brío logs (spreadsheet-friendly).
@@ -31,7 +31,9 @@ const MEAL_HEADERS = [
   "fat",
   "fib",
 ] as const;
-const WEIGHT_HEADERS = ["fecha", "kg", "grasa", "musculo"] as const;
+// Las medidas van detrás de las columnas de siempre para no romper una
+// hoja de cálculo que ya tuviera fórmulas sobre un export anterior.
+const WEIGHT_HEADERS = ["fecha", "kg", "grasa", "musculo", ...MEASURES.map((m) => m.n.toLowerCase())] as const;
 const WORKOUT_HEADERS = ["fecha", "tipo", "minutos", "intensidad", "kcal"] as const;
 const COMBINED_HEADERS = [
   "tipo",
@@ -145,7 +147,7 @@ function mealFields(fecha: string, meal: MealId, entry: MealEntry): Array<string
 }
 
 function weightFields(w: WeightEntry): Array<string | number | undefined> {
-  return [w.date, w.kg, w.fat, w.muscle];
+  return [w.date, w.kg, w.fat, w.muscle, ...MEASURES.map((m) => w[m.id])];
 }
 
 function workoutFields(fecha: string, w: WorkoutEntry): Array<string | number> {

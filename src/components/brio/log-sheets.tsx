@@ -18,7 +18,8 @@ import {
   volumeUnit,
   weightUnit,
 } from "@/lib/brio/units";
-import type { IntensityId } from "@/lib/brio/types";
+import { MEASURES, type IntensityId, type MeasureId } from "@/lib/brio/types";
+import { isMeasureInRange } from "@/lib/brio/measures";
 import { cn } from "@/lib/utils";
 
 /** Focus a quick-log input after vaul has painted. Delayed so iOS does not fight the keyboard. */
@@ -378,14 +379,19 @@ export function WeightSheet({
   const [fat, setFat] = useState("");
   const [muscle, setMuscle] = useState("");
   const [showComp, setShowComp] = useState(false);
+  // Las medidas son un registro más esporádico todavía que la composición
+  // corporal (mucha gente se pesa a diario y se mide una vez al mes), así que
+  // van en su propio bloque plegado, no mezcladas con el peso.
+  const [meas, setMeas] = useState<Record<string, string>>({});
+  const [showMeas, setShowMeas] = useState(false);
   const inputRef = useOpenFocus(open, true);
 
   // The seed values live in a ref rather than in the effect's deps: they are
   // derived from `weights`, and the sheet lets you delete a weigh-in from the
   // list below the field. With `current`/`today` as deps, tapping "Quitar"
   // re-ran this effect and overwrote the number you had just typed.
-  const seed = useRef({ current, fat: today?.fat, muscle: today?.muscle });
-  seed.current = { current, fat: today?.fat, muscle: today?.muscle };
+  const seed = useRef({ current, fat: today?.fat, muscle: today?.muscle, today });
+  seed.current = { current, fat: today?.fat, muscle: today?.muscle, today };
 
   useEffect(() => {
     if (!open) return;
@@ -394,6 +400,13 @@ export function WeightSheet({
     setFat(s.fat != null ? String(s.fat) : "");
     setMuscle(s.muscle != null ? String(s.muscle) : "");
     setShowComp(s.fat != null || s.muscle != null);
+    const m: Record<string, string> = {};
+    for (const def of MEASURES) {
+      const cm = s.today?.[def.id];
+      if (cm != null) m[def.id] = String(cm);
+    }
+    setMeas(m);
+    setShowMeas(Object.keys(m).length > 0);
   }, [open, date, units]);
 
   const start = Math.max(0, weights.length - 8);
@@ -416,7 +429,13 @@ export function WeightSheet({
             };
             const f = pct(fat);
             const m = pct(muscle);
-            upsert(date, kg, f != null || m != null ? { fat: f, muscle: m } : undefined);
+            const cms: Partial<Record<MeasureId, number>> = {};
+            for (const def of MEASURES) {
+              const raw = parsePositive(meas[def.id] ?? "");
+              if (isMeasureInRange(raw)) cms[def.id] = round(raw, 1);
+            }
+            const extra = { ...(f != null ? { fat: f } : {}), ...(m != null ? { muscle: m } : {}), ...cms };
+            upsert(date, kg, Object.keys(extra).length > 0 ? extra : undefined);
             patchProfile({ weight: kg });
             onOpenChange(false);
           }}
@@ -467,6 +486,32 @@ export function WeightSheet({
       ) : (
         <Button variant="ghost" size="sm" className="mb-4 w-full" onClick={() => setShowComp(true)}>
           Añadir grasa y músculo
+        </Button>
+      )}
+
+      {showMeas ? (
+        <div className="mb-4">
+          <p className="mb-1 text-xs text-muted-foreground">Medidas (cm)</p>
+          <div className="grid grid-cols-2 gap-2">
+            {MEASURES.map((def) => (
+              <div key={def.id}>
+                <label className="text-xs text-muted-foreground" htmlFor={`weight-${def.id}`}>
+                  {def.n}
+                </label>
+                <Input
+                  id={`weight-${def.id}`}
+                  inputMode="decimal"
+                  placeholder="opcional"
+                  value={meas[def.id] ?? ""}
+                  onChange={(e) => setMeas((prev) => ({ ...prev, [def.id]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <Button variant="ghost" size="sm" className="mb-4 w-full" onClick={() => setShowMeas(true)}>
+          Añadir medidas
         </Button>
       )}
 
