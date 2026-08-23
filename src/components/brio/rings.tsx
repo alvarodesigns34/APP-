@@ -130,7 +130,8 @@ export function LegendRow({
         <i className={cn("size-2 rounded-full")} style={{ background: color }} />
         {label}
       </span>
-      <span className="tabular-nums text-sm">
+      {/* nowrap: «1.405 / 2.200» se partía en dos líneas y descuadraba la fila. */}
+      <span className="whitespace-nowrap tabular-nums text-sm">
         <b className="font-medium text-foreground">{value}</b>{" "}
         <span className="text-muted-foreground">{hint}</span>
       </span>

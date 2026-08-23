@@ -48,6 +48,16 @@ export function SectionLabel({ children }: { children: ReactNode }) {
   return <h2 className="mb-2 mt-6 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">{children}</h2>;
 }
 
+/**
+ * El «no hay nada aquí» de dentro de una lista, que es otro trabajo que el
+ * `Empty` de sección: va entre resultados, no en lugar de una tarjeta.
+ * Existía cuatro veces copiado a mano con tres rellenos distintos (py-6, py-8,
+ * y una con fondo propio), que es variación sin significado.
+ */
+export function EmptyLine({ children }: { children: ReactNode }) {
+  return <p className="px-4 py-8 text-center text-sm text-balance text-muted-foreground">{children}</p>;
+}
+
 export function Empty({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-3xl bg-card px-5 py-8 text-center">

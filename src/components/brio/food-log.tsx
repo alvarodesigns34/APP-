@@ -1,3 +1,4 @@
+import { EmptyLine } from "@/components/brio/section";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Info, Plus, ScanBarcode, Star, X } from "lucide-react";
 import { toast } from "sonner";
@@ -511,10 +512,12 @@ export function FoodLogSheet({
                 </li>
               ) : null}
               {list.length === 0 && catalogReady ? (
-                <li className="py-8 text-center text-sm text-muted-foreground">
-                  {q.trim()
-                    ? `No hay resultados para "${q.trim()}". Prueba con otra palabra o crea el alimento.`
-                    : "No hay resultados."}
+                <li>
+                  <EmptyLine>
+                    {q.trim()
+                      ? `No hay resultados para "${q.trim()}". Prueba con otra palabra o crea el alimento.`
+                      : "No hay resultados."}
+                  </EmptyLine>
                 </li>
               ) : (
                 list.map((f) => {

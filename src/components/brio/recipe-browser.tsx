@@ -1,3 +1,4 @@
+import { EmptyLine } from "@/components/brio/section";
 import { useMemo, useState, type ReactNode } from "react";
 import { Minus, Plus, Star } from "lucide-react";
 import { toast } from "sonner";
@@ -139,11 +140,11 @@ export function RecipeBrowser({
             + Nueva receta
           </Button>
           {myList.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
+            <EmptyLine>
               {userRecipes.length === 0
                 ? "Combina alimentos del catálogo en tu propia receta."
                 : "Ninguna receta propia coincide."}
-            </p>
+            </EmptyLine>
           ) : (
             <ul className="space-y-2">
               {myList.map((r) => {

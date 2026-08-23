@@ -178,6 +178,14 @@ export function TodayScreen() {
               {nf(Math.abs(remaining))} <span className="text-sm text-muted-foreground">kcal</span>
             </span>
           </div>
+          {/* Las cuatro barras comparten el color de acento a propósito. Antes
+              Proteína usaba el de Calorías, Hidratos el de Pasos y Grasa el de
+              Ejercicio, o sea los mismos tres colores que los aros de justo
+              encima, con otro significado: verde era «calorías» a dos dedos de
+              donde era «proteína». Los aros sí necesitan tres colores porque
+              comparan tres series en un mismo dibujo; estas barras van
+              etiquetadas una a una, así que el color solo tiene que decir
+              «esto es tu nutrición». */}
           <div className="space-y-3">
             <LabeledBar
               label="Proteína"
@@ -191,14 +199,14 @@ export function TodayScreen() {
               value={`${nf(t.carb)} g`}
               hint={`/ ${nf(mg.carb)} g`}
               pct={mg.carb ? (t.carb / mg.carb) * 100 : 0}
-              color="var(--brio-steps)"
+              color="var(--brio-kcal)"
             />
             <LabeledBar
               label="Grasa"
               value={`${nf(t.fat)} g`}
               hint={`/ ${nf(mg.fat)} g`}
               pct={mg.fat ? (t.fat / mg.fat) * 100 : 0}
-              color="var(--brio-move)"
+              color="var(--brio-kcal)"
             />
             {g.fib > 0 ? (
               <LabeledBar
@@ -206,7 +214,7 @@ export function TodayScreen() {
                 value={`${nf(t.fib)} g`}
                 hint={`/ ${nf(g.fib)} g`}
                 pct={(t.fib / g.fib) * 100}
-                color="var(--brio-sleep)"
+                color="var(--brio-kcal)"
               />
             ) : null}
           </div>
