@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { addDays, addMonths, canPlanFurther, daysBetween, fmtMonthYear, MAX_PLAN_DAYS_AHEAD, mealForHour, monthGrid, monthStart, shouldRollViewDate, weekColumns, dateOf } from "./dates";
+import { MAX_PLAN_DAYS_AHEAD, addDays, addMonths, canPlanFurther, clockOnDay, dateOf, daysBetween, fmtMonthYear, mealForHour, monthGrid, monthStart, shouldRollViewDate, weekColumns } from "./dates";
 
 describe("daysBetween across the clock change", () => {
   // Spain moves the clocks on the last Sunday of March and of October, so
@@ -181,5 +181,28 @@ describe("weekColumns", () => {
   it("never returns fewer than one week", () => {
     expect(weekColumns(saturday, 0)).toHaveLength(1);
     expect(weekColumns(saturday, -3)).toHaveLength(1);
+  });
+});
+
+describe("clockOnDay", () => {
+  it("da la hora local del registro", () => {
+    const d = new Date(2026, 7, 22, 14, 32);
+    expect(clockOnDay(d.getTime(), "2026-08-22")).toBe("14:32");
+  });
+
+  it("rellena con cero a la izquierda", () => {
+    expect(clockOnDay(new Date(2026, 7, 22, 8, 5).getTime(), "2026-08-22")).toBe("08:05");
+  });
+
+  it("calla cuando el registro cayó otro día", () => {
+    // Copiar el día de ayer o planificar para mañana sellan con Date.now(), y
+    // esa hora no dice nada del día en el que acaba la entrada.
+    const ayer = new Date(2026, 7, 21, 19, 4).getTime();
+    expect(clockOnDay(ayer, "2026-08-22")).toBeNull();
+  });
+
+  it("calla en los registros de antes de que existiera el campo", () => {
+    expect(clockOnDay(undefined, "2026-08-22")).toBeNull();
+    expect(clockOnDay(Number.NaN, "2026-08-22")).toBeNull();
   });
 });

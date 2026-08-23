@@ -7,7 +7,7 @@ import { Card, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
-import { addDays, fmtDateRelative, todayKey } from "@/lib/brio/dates";
+import { addDays, clockOnDay, fmtDateRelative, todayKey } from "@/lib/brio/dates";
 import { nf, plural } from "@/lib/brio/format";
 import { mealEntryCount, recentDaysWithMeals } from "@/lib/brio/meals";
 import { sumEntries } from "@/lib/brio/selectors";
@@ -182,6 +182,16 @@ export function FoodScreen() {
                           <div className="truncate font-medium">{e.name}</div>
                           <div className="text-xs text-muted-foreground">
                             {nf(e.qty, e.qty % 1 === 0 ? 0 : 2)} {e.unitName} · {nf(e.grams, 0)} g
+                            {/* La hora se guardaba en cada registro desde hace
+                                versiones y no se enseñaba en ningún sitio. Con
+                                la ventana de ayuno activada es justo el dato
+                                que hace falta para saber si la respetaste. */}
+                            {clockOnDay(e.t, key) ? (
+                              <>
+                                {" · "}
+                                <span className="tabular-nums">{clockOnDay(e.t, key)}</span>
+                              </>
+                            ) : null}
                           </div>
                         </div>
                         <span className="tabular-nums text-sm">{nf(e.kcal)}</span>

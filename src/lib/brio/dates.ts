@@ -31,6 +31,22 @@ export function dateOf(key: string): Date {
   return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
 }
 
+/**
+ * La hora ("14:32") a la que se registró algo, o null si no procede.
+ *
+ * Devuelve null cuando el registro cayó en un día distinto del que se está
+ * mirando, y eso pasa a menudo: copiar el día de ayer, duplicar una comida o
+ * planificar para mañana sellan la entrada con `Date.now()`, así que enseñar esa
+ * hora en el día de destino sería decir que cenaste mañana a las 19:04.
+ * También null en los registros anteriores a que existiera este campo.
+ */
+export function clockOnDay(ms: number | undefined, dayKey: string): string | null {
+  if (ms == null || !Number.isFinite(ms)) return null;
+  const d = new Date(ms);
+  if (keyOf(d) !== dayKey) return null;
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 export function addDays(key: string, n: number): string {
   const d = dateOf(key);
   d.setDate(d.getDate() + n);
