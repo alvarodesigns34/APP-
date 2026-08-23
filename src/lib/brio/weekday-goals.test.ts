@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { dateOf } from "./dates";
 import { kcalFloor } from "./domain";
 import { defaultState, emptyDay } from "./persist";
-import { kcalGoalFor } from "./selectors";
+import { kcalGoalFor, macroGoalsFor } from "./selectors";
 import { DEFAULT_WEEKDAY_PLAN, MIN_DAY_KCAL, kcalForWeekday, parseWeekdayPlan } from "./weekday-goals";
 
 const MON_FRI: boolean[] = [false, true, true, true, true, true, false];
@@ -169,5 +170,28 @@ describe("kcalGoalFor weekday plan", () => {
     expect(kcalGoalFor(s, "2026-08-23")).toBe(
       kcalForWeekday(2200, MON_FRI, 0, kcalFloor(s.profile.sex)),
     );
+  });
+});
+
+describe("macroGoalsFor: la fibra sigue al plan como los demás macros", () => {
+  it("un día de entreno pide más fibra que uno de descanso", () => {
+    const s = defaultState();
+    s.settings.weekdayPlan = { enabled: true, training: [false, true, true, true, true, true, false] };
+    const domingo = "2026-08-23";
+    const miercoles = "2026-08-26";
+    expect(dateOf(domingo).getDay()).toBe(0);
+    expect(dateOf(miercoles).getDay()).toBe(3);
+
+    const descanso = macroGoalsFor(s, domingo);
+    const entreno = macroGoalsFor(s, miercoles);
+    expect(descanso.fib).toBeLessThan(s.goals.fib);
+    expect(entreno.fib).toBeGreaterThan(s.goals.fib);
+    // Escala con el mismo factor que la proteína, no por su cuenta.
+    expect(entreno.fib / descanso.fib).toBeCloseTo(entreno.prot / descanso.prot, 1);
+  });
+
+  it("sin plan semanal, la fibra es la del objetivo plano", () => {
+    const s = defaultState();
+    expect(macroGoalsFor(s, "2026-08-23").fib).toBe(s.goals.fib);
   });
 });

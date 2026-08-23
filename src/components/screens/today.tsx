@@ -209,12 +209,12 @@ export function TodayScreen() {
               pct={mg.fat ? (t.fat / mg.fat) * 100 : 0}
               color="var(--brio-kcal)"
             />
-            {g.fib > 0 ? (
+            {mg.fib > 0 ? (
               <LabeledBar
                 label="Fibra"
                 value={`${nf(t.fib)} g`}
-                hint={`/ ${nf(g.fib)} g`}
-                pct={(t.fib / g.fib) * 100}
+                hint={`/ ${nf(mg.fib)} g`}
+                pct={(t.fib / mg.fib) * 100}
                 color="var(--brio-kcal)"
               />
             ) : null}

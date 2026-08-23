@@ -132,8 +132,8 @@ export function kcalGoalFor(s: SelectorState, key: string): number {
  * lower than on a rest day. Scaling keeps your split and keeps the 7-day sum
  * on `7 * goals`, exactly like the kcal it follows.
  */
-export function macroGoalsFor(s: SelectorState, key: string): { prot: number; carb: number; fat: number } {
-  const flat = { prot: s.goals.prot, carb: s.goals.carb, fat: s.goals.fat };
+export function macroGoalsFor(s: SelectorState, key: string): { prot: number; carb: number; fat: number; fib: number } {
+  const flat = { prot: s.goals.prot, carb: s.goals.carb, fat: s.goals.fat, fib: s.goals.fib };
   if (!s.settings.weekdayPlan?.enabled) return flat;
   const k = kcalForWeekday(
     s.goals.kcal,
@@ -149,6 +149,12 @@ export function macroGoalsFor(s: SelectorState, key: string): { prot: number; ca
     prot: Math.round(flat.prot * factor),
     carb: Math.round(flat.carb * factor),
     fat: Math.round(flat.fat * factor),
+    // La fibra también. La regla de la casa es 14 g por cada 1.000 kcal, así
+    // que un día de entreno, que pide más kcal, pide más fibra por la misma
+    // regla. Se quedó fuera cuando se añadió el plan por días: la barra de
+    // Fibra de Hoy era la única de las cuatro que enseñaba el objetivo plano
+    // mientras las otras tres ya seguían al del día.
+    fib: Math.round(flat.fib * factor),
   };
 }
 

@@ -14,7 +14,7 @@ Offline-first con URLs estables para el SW:
    - Selectores que usan `getFood` / `BASE_RECIPES` (`suggestRecipes`, `lastPortion`, `missingIngredients`) → `selectors-catalog.ts`.
    - `selectors.ts` no importa `catalog`. `store.ts` no importa `catalog`. `latestWeight` se queda en `selectors.ts`.
    - `addMeal` recibe un `Food` inyectado; `updateMeal` acepta `Food` opcional y si no, escala el entry. Call sites: `food-log`, `quick-add`, `recipe-browser` (`recipeAsFood`).
-5. `public/sw.js`: PRECACHE incluye `/data/foods.json`, `/data/recipes.json`, `/data/routines.json`. Cache `brio-v4.2`. Tras el primer install, los tres JSON están en precache.
+5. `public/sw.js`: PRECACHE incluye `/data/foods.json`, `/data/recipes.json`, `/data/routines.json`. Cache `brio-v{major}.{minor}`, siguiendo a `APP_VERSION` (lo ata `version.test.ts`). Tras el primer install, los tres JSON están en precache.
 
 Recharts: `React.lazy` + `Suspense` en las cards de `trends.tsx`. Skeleton con las mismas alturas (`h-56` peso, `h-48` kcal, `h-44` el resto). Series real/trend/goal/band/ma7 intactas. El loader de `/tendencias` prefetcha el chunk de charts (el router ya tiene `defaultPreload: "intent"`).
 

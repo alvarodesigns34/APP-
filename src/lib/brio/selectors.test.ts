@@ -183,7 +183,7 @@ describe("macroGoalsFor follows the weekday plan like kcalGoalFor", () => {
     s.goals = { ...s.goals, kcal: 2000, prot: 125, carb: 225, fat: 67 };
     s.settings.weekdayPlan = { enabled: false, training: [false, true, true, true, true, true, false] };
     const key = todayKey();
-    expect(macroGoalsFor(s, key)).toEqual({ prot: 125, carb: 225, fat: 67 });
+    expect(macroGoalsFor(s, key)).toEqual({ prot: 125, carb: 225, fat: 67, fib: s.goals.fib });
   });
 
   it("scales macros with the same weekday kcal that kcalGoalFor uses", () => {
@@ -195,10 +195,13 @@ describe("macroGoalsFor follows the weekday plan like kcalGoalFor", () => {
     const key = todayKey();
     const dayKcal = kcalGoalFor(s, key);
     const mg = macroGoalsFor(s, key);
-    expect(mg).toEqual(macrosFromKcal(dayKcal, s.settings.macroPct));
+    // Solo los tres que `macrosFromKcal` produce: la fibra sigue el mismo
+    // factor pero sale del objetivo de fibra, no del reparto de porcentajes.
+    const { prot, carb, fat } = mg;
+    expect({ prot, carb, fat }).toEqual(macrosFromKcal(dayKcal, s.settings.macroPct));
     // A training day (weekday plan on) should not silently keep the flat base macros.
     if (s.settings.weekdayPlan.training[dateOf(key).getDay()] !== undefined && dayKcal !== 2000) {
-      expect(mg).not.toEqual({ prot: 125, carb: 225, fat: 67 });
+      expect({ prot, carb, fat }).not.toEqual({ prot: 125, carb: 225, fat: 67 });
     }
   });
 
@@ -235,6 +238,6 @@ describe("macroGoalsFor follows the weekday plan like kcalGoalFor", () => {
     const key = todayKey();
     s.days[key] = { ...emptyDay(), steps: 12000 };
     expect(kcalGoalFor(s, key)).toBeGreaterThan(2000);
-    expect(macroGoalsFor(s, key)).toEqual({ prot: 125, carb: 225, fat: 67 });
+    expect(macroGoalsFor(s, key)).toEqual({ prot: 125, carb: 225, fat: 67, fib: s.goals.fib });
   });
 });

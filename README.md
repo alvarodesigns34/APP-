@@ -53,7 +53,7 @@ degradan solos cuando no hay conexión.
 - Búsqueda insensible a acentos en alimentos **y** recetas, con la coincidencia
   resaltada y el número de resultados
 - Recetas ordenables por relevancia, calorías, proteína o tiempo
-- La app se actualiza sola cuando se publica una versión nueva
+- La app avisa cuando se publica una versión nueva (desde v4.8 no se recarga sola)
 
 Brío no sustituye el consejo de un profesional sanitario.
 
