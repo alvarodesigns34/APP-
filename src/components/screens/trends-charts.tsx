@@ -99,7 +99,7 @@ function MacroLegend() {
   return (
     <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 px-1 text-[11px] text-muted-foreground">
       <li className="flex items-center gap-1.5">
-        <span className="h-2 w-3 rounded-sm bg-[var(--brio-kcal)]" />
+        <span className="h-2 w-3 rounded-sm bg-[var(--brio-kcal)]/30" />
         Diario
       </li>
       <li className="flex items-center gap-1.5">
@@ -148,13 +148,27 @@ function MacroComposedChart({
                   return [`${nf(n)}${unit}`, String(name)];
                 }}
               />
-              <Bar dataKey={valueKey} name="Diario" fill={color} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+              {/* Barras y media compartían el mismo color sólido, así que la
+                  media no se distinguía de las barras: parecía el borde de
+                  arriba, ondulado. La leyenda prometía tres series y en
+                  pantalla se veían dos. Mantener un solo color (regla de la
+                  casa: un color, un significado) y separarlas por peso visual:
+                  el dato bruto queda de fondo y la media, que es la señal que
+                  de verdad se lee, va sólida y encima. */}
+              <Bar
+                dataKey={valueKey}
+                name="Diario"
+                fill={color}
+                fillOpacity={0.3}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive={false}
+              />
               <Line
                 type="linear"
                 dataKey={maKey}
                 name="Media 7d"
                 stroke={color}
-                strokeWidth={2}
+                strokeWidth={2.5}
                 connectNulls={false}
                 dot={false}
                 isAnimationActive={false}
