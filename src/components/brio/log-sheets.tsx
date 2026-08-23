@@ -18,7 +18,7 @@ import {
   volumeUnit,
   weightUnit,
 } from "@/lib/brio/units";
-import { MEASURES, type IntensityId, type MeasureId } from "@/lib/brio/types";
+import { MEASURES, type IntensityId, type MeasureId, type WorkoutEntry } from "@/lib/brio/types";
 import { isMeasureInRange } from "@/lib/brio/measures";
 import { cn } from "@/lib/utils";
 
@@ -253,12 +253,16 @@ export function WorkoutSheet({
   open,
   onOpenChange,
   date,
+  edit,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   date: string;
+  /** Un entreno ya registrado a corregir. Omite para registrar uno nuevo. */
+  edit?: WorkoutEntry;
 }) {
   const add = useBrioStore((s) => s.addWorkout);
+  const update = useBrioStore((s) => s.updateWorkout);
   const days = useBrioStore((s) => s.days);
   const [type, setType] = useState(ACTIVITIES[0].id);
   const [min, setMin] = useState("45");
@@ -266,11 +270,11 @@ export function WorkoutSheet({
   const [q, setQ] = useState("");
   useEffect(() => {
     if (!open) return;
-    setType(ACTIVITIES[0].id);
-    setMin("45");
-    setIntensity("media");
+    setType(edit?.type ?? ACTIVITIES[0].id);
+    setMin(edit ? String(edit.min) : "45");
+    setIntensity(edit?.intensity ?? "media");
     setQ("");
-  }, [open]);
+  }, [open, edit]);
   // The four sports you actually train beat 45 chips sorted by category.
   const recent = useMemo(() => recentSports({ days }, 4), [days]);
   const query = q.trim();
@@ -279,18 +283,22 @@ export function WorkoutSheet({
     <Sheet
       open={open}
       onOpenChange={onOpenChange}
-      title="Entrenamiento"
+      title={edit ? "Editar entrenamiento" : "Entrenamiento"}
       footer={
         <Button
           className="w-full"
           onClick={() => {
-            add(date, type, parsePositive(min) || 30, intensity);
+            if (edit) {
+              update(date, edit.id, { type, min: parsePositive(min) || 30, intensity });
+            } else {
+              add(date, type, parsePositive(min) || 30, intensity);
+            }
             onOpenChange(false);
           }}
         >
           {/* Naming the sport here matters now that search can hide the selected
               chip: otherwise you type "pádel", forget to tap it and save fuerza. */}
-          Guardar · {activityOf(type).n}
+          {edit ? "Guardar cambios" : `Guardar · ${activityOf(type).n}`}
         </Button>
       }
     >

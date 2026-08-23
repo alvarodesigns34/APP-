@@ -12,6 +12,7 @@ import { nf } from "@/lib/brio/format";
 import { bmi, bmiCategory, distanceFromSteps, activityOf } from "@/lib/brio/domain";
 import { currentWeightKg, waterTotal, workoutMinTotal } from "@/lib/brio/selectors";
 import { useBrioStore } from "@/lib/brio/store";
+import type { WorkoutEntry } from "@/lib/brio/types";
 import { fmtVolume, fmtWeight } from "@/lib/brio/units";
 
 export function ActivityScreen() {
@@ -39,6 +40,7 @@ export function ActivityScreen() {
   const units = snap.settings.units;
   const [steps, setSteps] = useState(false);
   const [wo, setWo] = useState(false);
+  const [editingWo, setEditingWo] = useState<WorkoutEntry | null>(null);
   const [water, setWater] = useState(false);
   const [sleep, setSleep] = useState(false);
   const [wg, setWg] = useState(false);
@@ -76,14 +78,18 @@ export function ActivityScreen() {
           <ul className="divide-y divide-border">
             {d!.workouts.map((w) => (
               <li key={w.id} className="flex items-center justify-between py-2 text-sm">
-                <span>
+                <button
+                  type="button"
+                  className="min-h-11 min-w-0 flex-1 text-left"
+                  onClick={() => setEditingWo(w)}
+                >
                   {activityOf(w.type).n}
                   <span className="block text-xs text-muted-foreground">{w.min} min · {nf(w.kcal)} kcal</span>
-                </span>
+                </button>
                 <button
                   type="button"
                   aria-label="Quitar entrenamiento"
-                  className="min-h-11 px-2 text-xs text-muted-foreground"
+                  className="min-h-11 shrink-0 px-2 text-xs text-muted-foreground"
                   onClick={() => {
                     removeWorkout(key, w.id);
                   }}
@@ -134,6 +140,14 @@ export function ActivityScreen() {
 
       <StepsSheet open={steps} onOpenChange={setSteps} date={key} />
       <WorkoutSheet open={wo} onOpenChange={setWo} date={key} />
+      <WorkoutSheet
+        open={editingWo != null}
+        onOpenChange={(v) => {
+          if (!v) setEditingWo(null);
+        }}
+        date={key}
+        edit={editingWo ?? undefined}
+      />
       <WaterSheet open={water} onOpenChange={setWater} date={key} />
       <SleepSheet open={sleep} onOpenChange={setSleep} date={key} />
       <WeightSheet open={wg} onOpenChange={setWg} date={key} />

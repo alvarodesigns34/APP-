@@ -55,6 +55,7 @@ export type BrioStore = PersistedState & {
   removeWater: (key: string, id: string) => void;
   setSteps: (key: string, steps: number) => void;
   addWorkout: (key: string, type: string, min: number, intensity: IntensityId) => string;
+  updateWorkout: (key: string, id: string, patch: { type?: string; min?: number; intensity?: IntensityId }) => void;
   removeWorkout: (key: string, id: string) => WorkoutEntry | null;
   restoreWorkout: (key: string, entry: WorkoutEntry) => void;
   setSleep: (key: string, sleep: SleepEntry | null) => void;
@@ -449,6 +450,41 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       get().removeWorkout(key, id);
     });
     return id;
+  },
+  /**
+   * Corregir minutos o intensidad de un entreno ya registrado. Antes solo
+   * había add/remove/restore, así que arreglar "puse 45 min y fueron 60"
+   * obligaba a borrarlo y crearlo de nuevo — perdiendo el sitio que ocupaba
+   * en la lista del día y generando dos entradas de deshacer donde debería
+   * haber una.
+   *
+   * El kcal se recalcula con la misma fórmula que `addWorkout`, con el peso
+   * de ese día — no lo pasa quien llama, para que "cambié la intensidad" no
+   * pueda dejar el kcal desincronizado con lo que se ve.
+   */
+  updateWorkout: (key, id, patch) => {
+    const s = get();
+    const day = s.days[key];
+    const prev = day?.workouts.find((w) => w.id === id) ?? null;
+    if (!prev) return;
+    const next: WorkoutEntry = {
+      ...prev,
+      ...(patch.type != null ? { type: patch.type } : {}),
+      ...(patch.min != null ? { min: Math.round(patch.min) } : {}),
+      ...(patch.intensity != null ? { intensity: patch.intensity } : {}),
+    };
+    const kg = latestWeight(s, key)?.kg ?? s.profile.weight;
+    next.kcal = kcalFromWorkout(next.type, next.min, next.intensity, kg);
+    set({
+      days: withDay(s, key, (d) => {
+        const i = d.workouts.findIndex((w) => w.id === id);
+        if (i >= 0) d.workouts[i] = next;
+      }),
+    });
+    get().persist();
+    recordUndo("Entrenamiento corregido", () => {
+      get().updateWorkout(key, id, { type: prev.type, min: prev.min, intensity: prev.intensity });
+    });
   },
   removeWorkout: (key, id) => {
     const s = get();
