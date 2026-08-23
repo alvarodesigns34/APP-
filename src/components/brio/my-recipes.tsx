@@ -7,11 +7,19 @@ import { ConfirmDialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { getFood, searchFoods } from "@/lib/brio/catalog";
 import { useBrioStore } from "@/lib/brio/store";
-import { nf, parsePositive } from "@/lib/brio/format";
+import { nf, parseNum, parsePositive } from "@/lib/brio/format";
 import { buildUserRecipe, scaleUserRecipe, userRecipePerServing, type RecipeDraftItem } from "@/lib/brio/user-recipes";
 import { missingIngredients } from "@/lib/brio/selectors-catalog";
 import { MEALS, type Food, type MealId, type UserRecipe } from "@/lib/brio/types";
 import { cn } from "@/lib/utils";
+
+/** One ingredient while it is being edited: the amount is whatever is typed. */
+type DraftRow = { food: Food; grams: string };
+
+/** Drops rows whose amount is not a usable number yet, for the preview and the save. */
+function toDraftItems(rows: DraftRow[]): RecipeDraftItem[] {
+  return rows.map((r) => ({ food: r.food, grams: parseNum(r.grams) }));
+}
 
 /**
  * Create or edit a recipe of your own: pick foods from the catalog with a
@@ -43,7 +51,11 @@ export function MyRecipeSheet({
 
   const [name, setName] = useState("");
   const [servings, setServings] = useState("2");
-  const [items, setItems] = useState<RecipeDraftItem[]>([]);
+  // The gram amount is kept as the raw text you typed. Storing it as a number
+  // and re-rendering `String(grams)` meant every keystroke was round-tripped
+  // through the parser: "12." lost its dot, so typing 12,5 g of aceite landed
+  // on 125 g, and clearing the field snapped it back to "0".
+  const [items, setItems] = useState<DraftRow[]>([]);
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -57,10 +69,10 @@ export function MyRecipeSheet({
       // its latest macros; one that was deleted is silently dropped — nothing
       // else to show for it, and the recipe's own per100 already has its share
       // baked in from when it was saved.
-      const resolved: RecipeDraftItem[] = [];
+      const resolved: DraftRow[] = [];
       for (const i of edit.items) {
         const food = getFood(i.foodId, { customFoods, recipes });
-        if (food) resolved.push({ food, grams: i.grams });
+        if (food) resolved.push({ food, grams: String(i.grams) });
       }
       setItems(resolved);
     } else {
@@ -88,7 +100,7 @@ export function MyRecipeSheet({
   }, [q, ctx]);
 
   const preview = useMemo(
-    () => buildUserRecipe(edit?.id ?? null, name, items, parsePositive(servings) || 1),
+    () => buildUserRecipe(edit?.id ?? null, name, toDraftItems(items), parsePositive(servings) || 1),
     [edit, name, items, servings],
   );
 
@@ -97,11 +109,11 @@ export function MyRecipeSheet({
       toast.success("Ya está en la receta");
       return;
     }
-    setItems((prev) => [...prev, { food, grams: 100 }]);
+    setItems((prev) => [...prev, { food, grams: "100" }]);
     setQ("");
   }
 
-  function setGrams(foodId: string, grams: number) {
+  function setGrams(foodId: string, grams: string) {
     setItems((prev) => prev.map((i) => (i.food.id === foodId ? { ...i, grams } : i)));
   }
 
@@ -118,9 +130,9 @@ export function MyRecipeSheet({
       setError("Añade al menos un ingrediente.");
       return;
     }
-    const built = buildUserRecipe(edit?.id ?? null, name, items, parsePositive(servings) || 1);
+    const built = buildUserRecipe(edit?.id ?? null, name, toDraftItems(items), parsePositive(servings) || 1);
     if (!built) {
-      setError("Revisa los ingredientes y las raciones.");
+      setError("Pon una cantidad mayor que 0 en al menos un ingrediente.");
       return;
     }
     if (edit) updateUserRecipe(edit.id, built);
@@ -187,8 +199,8 @@ export function MyRecipeSheet({
                   className="w-20 text-right"
                   inputMode="decimal"
                   aria-label={`Gramos de ${it.food.name}`}
-                  value={String(it.grams)}
-                  onChange={(e) => setGrams(it.food.id, parsePositive(e.target.value) || 0)}
+                  value={it.grams}
+                  onChange={(e) => setGrams(it.food.id, e.target.value)}
                 />
                 <span className="text-xs text-muted-foreground">g</span>
                 <button
