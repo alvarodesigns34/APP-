@@ -13,7 +13,14 @@ npm run build
 npm test
 ```
 
-PWA: `public/manifest.webmanifest`, iconos 180/192/512 y un service worker (`public/sw.js`) que precachea el shell. Tras el primer `build` + visita, abre sin red.
+PWA: `public/manifest.webmanifest`, iconos 180/192/512 y un service worker
+(`public/sw.js`) que precachea el shell, los datos del catálogo y los chunks de
+las cinco pantallas. Esa última lista la inyecta en el build el plugin
+`brio-sw-precache` de `vite.config.ts`, porque los nombres llevan hash y
+`public/` se copia tal cual. Tras el primer `build` + visita, las cinco
+pantallas abren sin red; las gráficas de Tendencias (Recharts, ~420 kB) y el
+escáner de códigos (ZXing, ~450 kB) se quedan fuera del precache a propósito y
+degradan solos cuando no hay conexión.
 
 ## v4.7
 

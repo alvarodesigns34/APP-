@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { router } from "./router";
 import "./styles.css";
 
@@ -35,7 +36,18 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
       }
       if (reloaded) return;
       reloaded = true;
-      window.location.reload();
+      // Antes esto era un `window.location.reload()` a secas, y `reg.update()`
+      // se dispara en cada `visibilitychange`: mirabas la etiqueta de un bote
+      // en la cámara, volvías a la app, y si justo había versión nueva se
+      // recargaba sola y perdías el alimento que estabas creando, la nota a
+      // medio escribir o la cantidad tecleada. Nada de eso está persistido.
+      // El worker nuevo ya está activo y sirviendo; que la página use su código
+      // puede esperar a que la persona no esté en mitad de algo.
+      toast("Hay una versión nueva de Brío", {
+        description: "Recarga cuando te venga bien.",
+        duration: Infinity,
+        action: { label: "Recargar", onClick: () => window.location.reload() },
+      });
     });
 
     navigator.serviceWorker

@@ -3,9 +3,10 @@ const CACHE = "brio-v4.7";
 // never rewrites it. Every entry is relative (no leading "/"), which the Cache
 // API resolves against this script's own URL — the site root whether that is
 // "/" (local, a custom domain) or "/APP-/" (GitHub Pages project site).
+// Sin el shell no hay app: si alguna de estas falla, el worker no debe instalar.
+const SHELL = ["./", "./index.html"];
+
 const PRECACHE = [
-  "./",
-  "./index.html",
   "./manifest.webmanifest",
   "./favicon.svg",
   "./icon-180.png",
@@ -18,11 +19,26 @@ const PRECACHE = [
   "./data/routines.json",
 ];
 
+// Los chunks con hash de este build. El plugin `brio-sw-precache` de
+// vite.config.ts sustituye este marcador al escribir dist/, así que en
+// desarrollo queda vacío (donde no hay build que cachear) y en producción trae
+// el shell de las cinco pantallas. Sin esto, offline solo funcionaba en la
+// pantalla por la que hubieras pasado antes de quedarte sin red.
+const BUILD_ASSETS = /* __BRIO_BUILD_ASSETS__ */ [];
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((cache) => cache.addAll(PRECACHE))
+      .then(async (cache) => {
+        // El shell es obligatorio; lo demás, mejor esfuerzo. Antes todo iba en
+        // un único `addAll`, que es todo o nada: renombrar un icono o una
+        // fuente sin tocar esta lista hacía fallar el install, y entonces
+        // ningún worker nuevo llegaba a activar nunca — los que ya tuvieran la
+        // PWA instalada se quedaban con la versión vieja indefinidamente.
+        await cache.addAll(SHELL);
+        await Promise.allSettled([...PRECACHE, ...BUILD_ASSETS].map((url) => cache.add(url)));
+      })
       .then(() => self.skipWaiting()),
   );
 });
@@ -31,7 +47,11 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      // Solo las nuestras. `caches.keys()` es por origen, no por scope, y en
+      // github.io ese origen lo comparten todos los project pages de la misma
+      // cuenta: sin el filtro, cada versión de Brío borraba la caché de las
+      // otras PWA del usuario y las dejaba sin modo offline.
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("brio-") && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -46,19 +66,32 @@ self.addEventListener("fetch", (event) => {
   // refresh — or a tap on a meal reminder, which deep-links to /comida — lands
   // on the browser's network-error page.
   if (event.request.mode === "navigate") {
+    const shell = () =>
+      caches
+        .match("./index.html")
+        .then((res) => res || caches.match("./"))
+        .then((res) => res || Response.error());
     event.respondWith(
-      fetch(event.request).catch(() =>
-        caches
-          .match("./index.html")
-          .then((shell) => shell || caches.match("./"))
-          .then((shell) => shell || Response.error()),
-      ),
+      fetch(event.request)
+        // Un 404 es un fetch que ha ido bien, así que el `.catch` no lo veía y
+        // se pintaba la página de error del servidor en vez de la app. Pasa
+        // siempre que el alojamiento no tenga fallback de SPA configurado, y
+        // en Pages basta con que falte el 404.html para que refrescar en
+        // /comida saque el 404 genérico de GitHub.
+        .then((res) => (res && res.ok ? res : shell()))
+        .catch(() => shell()),
     );
     return;
   }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
+      // Los assets del build llevan el hash del contenido en el nombre, así que
+      // ese nombre no puede servir nunca otra cosa. Revalidarlos duplicaba una
+      // petición por asset y por carga sin poder aprender nada. El resto sigue
+      // en stale-while-revalidate: es lo que hace que data/foods.json se quede
+      // rancio una sola carga tras publicar, en vez de para siempre.
+      if (cached && url.pathname.includes("/assets/")) return cached;
       const fetched = fetch(event.request)
         .then((res) => {
           if (res && res.ok) {

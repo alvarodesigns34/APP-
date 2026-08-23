@@ -35,7 +35,31 @@ import { fmtWeight } from "@/lib/brio/units";
 import { compareWeeks, isWeekEmpty, weekTotals, type WeekDelta, type WeekTotals } from "@/lib/brio/week-compare";
 import { buildWeightChart } from "@/lib/brio/weight-chart";
 
-const TrendsCharts = lazy(() => import("./trends-charts").then((m) => ({ default: m.TrendsCharts })));
+/**
+ * Lo que se ve en lugar de las gráficas cuando su chunk no se puede descargar.
+ *
+ * `Suspense` solo cubre el estado pendiente, no el rechazo: un `import()`
+ * fallido sube hasta el error component del router, así que quedarte sin red en
+ * Tendencias te dejaba un "Algo ha fallado" en toda la pantalla y perdías
+ * también el resumen semanal, la proyección de peso, los logros, las medidas y
+ * el calendario, que no necesitan Recharts para nada.
+ */
+function ChartsUnavailable() {
+  return (
+    <Card className="mb-3">
+      <p className="text-sm font-medium">Las gráficas no se han podido cargar</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Necesitan conexión la primera vez. Todo lo de arriba sigue disponible sin red.
+      </p>
+    </Card>
+  );
+}
+
+const TrendsCharts = lazy(() =>
+  import("./trends-charts")
+    .then((m) => ({ default: m.TrendsCharts }))
+    .catch(() => ({ default: ChartsUnavailable as unknown as typeof import("./trends-charts").TrendsCharts })),
+);
 
 function shortDate(key: string) {
   const parts = key.split("-");
