@@ -6,7 +6,10 @@ import { addDays, rangeKeys, sleepDuration, todayKey, weekColumns, WEEKDAYS } fr
 import { nf, plural } from "@/lib/brio/format";
 import { buildMacroSeries, DEFAULT_TREND_RANGE, TREND_RANGES, type TrendRange } from "@/lib/brio/macro-series";
 import { latestWaist, measureChanges, waistToHeight } from "@/lib/brio/measures";
+import { achievements, achievementsDone, nextAchievements } from "@/lib/brio/achievements";
+import { AchievementsSheet } from "@/components/brio/achievements-sheet";
 import {
+  currentStreak,
   dayFoodTotals,
   goalsMet,
   waterTotal,
@@ -177,6 +180,7 @@ export function TrendsScreen() {
   const setViewDate = useBrioStore((s) => s.setViewDate);
   const navigate = useNavigate();
   const [range, setRange] = useState<TrendRange>(DEFAULT_TREND_RANGE);
+  const [logrosOpen, setLogrosOpen] = useState(false);
   const data = useMemo(() => {
     const keys = rangeKeys(todayKey(), range);
     const days = keys.map((k) => {
@@ -227,6 +231,10 @@ export function TrendsScreen() {
   const pesoDomain = useMemo(() => pesoYDomain(wChart), [wChart]);
   const trend = useMemo(() => weightTrend(snap), [snap]);
   const measures = useMemo(() => measureChanges(snap.weights), [snap.weights]);
+  // `currentStreak` recorre hasta 400 días, así que se calcula una vez aquí y
+  // se le pasa hecho a `achievements` en lugar de que lo repita por dentro.
+  const logros = useMemo(() => achievements(snap, currentStreak(snap)), [snap]);
+  const nextUp = useMemo(() => nextAchievements(logros, 3), [logros]);
   const waist = useMemo(() => waistToHeight(latestWaist(snap.weights), snap.profile.height), [snap.weights, snap.profile.height]);
   const units = snap.settings.units;
 
@@ -325,6 +333,31 @@ export function TrendsScreen() {
           </Card>
         </>
       ) : null}
+
+      <SectionLabel>Logros</SectionLabel>
+      <Card className="mb-3" onClick={() => setLogrosOpen(true)}>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="font-medium">
+            {achievementsDone(logros)} de {logros.length} logros
+          </span>
+        </div>
+        {nextUp.length > 0 ? (
+          <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+            {nextUp.map((a) => (
+              <li key={a.id} className="flex justify-between gap-3">
+                <span className="min-w-0 truncate">{a.n}</span>
+                {a.of != null ? (
+                  <span className="shrink-0 tabular-nums text-xs">
+                    {nf(a.at ?? 0)}/{nf(a.of)}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-1 text-sm text-muted-foreground">Los tienes todos. No es poca cosa.</p>
+        )}
+      </Card>
 
       {measures.length > 0 || waist != null ? (
         <>
@@ -443,6 +476,7 @@ export function TrendsScreen() {
       <Suspense fallback={<ChartSkeleton hasWeight={wChart.length > 0} />}>
         <TrendsCharts data={data} wChart={wChart} pesoDomain={pesoDomain} units={units} />
       </Suspense>
+          <AchievementsSheet open={logrosOpen} onOpenChange={setLogrosOpen} />
     </Screen>
   );
 }
