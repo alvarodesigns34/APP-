@@ -333,7 +333,7 @@ function RecipeToListPicker({ onDone }: { onDone: () => void }) {
   const state = { pantry, settings, customFoods, recipes };
 
   if (!catalog.ready) {
-    return <CatalogNotice state={catalog} loadingText="Cargando recetas…" />;
+    return <CatalogNotice state={catalog} loadingText="Cargando recetas…" noun="las recetas" />;
   }
 
   return (

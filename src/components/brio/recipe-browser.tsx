@@ -203,7 +203,7 @@ export function RecipeBrowser({
               </Chip>
             ))}
           </ChipRow>
-          {!catalogReady ? <CatalogNotice state={catalog} loadingText="Cargando recetas…" /> : null}
+          {!catalogReady ? <CatalogNotice state={catalog} loadingText="Cargando recetas…" noun="las recetas" /> : null}
           {catalogReady ? (
             <p className="mb-2 text-xs text-muted-foreground" aria-live="polite">
               {/* The old label read list.length, which is capped at 60, so a broad

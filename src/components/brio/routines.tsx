@@ -6,6 +6,7 @@ import { ROUTINES, ROUTINE_LEVELS, parseRestSeconds } from "@/lib/brio/catalog";
 import { INTENSITIES } from "@/lib/brio/domain";
 import { remainingSeconds } from "@/lib/brio/timer";
 import { useCatalog } from "@/lib/brio/use-catalog";
+import { CatalogNotice } from "@/components/brio/catalog-state";
 import { useBrioStore } from "@/lib/brio/store";
 import type { IntensityId } from "@/lib/brio/types";
 import { cn } from "@/lib/utils";
@@ -33,7 +34,10 @@ export function RoutinesSheet({
   const rest = restEndsAt == null ? 0 : remainingSeconds(restEndsAt, now);
 
   useEffect(() => {
-    if (restEndsAt == null) return;
+    // Gated on `open` too: the sheet stays mounted when it closes, so a rest
+    // started and then dismissed kept re-rendering twice a second behind it.
+    // The instant is absolute, so the countdown is still right on reopening.
+    if (!open || restEndsAt == null) return;
     setNow(Date.now());
     // Twice a second so the number is right within half a second of coming back
     // to a throttled tab. Missing ticks no longer matter — each one just asks
@@ -44,7 +48,7 @@ export function RoutinesSheet({
       if (remainingSeconds(restEndsAt, t0) <= 0) setRestEndsAt(null);
     }, 500);
     return () => window.clearInterval(t);
-  }, [restEndsAt]);
+  }, [open, restEndsAt]);
 
   if (routine) {
     const sess = routine.sessions[session] ?? routine.sessions[0];
@@ -147,11 +151,25 @@ export function RoutinesSheet({
     );
   }
 
-  const sorted = (catalogReady ? [...ROUTINES] : []).sort(
+  // Without this the sheet opened as a bare title strip whenever the builtin
+  // catalog was still loading or had failed — no explanation, no way to retry,
+  // unlike every other catalog-backed sheet.
+  if (!catalogReady) {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange} title="Rutinas">
+        <CatalogNotice state={catalog} loadingText="Cargando rutinas…" noun="las rutinas" />
+      </Sheet>
+    );
+  }
+
+  const sorted = [...ROUTINES].sort(
     (a, b) => Number(b.purposes.includes(purpose)) - Number(a.purposes.includes(purpose)),
   );
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Rutinas">
+      <p className="mb-3 text-sm text-muted-foreground">
+        Planes de varias sesiones con sus ejercicios y su descanso. Primero los que encajan con tu objetivo.
+      </p>
       <ul className="space-y-2">
         {sorted.map((r) => (
           <li key={r.id}>
