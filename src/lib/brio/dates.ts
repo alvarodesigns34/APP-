@@ -7,6 +7,14 @@ const MESES = [
 const MESES_C = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
+/**
+ * La forma de una clave de día. Vive aquí, junto a `keyOf`/`dateOf`, porque la
+ * usan tanto la vista previa de un backup como la carga que de verdad importa
+ * los días: tenerla dos veces era tener dos criterios distintos de qué cuenta
+ * como fecha, y la vista previa llegó a contar menos días de los que entraban.
+ */
+export const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
 export function keyOf(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");

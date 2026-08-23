@@ -1,7 +1,6 @@
 import { migrate } from "./persist";
+import { DATE_KEY } from "./dates";
 import { MEALS } from "./types";
-
-const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
 export type BackupPreview = {
   name: string;

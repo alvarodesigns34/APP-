@@ -328,3 +328,75 @@ describe("weights", () => {
     expect(s.weights.map((w) => w.date)).toEqual(["2026-08-01", "2026-08-10", "2026-08-22"]);
   });
 });
+
+/**
+ * Todos estos son datos que la propia app nunca escribe, pero que sí llegan al
+ * importar una copia editada a mano o generada por otra herramienta. La regla
+ * es la misma en todos: un hueco (`null`, `""`, ausente) no es un cero.
+ */
+describe("migrate: datos de fuera que no son de fiar", () => {
+  it("descarta un entreno con minutos o kcal en null en vez de guardarlo a cero", () => {
+    const s = migrate({
+      days: {
+        "2026-08-22": {
+          workouts: [
+            { id: "w1", type: "correr", min: null, intensity: "media", kcal: 300 },
+            { id: "w2", type: "correr", min: 30, intensity: "media", kcal: null },
+            { id: "w3", type: "correr", min: 30, intensity: "media", kcal: 300 },
+          ],
+        },
+      },
+    });
+    // Un entreno de 0 min contaría como sesión en los logros y en las marcas.
+    expect(s.days["2026-08-22"].workouts.map((w) => w.id)).toEqual(["w3"]);
+  });
+
+  it("descarta una comida con un macro obligatorio en null", () => {
+    const s = migrate({
+      days: {
+        "2026-08-22": {
+          meals: {
+            comida: [
+              { id: "a", foodId: "f1", kcal: null, prot: 10, carb: 2, fat: 3, fib: 0 },
+              { id: "b", foodId: "f1", kcal: 100, prot: null, carb: 2, fat: 3, fib: 0 },
+              { id: "c", foodId: "f1", kcal: 100, prot: 10, carb: 2, fat: 3, fib: 0 },
+            ],
+          },
+        },
+      },
+    });
+    // Guardarlas daría "0 g de proteína" como afirmación, no como hueco.
+    expect(s.days["2026-08-22"].meals.comida.map((e) => e.id)).toEqual(["c"]);
+  });
+
+  it("no deja pasar un tamaño de vaso que no sea un número positivo", () => {
+    expect(migrate({ settings: { glass: "mucho" } }).settings.glass).toBe(250);
+    expect(migrate({ settings: { glass: -50 } }).settings.glass).toBe(250);
+    expect(migrate({ settings: { glass: 0 } }).settings.glass).toBe(250);
+    expect(migrate({ settings: { glass: 330 } }).settings.glass).toBe(330);
+  });
+
+  it("no deja pasar pasos ni agua en negativo", () => {
+    const s = migrate({
+      days: { "2026-08-22": { steps: -5000, water: [{ id: "w", t: 1, ml: -500 }] } },
+    });
+    expect(s.days["2026-08-22"].steps).toBe(0);
+    expect(s.days["2026-08-22"].water[0].ml).toBe(0);
+  });
+
+  it("ignora las claves de día que no son una fecha", () => {
+    const s = migrate({
+      days: {
+        "no soy una fecha": { steps: 100 },
+        "2026-8-2": { steps: 100 },
+        "2026-08-22": { steps: 100 },
+      },
+    });
+    expect(Object.keys(s.days)).toEqual(["2026-08-22"]);
+  });
+
+  it("un aviso de agua ausente cae en el intervalo por defecto, no en el suelo", () => {
+    expect(migrate({ settings: { reminders: { aguaEveryMin: null } } }).settings.reminders.aguaEveryMin).toBe(120);
+    expect(migrate({ settings: { reminders: { aguaEveryMin: 90 } } }).settings.reminders.aguaEveryMin).toBe(90);
+  });
+});

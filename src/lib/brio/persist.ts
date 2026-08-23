@@ -26,6 +26,7 @@ import {
   type WorkoutEntry,
 } from "./types";
 import { normalizeEan } from "./barcode";
+import { DATE_KEY } from "./dates";
 import { parseShopping } from "./shopping";
 
 export function emptyDay(): DayLog {
@@ -143,10 +144,14 @@ function parseWorkout(v: unknown): WorkoutEntry | null {
   if (typeof v.id !== "string" || !v.id) return null;
   if (typeof v.type !== "string" || !v.type) return null;
   if (!isIntensityId(v.intensity)) return null;
-  const min = Number(v.min);
-  const kcal = Number(v.kcal);
-  if (!Number.isFinite(min) || min < 0) return null;
-  if (!Number.isFinite(kcal) || kcal < 0) return null;
+  // `numOrNull` y no `Number`: `Number(null)` es 0 y es finito, así que un
+  // backup con `min: null` ("este dato no lo tengo") colaba un entreno fantasma
+  // de 0 min y 0 kcal, que luego cuenta como sesión en los logros y en las
+  // marcas de entreno. Un hueco es un descarte, no un cero.
+  const min = numOrNull(v.min);
+  const kcal = numOrNull(v.kcal);
+  if (min == null || min < 0) return null;
+  if (kcal == null || kcal < 0) return null;
   return { id: v.id, type: v.type, min, intensity: v.intensity, kcal };
 }
 
@@ -159,10 +164,12 @@ function parseWorkout(v: unknown): WorkoutEntry | null {
  */
 function parseMealEntry(v: unknown, index: number): MealEntry | null {
   if (!isObj(v)) return null;
-  const macro = (x: unknown): number | null => {
-    const n = Number(x);
-    return Number.isFinite(n) ? n : null;
-  };
+  // `numOrNull` y no `Number`: ver el comentario de abajo sobre sug/sat/sod. El
+  // mismo `Number(null) === 0` que allí convertía "no lo sabemos" en cero aquí
+  // hacía pasar por buena una entrada con `kcal: null`, guardándola como una
+  // afirmación de 0 kcal y 0 g de proteína. Un hueco en un macro obligatorio es
+  // un descarte, que es justo lo que esta función existe para hacer.
+  const macro = (x: unknown): number | null => numOrNull(x);
   const kcal = macro(v.kcal);
   const prot = macro(v.prot);
   const carb = macro(v.carb);
@@ -187,14 +194,11 @@ function parseMealEntry(v: unknown, index: number): MealEntry | null {
     carb,
     fat,
     fib,
-    // `macro()` treats `null` as "must be a number, and null is not one",
-    // which is right for kcal/prot/etc — an entry can't be missing those.
-    // For estos tres es al revés: `null` es el valor legítimo de "Open Food
-    // Facts no traía este dato", no un error de carga. `macro(null)` volvía
-    // 0 (Number(null) es 0, y 0 es finito), así que cada recarga de la app
-    // convertía "no lo sabemos" en "cero gramos de azúcar" en silencio —
-    // justo la distinción que dayFoodTotals necesita para no enseñar un
-    // total falso. `numOrNull` sí distingue ausente de cero.
+    // Arriba, un hueco en kcal/prot/etc descarta la entrada entera: una comida
+    // no puede no tener calorías. Para estos tres es al revés: `null` es el
+    // valor legítimo de "Open Food Facts no traía este dato", no un error de
+    // carga, así que se conserva tal cual y `dayFoodTotals` lo trata como
+    // ausente en vez de sumar un cero falso al total del día.
     sug: numOrNull(v.sug),
     sat: numOrNull(v.sat),
     sod: numOrNull(v.sod),
@@ -345,6 +349,15 @@ export function migrate(raw: unknown): PersistedState {
   // those to off so a returning user's kcal goal doesn't silently change. An explicit
   // true/false (including one this app itself saved) is always respected as-is.
   settings.activityAdjust = typeof rawSettings?.activityAdjust === "boolean" ? rawSettings.activityAdjust : false;
+  // Los dos únicos ajustes que se colaban sin validar. `glass` es el tamaño del
+  // vaso y se usa como número en toda la pantalla de Agua: un `"mucho"` de una
+  // copia editada a mano llegaba entero hasta `uniqueGlassAmounts`, pintaba un
+  // botón "+— ml" y a partir del primer toque `waterTotal` concatenaba cadenas,
+  // con lo que Actividad enseñaba "NaN vasos". Un 0 o un negativo son igual de
+  // inservibles como tamaño de vaso.
+  settings.glass = positive(settings.glass, base.settings.glass);
+  settings.pantryBasics =
+    typeof rawSettings?.pantryBasics === "boolean" ? rawSettings.pantryBasics : base.settings.pantryBasics;
   const rawGoals = { ...base.goals, ...(isObj(out.goals) ? out.goals : {}) } as Goals;
   // Every goal divides or subtracts somewhere on Hoy and Tendencias; a
   // non-numeric one turns whole screens into NaN. Zero stays legal (it is how
@@ -366,6 +379,12 @@ export function migrate(raw: unknown): PersistedState {
   const days: Record<string, DayLog> = {};
   for (const [k, v] of Object.entries(daysIn)) {
     if (!isObj(v)) continue;
+    // La clave de un día es la fecha, y media app la parsea como tal. Sin esta
+    // guarda, una copia con `days: { "no soy una fecha": {...} }` se importaba
+    // igual: la vista previa del backup (que sí filtra por formato) contaba un
+    // día menos de los que acababan entrando, `dateOf()` devolvía Invalid Date
+    // y el CSV exportado se llevaba la clave basura en la columna de fecha.
+    if (!DATE_KEY.test(k)) continue;
     const d = emptyDay();
     const meals = isObj(v.meals) ? v.meals : {};
     for (const m of MEALS) {
@@ -377,13 +396,17 @@ export function migrate(raw: unknown): PersistedState {
     d.water = Array.isArray(v.water)
       ? v.water.map((w, i) => {
           const rec = w as { id?: string; t?: number; ml?: number };
-          return { id: rec.id || `w${k}${i}`, t: num(rec.t, Date.now()), ml: num(rec.ml) };
+          // Sin el suelo a 0, un `ml` negativo de una copia editada a mano hace
+          // que `waterTotal` salga en negativo y el anillo de agua se pinte al
+          // revés. Lo mismo con los pasos, que además restan del objetivo del
+          // día vía `activityKcal` cuando el ajuste por actividad está activo.
+          return { id: rec.id || `w${k}${i}`, t: num(rec.t, Date.now()), ml: Math.max(0, num(rec.ml)) };
         })
       : [];
     d.workouts = Array.isArray(v.workouts)
       ? v.workouts.map(parseWorkout).filter((w): w is WorkoutEntry => w != null)
       : [];
-    d.steps = num(v.steps, 0);
+    d.steps = Math.max(0, num(v.steps, 0));
     const sleep = v.sleep;
     d.sleep =
       isObj(sleep) && typeof sleep.bed === "number" && typeof sleep.wake === "number"

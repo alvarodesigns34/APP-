@@ -57,6 +57,10 @@ function parseClock(v: unknown, fallback: string): string {
 }
 
 function parseAguaEveryMin(v: unknown, fallback: number): number {
+  // Cuarta repetición del mismo footgun: `Number(null)` es 0 y es finito, así
+  // que un ajuste ausente no caía en el fallback (120 min) sino en el suelo del
+  // clamp, 30 — cuadruplicando sin avisar la frecuencia del aviso de agua.
+  if (v == null || v === "") return fallback;
   const n = Number(v);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(360, Math.max(30, Math.round(n)));
