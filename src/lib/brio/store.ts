@@ -664,22 +664,39 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
   addShoppingItems: (inputs) => {
     const s = get();
     const next = [...s.shopping];
-    let added = 0;
+    const addedIds: string[] = [];
+    const revivedIds: string[] = [];
     for (const input of inputs) {
       const name = input.name.trim();
       if (!name) continue;
       const existing = findShoppingItem(next, name);
-      if (existing) continue;
-      next.push(makeShoppingItem({ ...input, name }));
-      added += 1;
+      if (existing) {
+        // Same rule as addShoppingItem: a line already ticked off comes back as
+        // pending. Skipping it left an ingredient the user had just asked for
+        // sitting in the "comprados" section, invisible while shopping.
+        if (existing.done) {
+          next[next.indexOf(existing)] = { ...existing, done: false };
+          revivedIds.push(existing.id);
+        }
+        continue;
+      }
+      const item = makeShoppingItem({ ...input, name });
+      next.push(item);
+      addedIds.push(item.id);
     }
+    const added = addedIds.length + revivedIds.length;
     if (!added) return 0;
     set({ shopping: next });
     get().persist();
     const label = added === 1 ? "1 producto" : `${added} productos`;
     recordUndo(`${label} a la lista`, () => {
-      const ids = new Set(next.slice(s.shopping.length).map((i) => i.id));
-      set((st) => ({ shopping: st.shopping.filter((i) => !ids.has(i.id)) }));
+      const drop = new Set(addedIds);
+      const retick = new Set(revivedIds);
+      set((st) => ({
+        shopping: st.shopping
+          .filter((i) => !drop.has(i.id))
+          .map((i) => (retick.has(i.id) ? { ...i, done: true } : i)),
+      }));
       get().persist();
     });
     return added;
