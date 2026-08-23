@@ -73,7 +73,9 @@ export function WaterSheet({
               <span>{fmtVolume(w.ml, units)}</span>
               <button
                 type="button"
-                aria-label="Quitar vaso"
+                // Every row used to announce the same "Quitar vaso", so a
+                // screen reader gave no way to tell which of them it was on.
+                aria-label={`Quitar el vaso de ${fmtVolume(w.ml, units)}`}
                 className="min-h-11 px-2 text-xs text-muted-foreground"
                 onClick={() => remove(date, w.id)}
               >
@@ -127,6 +129,7 @@ export function StepsSheet({
 }) {
   const steps = useBrioStore((s) => s.days[date]?.steps ?? 0);
   const setSteps = useBrioStore((s) => s.setSteps);
+  const goal = useBrioStore((s) => s.goals.steps);
   const [v, setV] = useState(String(steps));
   const inputRef = useOpenFocus(open, true);
   useEffect(() => {
@@ -149,7 +152,17 @@ export function StepsSheet({
         </Button>
       }
     >
-      <Input ref={inputRef} inputMode="numeric" value={v} onChange={(e) => setV(e.target.value)} />
+      <label className="mb-1 block text-sm font-medium" htmlFor="steps-count">
+        Pasos {fmtDateRelative(date).toLowerCase()}
+      </label>
+      <Input
+        id="steps-count"
+        ref={inputRef}
+        inputMode="numeric"
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+      />
+      <p className="mt-2 text-sm text-muted-foreground">Objetivo {nf(goal)} pasos.</p>
     </Sheet>
   );
 }
@@ -367,13 +380,21 @@ export function WeightSheet({
   const [showComp, setShowComp] = useState(false);
   const inputRef = useOpenFocus(open, true);
 
+  // The seed values live in a ref rather than in the effect's deps: they are
+  // derived from `weights`, and the sheet lets you delete a weigh-in from the
+  // list below the field. With `current`/`today` as deps, tapping "Quitar"
+  // re-ran this effect and overwrote the number you had just typed.
+  const seed = useRef({ current, fat: today?.fat, muscle: today?.muscle });
+  seed.current = { current, fat: today?.fat, muscle: today?.muscle };
+
   useEffect(() => {
     if (!open) return;
-    setV(String(kgToDisplay(current, units)));
-    setFat(today?.fat != null ? String(today.fat) : "");
-    setMuscle(today?.muscle != null ? String(today.muscle) : "");
-    setShowComp(today?.fat != null || today?.muscle != null);
-  }, [open, date, units, current, today?.fat, today?.muscle]);
+    const s = seed.current;
+    setV(String(kgToDisplay(s.current, units)));
+    setFat(s.fat != null ? String(s.fat) : "");
+    setMuscle(s.muscle != null ? String(s.muscle) : "");
+    setShowComp(s.fat != null || s.muscle != null);
+  }, [open, date, units]);
 
   const start = Math.max(0, weights.length - 8);
 
@@ -468,7 +489,7 @@ export function WeightSheet({
                 </span>
                 <button
                   type="button"
-                  aria-label="Quitar peso"
+                  aria-label={`Quitar el peso de ${fmtDateRelative(w.date)}`}
                   className="min-h-11 px-2 text-xs text-muted-foreground"
                   onClick={() => del(w.date)}
                 >
