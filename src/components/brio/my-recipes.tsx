@@ -106,7 +106,7 @@ export function MyRecipeSheet({
 
   function addItem(food: Food) {
     if (items.some((i) => i.food.id === food.id)) {
-      toast.success("Ya está en la receta");
+      toast("Ya está en la receta");
       return;
     }
     setItems((prev) => [...prev, { food, grams: "100" }]);

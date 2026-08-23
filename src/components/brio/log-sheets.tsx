@@ -221,10 +221,14 @@ export function SleepSheet({
         </div>
       }
     >
-      <label className="text-sm font-medium">Acostarte</label>
-      <Input type="time" className="mb-3" value={bed} onChange={(e) => setBed(e.target.value)} />
-      <label className="text-sm font-medium">Levantarte</label>
-      <Input type="time" value={wake} onChange={(e) => setWake(e.target.value)} />
+      <label className="text-sm font-medium" htmlFor="sleep-bed">
+        Acostarte
+      </label>
+      <Input id="sleep-bed" type="time" className="mb-3" value={bed} onChange={(e) => setBed(e.target.value)} />
+      <label className="text-sm font-medium" htmlFor="sleep-wake">
+        Levantarte
+      </label>
+      <Input id="sleep-wake" type="time" value={wake} onChange={(e) => setWake(e.target.value)} />
       <p className="mt-3 text-sm text-muted-foreground">
         {dur <= 0 ? "Elige horas distintas." : `${minutesToHM(dur)} · objetivo ${minutesToHM(goal)}`}
       </p>
@@ -351,8 +355,16 @@ export function WorkoutSheet({
           ))}
         </>
       )}
-      <label className="text-sm font-medium">Minutos</label>
-      <Input className="mb-3" inputMode="numeric" value={min} onChange={(e) => setMin(e.target.value)} />
+      <label className="text-sm font-medium" htmlFor="workout-min">
+        Minutos
+      </label>
+      <Input
+        id="workout-min"
+        className="mb-3"
+        inputMode="numeric"
+        value={min}
+        onChange={(e) => setMin(e.target.value)}
+      />
       <div className="flex gap-2">
         {INTENSITIES.map((i) => (
           <Button

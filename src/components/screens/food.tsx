@@ -89,7 +89,7 @@ export function FoodScreen() {
 
   function repeatYesterday(m: MealId) {
     const ids = copyMeal(yesterday, key, m);
-    if (!ids.length) toast.success("Ayer no tenía esa comida");
+    if (!ids.length) toast("Ayer no tenía esa comida");
   }
 
   return (
@@ -127,7 +127,7 @@ export function FoodScreen() {
             className="flex-1"
             onClick={() => {
               const n = copyDayMeals(yesterday, key);
-              if (!n) toast.success("Ayer no tenía comidas");
+              if (!n) toast("Ayer no tenía comidas");
             }}
           >
             Copiar ayer
@@ -308,7 +308,7 @@ function CopyOtherDaySheet({
     if (!canCopy) return;
     const copied = copyDayMeals(fromKey, targetKey);
     onOpenChange(false);
-    if (!copied) toast.success("Ese día no tenía comidas");
+    if (!copied) toast("Ese día no tenía comidas");
   }
 
   return (

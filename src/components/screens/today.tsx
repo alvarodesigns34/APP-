@@ -23,6 +23,7 @@ import {
   workoutMinTotal,
 } from "@/lib/brio/selectors";
 import { activityOf } from "@/lib/brio/domain";
+import { NOTE_MAX } from "@/lib/brio/types";
 import { QUICK_LOG_EVENT } from "@/lib/brio/hotkeys";
 import { useBrioStore } from "@/lib/brio/store";
 import { WaterSheet, StepsSheet, SleepSheet, WorkoutSheet, WeightSheet } from "@/components/brio/log-sheets";
@@ -363,10 +364,18 @@ export function TodayScreen() {
       >
         <textarea
           className="h-36 w-full rounded-2xl border border-border bg-background p-3 text-sm"
+          aria-label="Nota del día"
+          aria-describedby="note-count"
+          placeholder="Cómo te has encontrado, qué has entrenado, lo que quieras."
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          maxLength={600}
+          maxLength={NOTE_MAX}
         />
+        {/* El límite existía y no se veía: escribías hasta que el campo dejaba
+            de aceptar letras, sin saber por qué. */}
+        <p id="note-count" className="mt-1 text-right text-xs tabular-nums text-muted-foreground">
+          {note.length} / {NOTE_MAX}
+        </p>
       </Sheet>
     </Screen>
   );

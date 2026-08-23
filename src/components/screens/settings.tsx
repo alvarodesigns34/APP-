@@ -109,6 +109,23 @@ const GOAL_FIELDS: {
   { key: "activityMin", label: () => "Ejercicio a la semana (min)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
 ];
 
+/**
+ * Descarga un blob y suelta la url.
+ *
+ * Sin el `revokeObjectURL`, cada exportación deja una copia entera del estado
+ * viva en memoria hasta que se recargue el documento — y esto es una PWA que
+ * se queda abierta días. Con un histórico largo son varios MB por pulsación.
+ */
+function download(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  // En el mismo turno el navegador aún no ha empezado a leer la url.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 export function SettingsScreen() {
   const profile = useBrioStore((s) => s.profile);
   const settings = useBrioStore((s) => s.settings);
@@ -642,26 +659,24 @@ export function SettingsScreen() {
         <Button
           variant="secondary"
           className="w-full"
-          onClick={() => {
-            const blob = new Blob([JSON.stringify(exportSlice, null, 2)], { type: "application/json" });
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
-            a.download = `brio-${new Date().toISOString().slice(0, 10)}.json`;
-            a.click();
-          }}
+          onClick={() =>
+            download(
+              new Blob([JSON.stringify(exportSlice, null, 2)], { type: "application/json" }),
+              `brio-${new Date().toISOString().slice(0, 10)}.json`,
+            )
+          }
         >
           Exportar JSON
         </Button>
         <Button
           variant="secondary"
           className="w-full"
-          onClick={() => {
-            const blob = new Blob([combinedCsv(exportSlice)], { type: "text/csv;charset=utf-8" });
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
-            a.download = `brio-${new Date().toISOString().slice(0, 10)}.csv`;
-            a.click();
-          }}
+          onClick={() =>
+            download(
+              new Blob([combinedCsv(exportSlice)], { type: "text/csv;charset=utf-8" }),
+              `brio-${new Date().toISOString().slice(0, 10)}.csv`,
+            )
+          }
         >
           Exportar CSV
         </Button>

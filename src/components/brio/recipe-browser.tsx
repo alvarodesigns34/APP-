@@ -361,7 +361,13 @@ export function RecipeDetail({
             {m.n}
           </button>
         ))}
-        <button type="button" onClick={() => toggle(recipe.id)} className="ml-auto grid size-11 place-items-center">
+        <button
+          type="button"
+          onClick={() => toggle(recipe.id)}
+          aria-label={fav ? "Quitar de favoritas" : "Marcar como favorita"}
+          aria-pressed={fav}
+          className="ml-auto grid size-11 place-items-center"
+        >
           <Star className={cn("size-4", fav ? "fill-primary text-primary" : "text-muted-foreground")} />
         </button>
       </div>
@@ -390,7 +396,7 @@ export function RecipeDetail({
                   .filter((i) => missing.includes(i.name))
                   .map((i) => ({ name: i.name, qty: `${nf(i.g, 0)} ${i.base}`, cat: getFood(i.id, catalogCtx)?.cat, foodId: i.id })),
               );
-              if (!added) toast.success("Ya lo tienes todo en la lista");
+              if (!added) toast("Ya lo tienes todo en la lista");
             }}
           >
             Añadir a la lista de la compra

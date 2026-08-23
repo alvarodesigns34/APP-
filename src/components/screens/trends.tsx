@@ -2,7 +2,18 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import { Card, Empty, Screen, SectionLabel, Title } from "@/components/brio/section";
-import { WEEKDAYS, addDays, fmtMonthYear, rangeKeys, sleepDuration, todayKey, weekColumns } from "@/lib/brio/dates";
+import { Button } from "@/components/ui/button";
+import {
+  WEEKDAYS,
+  addDays,
+  capitalize,
+  fmtDateLong,
+  fmtMonthYear,
+  rangeKeys,
+  sleepDuration,
+  todayKey,
+  weekColumns,
+} from "@/lib/brio/dates";
 import { nf, plural } from "@/lib/brio/format";
 import { buildMacroSeries, DEFAULT_TREND_RANGE, TREND_RANGES, type TrendRange } from "@/lib/brio/macro-series";
 import { latestWaist, measureChanges, waistToHeight } from "@/lib/brio/measures";
@@ -181,6 +192,8 @@ export function TrendsScreen() {
   const setViewDate = useBrioStore((s) => s.setViewDate);
   const navigate = useNavigate();
   const [range, setRange] = useState<TrendRange>(DEFAULT_TREND_RANGE);
+  /** Día seleccionado en el mapa de calor; ver el onClick de las celdas. */
+  const [picked, setPicked] = useState<{ k: string; c: number } | null>(null);
   const [logrosOpen, setLogrosOpen] = useState(false);
   const [mesOpen, setMesOpen] = useState(false);
   const data = useMemo(() => {
@@ -273,7 +286,7 @@ export function TrendsScreen() {
 
   return (
     <Screen>
-      <Title sub="Recap, calendario y gráficas">Tendencias</Title>
+      <Title sub="Resumen, calendario y gráficas">Tendencias</Title>
 
       <SectionLabel>Resumen semanal</SectionLabel>
       {!hasAny ? (
@@ -439,9 +452,11 @@ export function TrendsScreen() {
                     key={cell.k}
                     type="button"
                     title={`${cell.k}: ${cell.c}/5`}
-                    aria-label={`${cell.k}: ${cell.c} de 5 objetivos`}
+                    aria-label={`${fmtDateLong(cell.k)}: ${cell.c} de 5 objetivos`}
+                    aria-pressed={picked?.k === cell.k}
                     className={cn(
                       "h-3.5 rounded-[3px] transition-colors",
+                      picked?.k === cell.k && "ring-2 ring-foreground ring-offset-1 ring-offset-card",
                       cell.c >= 4
                         ? "bg-primary"
                         : cell.c >= 3
@@ -450,20 +465,43 @@ export function TrendsScreen() {
                             ? "bg-primary/30"
                             : "bg-muted",
                     )}
-                    onClick={() => {
-                      // The copy promised "toca un día para abrirlo" but only
-                      // set the global date, so nothing visibly happened here
-                      // and the other screens silently moved.
-                      setViewDate(cell.k);
-                      void navigate({ to: "/" });
-                    }}
+                    // Tocar selecciona; abrir el día es el segundo paso. Estas
+                    // celdas miden 26×14 px, muy por debajo de los 44 px que el
+                    // resto de la app respeta, y antes un fallo de dedo te
+                    // sacaba de la pantalla hacia el día de al lado — y encima
+                    // `viewDate` es global, así que las otras cuatro pantallas
+                    // se quedaban también en ese día. Agrandar la cuadrícula
+                    // costaría semanas de historial; hacer que equivocarse
+                    // salga gratis, no.
+                    onClick={() => setPicked(picked?.k === cell.k ? null : cell)}
                   />
                 ),
               ),
             )}
           </div>
         </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">12 semanas · toca un día para abrirlo en Hoy</p>
+        {picked ? (
+          <div className="mt-2 flex items-center justify-between gap-3 border-t border-border pt-2">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{capitalize(fmtDateLong(picked.k))}</p>
+              <p className="text-xs text-muted-foreground">
+                {picked.c} de 5 objetivos cumplidos
+              </p>
+            </div>
+            <Button
+              size="sm"
+              className="h-11 shrink-0"
+              onClick={() => {
+                setViewDate(picked.k);
+                void navigate({ to: "/" });
+              }}
+            >
+              Abrir en Hoy
+            </Button>
+          </div>
+        ) : (
+          <p className="mt-2 text-[11px] text-muted-foreground">12 semanas · toca un día para verlo</p>
+        )}
       </Card>
 
       <SectionLabel>Gráficas</SectionLabel>

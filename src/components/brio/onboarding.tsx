@@ -141,12 +141,30 @@ export function Onboarding() {
           {step === 1 && (
             <div className="space-y-4">
               <h2 className="font-display text-2xl">Sobre ti</h2>
-              <label className="block text-sm font-medium">Nombre</label>
-              <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Cómo te llamas" />
-              <label className="block text-sm font-medium">Fecha de nacimiento</label>
-              <Input type="date" value={draft.birth} onChange={(e) => setDraft({ ...draft, birth: e.target.value })} />
-              <label className="block text-sm font-medium">Sexo</label>
-              <div className="grid grid-cols-3 gap-2">
+              <label className="block text-sm font-medium" htmlFor="ob-name">
+                Nombre
+              </label>
+              <Input
+                id="ob-name"
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                placeholder="Cómo te llamas"
+              />
+              <label className="block text-sm font-medium" htmlFor="ob-birth">
+                Fecha de nacimiento
+              </label>
+              <Input
+                id="ob-birth"
+                type="date"
+                value={draft.birth}
+                onChange={(e) => setDraft({ ...draft, birth: e.target.value })}
+              />
+              {/* Un grupo de botones no es un campo, así que no lleva <label>
+                  sino un nombre de grupo al que apuntar. */}
+              <span className="block text-sm font-medium" id="ob-sex">
+                Sexo
+              </span>
+              <div className="grid grid-cols-3 gap-2" role="group" aria-labelledby="ob-sex">
                 {(
                   [
                     ["h", "Hombre"],
@@ -157,6 +175,7 @@ export function Onboarding() {
                   <button
                     key={id}
                     type="button"
+                    aria-pressed={draft.sex === id}
                     onClick={() => setDraft({ ...draft, sex: id })}
                     className={cn(
                       "h-11 rounded-xl border text-sm",
@@ -172,10 +191,24 @@ export function Onboarding() {
           {step === 2 && (
             <div className="space-y-4">
               <h2 className="font-display text-2xl">Medidas</h2>
-              <label className="block text-sm font-medium">Altura (cm)</label>
-              <Input inputMode="decimal" value={draft.height} onChange={(e) => setDraft({ ...draft, height: e.target.value })} />
-              <label className="block text-sm font-medium">Peso (kg)</label>
-              <Input inputMode="decimal" value={draft.weight} onChange={(e) => setDraft({ ...draft, weight: e.target.value })} />
+              <label className="block text-sm font-medium" htmlFor="ob-height">
+                Altura (cm)
+              </label>
+              <Input
+                id="ob-height"
+                inputMode="decimal"
+                value={draft.height}
+                onChange={(e) => setDraft({ ...draft, height: e.target.value })}
+              />
+              <label className="block text-sm font-medium" htmlFor="ob-weight">
+                Peso (kg)
+              </label>
+              <Input
+                id="ob-weight"
+                inputMode="decimal"
+                value={draft.weight}
+                onChange={(e) => setDraft({ ...draft, weight: e.target.value })}
+              />
             </div>
           )}
           {step === 3 && (
