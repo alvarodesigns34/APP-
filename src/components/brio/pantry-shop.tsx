@@ -1,6 +1,6 @@
 import { EmptyLine } from "@/components/brio/section";
 import { useMemo, useState } from "react";
-import { Check, Plus, X } from "lucide-react";
+import { Check, Copy, Pencil, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -15,6 +15,7 @@ import {
   aisleName,
   groupShopping,
   parseShoppingInput,
+  shoppingAsText,
   shoppingCounts,
   SHOPPING_OTHER,
 } from "@/lib/brio/shopping";
@@ -120,6 +121,7 @@ export function ShoppingSheet({ open, onOpenChange }: { open: boolean; onOpenCha
   const toggleShoppingItem = useBrioStore((s) => s.toggleShoppingItem);
   const removeShoppingItem = useBrioStore((s) => s.removeShoppingItem);
   const clearShoppingDone = useBrioStore((s) => s.clearShoppingDone);
+  const updateShoppingItem = useBrioStore((s) => s.updateShoppingItem);
   const doneToPantry = useBrioStore((s) => s.shoppingDoneToPantry);
 
   const [draft, setDraft] = useState("");
@@ -136,6 +138,27 @@ export function ShoppingSheet({ open, onOpenChange }: { open: boolean; onOpenCha
 
   const { pending, done } = useMemo(() => groupShopping(shopping), [shopping]);
   const counts = useMemo(() => shoppingCounts(shopping), [shopping]);
+
+  async function shareList() {
+    const text = shoppingAsText(shopping);
+    if (!text) return;
+    // La hoja del sistema primero (iOS y Android la tienen); si no, el
+    // portapapeles. Cancelar la hoja lanza AbortError y no es un fallo.
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Lista de la compra", text });
+        return;
+      }
+    } catch {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Lista copiada");
+    } catch {
+      toast.error("No se ha podido copiar");
+    }
+  }
 
   function commit(food?: Food) {
     const name = food ? food.name : parsed.name;
@@ -220,9 +243,21 @@ export function ShoppingSheet({ open, onOpenChange }: { open: boolean; onOpenCha
                 counts.done ? ` · ${counts.done} en el carro` : ""
               }`}
         </p>
-        <Button size="sm" variant="ghost" onClick={() => setFromRecipes((v) => !v)}>
-          {fromRecipes ? "Ocultar recetas" : "Desde recetas"}
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          {/* `shoppingAsText` estaba escrita, documentada "para el portapapeles
+              / la hoja de compartir" y con sus tests, pero ninguna pantalla la
+              llamaba: la lista solo existía dentro del móvil. Ahora sale por
+              la hoja de compartir del sistema, y si no la hay, al portapapeles
+              — que es lo que hace falta para mandársela a quien va a comprar. */}
+          {counts.pending > 0 ? (
+            <Button size="sm" variant="ghost" aria-label="Compartir la lista" onClick={shareList}>
+              <Copy className="size-4" />
+            </Button>
+          ) : null}
+          <Button size="sm" variant="ghost" onClick={() => setFromRecipes((v) => !v)}>
+            {fromRecipes ? "Ocultar recetas" : "Desde recetas"}
+          </Button>
+        </div>
       </div>
 
       {fromRecipes ? <RecipeToListPicker onDone={() => setFromRecipes(false)} /> : null}
@@ -243,6 +278,7 @@ export function ShoppingSheet({ open, onOpenChange }: { open: boolean; onOpenCha
                 item={item}
                 onToggle={() => toggleShoppingItem(item.id)}
                 onRemove={() => removeShoppingItem(item.id)}
+                onEdit={(patch) => updateShoppingItem(item.id, patch)}
               />
             ))}
           </ul>
@@ -259,6 +295,7 @@ export function ShoppingSheet({ open, onOpenChange }: { open: boolean; onOpenCha
                 item={item}
                 onToggle={() => toggleShoppingItem(item.id)}
                 onRemove={() => removeShoppingItem(item.id)}
+                onEdit={(patch) => updateShoppingItem(item.id, patch)}
               />
             ))}
           </ul>
@@ -272,11 +309,71 @@ function ShoppingRow({
   item,
   onToggle,
   onRemove,
+  onEdit,
 }: {
   item: ShoppingItem;
   onToggle: () => void;
   onRemove: () => void;
+  onEdit: (patch: { name: string; qty: string }) => void;
 }) {
+  // La acción `updateShoppingItem` llevaba tiempo en el store sin que ninguna
+  // pantalla la llamara: escribías "2 kg naranjs" y la única salida era quitar
+  // la línea y volver a teclearla entera, cantidad incluida.
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(item.name);
+  const [qty, setQty] = useState(item.qty);
+
+  function open() {
+    setName(item.name);
+    setQty(item.qty);
+    setEditing(true);
+  }
+
+  function save() {
+    if (!name.trim()) return;
+    onEdit({ name, qty });
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <li className="py-2">
+        <div className="flex gap-2">
+          <Input
+            className="flex-1"
+            value={name}
+            autoFocus
+            aria-label="Nombre del producto"
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") save();
+              if (e.key === "Escape") setEditing(false);
+            }}
+          />
+          <Input
+            className="w-24"
+            value={qty}
+            aria-label="Cantidad"
+            placeholder="2 kg"
+            onChange={(e) => setQty(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") save();
+              if (e.key === "Escape") setEditing(false);
+            }}
+          />
+        </div>
+        <div className="mt-1 flex gap-2">
+          <Button size="sm" className="flex-1" disabled={!name.trim()} onClick={save}>
+            Guardar
+          </Button>
+          <Button size="sm" variant="outline" className="flex-1" onClick={() => setEditing(false)}>
+            Cancelar
+          </Button>
+        </div>
+      </li>
+    );
+  }
+
   return (
     <li className="flex items-center gap-1">
       <button
@@ -301,6 +398,14 @@ function ShoppingRow({
           </span>
           {item.qty ? <span className="block text-xs text-muted-foreground">{item.qty}</span> : null}
         </span>
+      </button>
+      <button
+        type="button"
+        aria-label={`Editar ${item.name}`}
+        className="grid size-11 shrink-0 place-items-center text-muted-foreground"
+        onClick={open}
+      >
+        <Pencil className="size-4" />
       </button>
       <button
         type="button"
