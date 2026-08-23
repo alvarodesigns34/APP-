@@ -53,7 +53,21 @@ const COMBINED_HEADERS = [
   "musculo",
   "minutos",
   "intensidad",
+  // Detrás de las de siempre, por el mismo motivo que en WEIGHT_HEADERS: no
+  // romper una hoja de cálculo con fórmulas sobre un export anterior.
+  //
+  // Estas ocho columnas ya se registraban en la app y se perdían justo aquí:
+  // `weightsCsv` sí exporta las medidas y `mealsCsv` los tres micros, pero el
+  // único botón de Ajustes es el combinado, así que quien se mide la cintura
+  // durante meses y exporta no la encontraba en el fichero.
+  "azucar",
+  "saturada",
+  "sodio",
+  ...MEASURES.map((m) => m.n.toLowerCase()),
 ] as const;
+
+/** Columnas de cola que cada tipo de fila rellena o deja vacías. */
+const TAIL_BLANKS = [null, null, null, ...MEASURES.map(() => null)];
 
 const MEAL_RANK: Record<MealId, number> = { desayuno: 0, comida: 1, cena: 2, snack: 3 };
 
@@ -212,6 +226,10 @@ export function combinedCsv(state: PersistedState): string {
         null,
         null,
         null,
+        e.sug,
+        e.sat,
+        e.sod,
+        ...MEASURES.map(() => null),
       ],
     });
   }
@@ -239,6 +257,10 @@ export function combinedCsv(state: PersistedState): string {
         w.muscle,
         null,
         null,
+        null,
+        null,
+        null,
+        ...MEASURES.map((m) => w[m.id]),
       ],
     });
   });
@@ -267,6 +289,7 @@ export function combinedCsv(state: PersistedState): string {
         null,
         w.min,
         w.intensity,
+        ...TAIL_BLANKS,
       ],
     });
   }

@@ -55,7 +55,7 @@ describe("empty state", () => {
     expect(rows(weightsCsv(s))).toEqual(["fecha;kg;grasa;musculo;cintura;pecho;cadera;brazo;muslo"]);
     expect(rows(workoutsCsv(s))).toEqual(["fecha;tipo;minutos;intensidad;kcal"]);
     expect(rows(combinedCsv(s))[0]).toBe(
-      "tipo;fecha;comida;alimento;cantidad;unidad;gramos;kcal;prot;carb;fat;fib;kg;grasa;musculo;minutos;intensidad",
+      "tipo;fecha;comida;alimento;cantidad;unidad;gramos;kcal;prot;carb;fat;fib;kg;grasa;musculo;minutos;intensidad;azucar;saturada;sodio;cintura;pecho;cadera;brazo;muslo",
     );
   });
 });
@@ -92,8 +92,8 @@ describe("fixture: 1 meal + 1 weight", () => {
 
     const combined = rows(combinedCsv(s));
     expect(combined).toHaveLength(3);
-    expect(combined[1]).toBe("comida;2026-01-15;Desayuno;Manzana;1;unidad;150;78;0,4;21;0,2;2,4;;;;;");
-    expect(combined[2]).toBe("peso;2026-01-15;;;;;;;;;;;72,5;;;;");
+    expect(combined[1]).toBe("comida;2026-01-15;Desayuno;Manzana;1;unidad;150;78;0,4;21;0,2;2,4;;;;;;;;;;;;;");
+    expect(combined[2]).toBe("peso;2026-01-15;;;;;;;;;;;72,5;;;;;;;;;;;;");
   });
 });
 
@@ -186,7 +186,7 @@ describe("sort and workouts", () => {
       .slice(1)
       .map((l) => l.split(";")[0]);
     expect(kinds).toEqual(["comida", "peso", "entreno"]);
-    expect(rows(combinedCsv(s))[3]).toBe("entreno;2026-04-02;;fuerza;;;;220;;;;;;;;45;media");
+    expect(rows(combinedCsv(s))[3]).toBe("entreno;2026-04-02;;fuerza;;;;220;;;;;;;;45;media;;;;;;;;");
   });
 });
 
@@ -195,5 +195,60 @@ describe("exportCsvBundle", () => {
     const bundle = exportCsvBundle(defaultState());
     expect(bundle.map((f) => f.filename)).toEqual(["brio-comidas.csv", "brio-pesos.csv", "brio-entrenos.csv"]);
     for (const f of bundle) expect(f.content.startsWith(CSV_BOM)).toBe(true);
+  });
+});
+
+describe("combinedCsv: ninguna fila se descuadra de la cabecera", () => {
+  /**
+   * Las filas del combinado se construyen por posición, con `null` en los
+   * huecos, así que añadir una columna y olvidarse de un tipo de fila desplaza
+   * los datos en silencio. Esto lo caza. Es además cómo se colaron las ocho
+   * columnas que faltaban: azúcar, saturada, sodio y las cinco medidas se
+   * registraban en la app y se perdían al exportar, porque el único botón de
+   * Ajustes es este y no las llevaba.
+   */
+  function rowsOf(csv: string): string[][] {
+    return csv
+      .replace(/^\uFEFF/, "")
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => line.split(";"));
+  }
+
+  it("cada fila tiene tantas celdas como la cabecera", () => {
+    const s = defaultState();
+    s.days["2026-08-22"] = {
+      ...emptyDay(),
+      meals: {
+        desayuno: [
+          {
+            id: "e1", foodId: "f1", name: "Avena", qty: 1, unitName: "g", grams: 60,
+            kcal: 228, prot: 8.4, carb: 39, fat: 4.2, fib: 6, sug: 0.5, sat: 0.7, sod: 3,
+          },
+        ],
+        comida: [], cena: [], snack: [],
+      },
+      workouts: [{ id: "w1", type: "fuerza", min: 55, intensity: "media", kcal: 330 }],
+    };
+    s.weights = [{ date: "2026-08-22", kg: 78, fat: 19.8, muscle: 41, waist: 84, chest: 102 }];
+
+    const rows = rowsOf(combinedCsv(s));
+    expect(rows.length).toBeGreaterThan(3); // cabecera + las tres clases de fila
+    const width = rows[0].length;
+    for (const [i, r] of rows.entries()) {
+      expect(r.length, `fila ${i}: ${r.join(";")}`).toBe(width);
+    }
+  });
+
+  it("lleva los micros de la comida y las medidas del pesaje", () => {
+    const s = defaultState();
+    s.weights = [{ date: "2026-08-22", kg: 78, waist: 84 }];
+    const rows = rowsOf(combinedCsv(s));
+    const head = rows[0];
+    for (const col of ["azucar", "saturada", "sodio", "cintura", "pecho", "cadera", "brazo", "muslo"]) {
+      expect(head, `falta la columna ${col}`).toContain(col);
+    }
+    const peso = rows.find((r) => r[0] === "peso")!;
+    expect(peso[head.indexOf("cintura")]).toBe("84");
   });
 });
