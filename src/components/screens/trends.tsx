@@ -226,10 +226,10 @@ export function TrendsScreen() {
     [snap],
   );
   const insights = useMemo(() => weeklyInsights(snap), [snap]);
-  const wChart = useMemo(() => {
-    const pts = buildWeightChart(snap.weights, snap.goals.weight);
-    return pts.map((p) => ({ ...p, bandSpan: p.bandHigh - p.bandLow }));
-  }, [snap.weights, snap.goals.weight]);
+  const wChart = useMemo(
+    () => buildWeightChart(snap.weights, snap.goals.weight),
+    [snap.weights, snap.goals.weight],
+  );
   const pesoDomain = useMemo(() => pesoYDomain(wChart), [wChart]);
   const trend = useMemo(() => weightTrend(snap), [snap]);
   const measures = useMemo(() => measureChanges(snap.weights), [snap.weights]);

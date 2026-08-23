@@ -37,7 +37,6 @@ export type PesoPoint = {
   goal: number;
   bandLow: number;
   bandHigh: number;
-  bandSpan: number;
   ma7: number | null;
 };
 
@@ -295,19 +294,18 @@ export function TrendsCharts({
                       return [fmtWeight(n, units), String(name)];
                     }}
                   />
+                  {/* Banda de incertidumbre como área de rango [low, high].
+                      Antes eran dos áreas con `stackId`, el truco habitual para
+                      dibujar una banda flotante. Pero al apilar, Recharts mete
+                      la base del stack (el 0) en el dominio del eje Y y se come
+                      el `domain={pesoDomain}`: el eje salía de 0 a 79,5 y los
+                      pesos reales quedaban aplastados en el 5 % de arriba, con
+                      lo que la gráfica de peso no dejaba ver ningún cambio. Un
+                      único área con dataKey de tupla no apila, así que respeta
+                      el dominio ajustado. */}
                   <Area
                     type="linear"
-                    dataKey="bandLow"
-                    stackId="band"
-                    stroke="none"
-                    fill="none"
-                    legendType="none"
-                    tooltipType="none"
-                  />
-                  <Area
-                    type="linear"
-                    dataKey="bandSpan"
-                    stackId="band"
+                    dataKey={(d: PesoPoint) => [d.bandLow, d.bandHigh]}
                     stroke="none"
                     fill="var(--brio-move)"
                     fillOpacity={0.15}
