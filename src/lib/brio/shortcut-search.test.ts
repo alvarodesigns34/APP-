@@ -1,11 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  bootShortcut,
-  parseShortcutSearch,
-  resetShortcutConsume,
-  stripShortcutSearch,
-  takeShortcut,
-} from "./shortcut-search";
+import { bootShortcut, parseShortcutSearch, resetShortcutConsume, shortcutDest, stripShortcutSearch, takeShortcut } from "./shortcut-search";
 
 afterEach(() => {
   resetShortcutConsume();
@@ -76,5 +70,22 @@ describe("bootShortcut", () => {
       replaceUrl: vi.fn(),
     });
     expect(emit).toHaveBeenCalledWith("food");
+  });
+});
+
+describe("atajo de entreno", () => {
+  // Comida, agua y peso ya estaban; entreno es el cuarto registro del día y
+  // era el único de los cuatro sin atajo en el manifiesto.
+  it("reconoce ?entreno=1", () => {
+    expect(parseShortcutSearch("?entreno=1")).toBe("workout");
+  });
+
+  it("lo quita de la url como los demás", () => {
+    expect(stripShortcutSearch("?entreno=1")).toBe("");
+    expect(stripShortcutSearch("?entreno=1&otro=2")).toBe("?otro=2");
+  });
+
+  it("va a Hoy, que es donde está la hoja de entreno", () => {
+    expect(shortcutDest("workout")).toBe("/");
   });
 });

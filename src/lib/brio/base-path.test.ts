@@ -53,8 +53,16 @@ describe("runtime code has no root-absolute static paths", () => {
     expect(manifest.start_url.startsWith("/")).toBe(false);
     expect(manifest.icons.length).toBeGreaterThan(0);
     for (const icon of manifest.icons) expect(icon.src.startsWith("/")).toBe(false);
-    expect(manifest.shortcuts).toHaveLength(3);
-    expect(manifest.shortcuts.map((s) => s.name)).toEqual(["Añadir comida", "Registrar agua", "Pesarme"]);
+    // Los cuatro registros rápidos del día. Van enumerados a propósito: lo que
+    // vigila este test es que ninguno cuele una ruta absoluta, y una lista
+    // cerrada obliga a mirar cada atajo nuevo.
+    expect(manifest.shortcuts).toHaveLength(4);
+    expect(manifest.shortcuts.map((s) => s.name)).toEqual([
+      "Añadir comida",
+      "Registrar agua",
+      "Pesarme",
+      "Registrar entreno",
+    ]);
     for (const s of manifest.shortcuts) {
       expect(s.url.startsWith("./")).toBe(true);
       expect(s.url.startsWith("/")).toBe(false);

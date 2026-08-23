@@ -107,6 +107,7 @@ export function TodayScreen() {
       } else if (kind === "water") setWaterOpen(true);
       else if (kind === "steps") setStepsOpen(true);
       else if (kind === "weight") setWgOpen(true);
+      else if (kind === "workout") setWoOpen(true);
     }
     window.addEventListener(QUICK_LOG_EVENT, onQuick);
     return () => window.removeEventListener(QUICK_LOG_EVENT, onQuick);

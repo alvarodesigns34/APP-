@@ -1,5 +1,5 @@
 export const QUICK_LOG_EVENT = "brio:quick-log";
-export type QuickLogKind = "food" | "water" | "steps" | "weight";
+export type QuickLogKind = "food" | "water" | "steps" | "weight" | "workout";
 
 export const TAB_BY_DIGIT: Record<string, string> = {
   "1": "/",

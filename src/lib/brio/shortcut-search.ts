@@ -7,6 +7,7 @@ export function parseShortcutSearch(search: string): ShortcutKind | null {
   const params = new URLSearchParams(q);
   if (params.get("agua") === "1") return "water";
   if (params.get("peso") === "1") return "weight";
+  if (params.get("entreno") === "1") return "workout";
   if (params.get("log") === "1") return "food";
   return null;
 }
@@ -16,6 +17,7 @@ export function stripShortcutSearch(search: string): string {
   const params = new URLSearchParams(q);
   params.delete("agua");
   params.delete("peso");
+  params.delete("entreno");
   params.delete("log");
   const next = params.toString();
   return next ? `?${next}` : "";
