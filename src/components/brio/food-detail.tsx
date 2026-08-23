@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { CustomFoodSheet } from "@/components/brio/custom-food";
 import { BASE_RECIPES } from "@/lib/brio/catalog";
 import { energySplit, lastLogged, recipesUsingFood } from "@/lib/brio/food-detail";
 import { fmtDateRelative, todayKey } from "@/lib/brio/dates";
@@ -18,6 +19,7 @@ export function FoodDetailSheet({
   onOpenChange: (v: boolean) => void;
   food: Food;
 }) {
+  const [editOpen, setEditOpen] = useState(false);
   const catalog = useCatalog();
   const catalogReady = catalog.ready;
   const days = useBrioStore((s) => s.days);
@@ -40,9 +42,22 @@ export function FoodDetailSheet({
       onOpenChange={onOpenChange}
       title={food.name}
       footer={
-        <Button type="button" variant="secondary" className="w-full" onClick={() => onOpenChange(false)}>
-          Cerrar
-        </Button>
+        // Custom foods could be created but never edited or fixed after a
+        // typo, and never removed — anything you added stayed forever.
+        food.custom ? (
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" className="flex-1" onClick={() => setEditOpen(true)}>
+              Editar
+            </Button>
+            <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+              Cerrar
+            </Button>
+          </div>
+        ) : (
+          <Button type="button" variant="secondary" className="w-full" onClick={() => onOpenChange(false)}>
+            Cerrar
+          </Button>
+        )
       }
     >
       <div className="space-y-5">
@@ -135,6 +150,15 @@ export function FoodDetailSheet({
           )}
         </section>
       </div>
+      {food.custom ? (
+        <CustomFoodSheet
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          edit={food}
+          onSaved={() => onOpenChange(false)}
+          onDeleted={() => onOpenChange(false)}
+        />
+      ) : null}
     </Sheet>
   );
 }

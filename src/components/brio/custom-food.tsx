@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useBrioStore } from "@/lib/brio/store";
 import { parseNum } from "@/lib/brio/format";
 import { normalizeEan } from "@/lib/brio/barcode";
-import type { FoodBase, FoodUnit } from "@/lib/brio/types";
+import type { Food, FoodBase, FoodUnit } from "@/lib/brio/types";
 import { cn } from "@/lib/utils";
 
 const FIELDS = [
@@ -23,16 +24,24 @@ export function CustomFoodSheet({
   open,
   onOpenChange,
   onSaved,
+  onDeleted,
   initialName = "",
   barcode,
+  edit,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSaved?: (id: string) => void;
+  /** Called after a delete, so a caller showing this food elsewhere can close too. */
+  onDeleted?: () => void;
   initialName?: string;
   barcode?: string;
+  /** A custom food to edit in place. Enables the delete button and switches Save to update. */
+  edit?: Food;
 }) {
   const addCustomFood = useBrioStore((s) => s.addCustomFood);
+  const updateCustomFood = useBrioStore((s) => s.updateCustomFood);
+  const removeCustomFood = useBrioStore((s) => s.removeCustomFood);
   const [name, setName] = useState("");
   const [base, setBase] = useState<FoodBase>("g");
   const [vals, setVals] = useState<Record<FieldKey, string>>({
@@ -45,17 +54,34 @@ export function CustomFoodSheet({
   const [unitName, setUnitName] = useState("");
   const [unitG, setUnitG] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const code = barcode ? normalizeEan(barcode) : "";
 
   useEffect(() => {
     if (!open) return;
-    setName(initialName);
-    setBase("g");
-    setVals({ kcal: "", prot: "", carb: "", fat: "", fib: "" });
-    setUnitName("");
-    setUnitG("");
+    if (edit) {
+      setName(edit.name);
+      setBase(edit.base);
+      setVals({
+        kcal: String(edit.kcal),
+        prot: String(edit.prot),
+        carb: String(edit.carb),
+        fat: String(edit.fat),
+        fib: String(edit.fib),
+      });
+      const u = edit.units[0];
+      setUnitName(u?.name ?? "");
+      setUnitG(u ? String(u.g) : "");
+    } else {
+      setName(initialName);
+      setBase("g");
+      setVals({ kcal: "", prot: "", carb: "", fat: "", fib: "" });
+      setUnitName("");
+      setUnitG("");
+    }
     setError(null);
-  }, [open, initialName]);
+    setConfirmDelete(false);
+  }, [open, initialName, edit]);
 
   function setField(key: FieldKey, value: string) {
     setVals((prev) => ({ ...prev, [key]: value }));
@@ -89,7 +115,7 @@ export function CustomFoodSheet({
       return;
     }
     const units: FoodUnit[] = hasUnit ? [{ name: uName, g: uGrams }] : [];
-    const id = addCustomFood({
+    const patch = {
       name: trimmed,
       kcal: nums.kcal,
       prot: nums.prot,
@@ -102,7 +128,15 @@ export function CustomFoodSheet({
       units,
       base,
       ...(code ? { barcode: code } : {}),
-    });
+    };
+    if (edit) {
+      updateCustomFood(edit.id, patch);
+      toast.success("Alimento actualizado");
+      onOpenChange(false);
+      onSaved?.(edit.id);
+      return;
+    }
+    const id = addCustomFood(patch);
     toast.success("Alimento guardado");
     onOpenChange(false);
     onSaved?.(id);
@@ -112,11 +146,18 @@ export function CustomFoodSheet({
     <Sheet
       open={open}
       onOpenChange={onOpenChange}
-      title="Crear alimento"
+      title={edit ? "Editar alimento" : "Crear alimento"}
       footer={
-        <Button className="w-full" onClick={save}>
-          Guardar
-        </Button>
+        <div className="space-y-2">
+          <Button className="w-full" onClick={save}>
+            Guardar
+          </Button>
+          {edit ? (
+            <Button variant="ghost" className="w-full text-destructive" onClick={() => setConfirmDelete(true)}>
+              Borrar alimento
+            </Button>
+          ) : null}
+        </div>
       }
     >
       <div className="space-y-4">
@@ -190,6 +231,22 @@ export function CustomFoodSheet({
         </div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </div>
+      {edit ? (
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title={`¿Borrar ${edit.name}?`}
+          body="Los registros ya guardados con este alimento no cambian; solo deja de estar disponible para añadirlo de nuevo."
+          confirmLabel="Borrar"
+          destructive
+          onConfirm={() => {
+            removeCustomFood(edit.id);
+            toast.success("Alimento borrado");
+            onOpenChange(false);
+            onDeleted?.();
+          }}
+        />
+      ) : null}
     </Sheet>
   );
 }

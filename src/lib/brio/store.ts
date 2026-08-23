@@ -65,7 +65,11 @@ export type BrioStore = PersistedState & {
   toggleFavRecipe: (id: string) => void;
   togglePantry: (id: string) => void;
   addCustomFood: (food: Omit<Food, "id" | "custom" | "cat"> & { id?: string }) => string;
+  updateCustomFood: (id: string, patch: Omit<Food, "id" | "custom" | "cat">) => void;
+  removeCustomFood: (id: string) => void;
   addUserRecipe: (recipe: UserRecipe) => void;
+  updateUserRecipe: (id: string, recipe: UserRecipe) => void;
+  deleteUserRecipe: (id: string) => void;
   addShoppingItem: (input: { name: string; qty?: string; cat?: string; foodId?: string }) => string | null;
   addShoppingItems: (inputs: { name: string; qty?: string; cat?: string; foodId?: string }[]) => number;
   toggleShoppingItem: (id: string) => void;
@@ -558,9 +562,85 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     get().persist();
     return id;
   },
+  updateCustomFood: (id, patch) => {
+    const prev = get().customFoods.find((f) => f.id === id);
+    if (!prev) return;
+    set((s) => ({
+      customFoods: s.customFoods.map((f) =>
+        f.id === id
+          ? { ...patch, id, cat: "propio", custom: true, sug: patch.sug ?? null, sat: patch.sat ?? null, sod: patch.sod ?? null }
+          : f,
+      ),
+    }));
+    get().persist();
+    // Meal entries already logged keep their own snapshot of macros taken at
+    // add-time (see addMeal), so editing a custom food's numbers never rewrites
+    // history — only future uses of it see the new values.
+    recordUndo("Alimento actualizado", () => {
+      set((s) => ({ customFoods: s.customFoods.map((f) => (f.id === id ? prev : f)) }));
+      get().persist();
+    });
+  },
+
+  removeCustomFood: (id) => {
+    const s = get();
+    const removed = s.customFoods.find((f) => f.id === id);
+    if (!removed) return;
+    const hadFavorite = s.favorites.includes(id);
+    const hadPantry = s.pantry.includes(id);
+    set({
+      customFoods: s.customFoods.filter((f) => f.id !== id),
+      // Otherwise the id sits in these lists forever: getFood(id) resolves to
+      // nothing once the food is gone, and every screen that maps over them
+      // already has to silently filter out that undefined — cleaning it up
+      // here means they don't have to keep doing that for a deleted id.
+      favorites: s.favorites.filter((x) => x !== id),
+      pantry: s.pantry.filter((x) => x !== id),
+    });
+    get().persist();
+    recordUndo(`Quitado ${removed.name}`, () => {
+      set((st) => ({
+        customFoods: [...st.customFoods, removed],
+        favorites: hadFavorite ? [...st.favorites, id] : st.favorites,
+        pantry: hadPantry ? [...st.pantry, id] : st.pantry,
+      }));
+      get().persist();
+    });
+  },
+
   addUserRecipe: (recipe) => {
     set((s) => ({ recipes: [...s.recipes, recipe] }));
     get().persist();
+  },
+
+  updateUserRecipe: (id, recipe) => {
+    const prev = get().recipes.find((r) => r.id === id);
+    if (!prev) return;
+    set((s) => ({ recipes: s.recipes.map((r) => (r.id === id ? recipe : r)) }));
+    get().persist();
+    recordUndo("Receta actualizada", () => {
+      set((s) => ({ recipes: s.recipes.map((r) => (r.id === id ? prev : r)) }));
+      get().persist();
+    });
+  },
+
+  deleteUserRecipe: (id) => {
+    const s = get();
+    const removed = s.recipes.find((r) => r.id === id);
+    if (!removed) return;
+    const hadFavorite = s.favRecipes.includes(id);
+    set({
+      recipes: s.recipes.filter((r) => r.id !== id),
+      favRecipes: s.favRecipes.filter((x) => x !== id),
+    });
+    get().persist();
+    recordUndo(`Quitada ${removed.name}`, () => {
+      set((st) => ({
+        recipes: [...st.recipes, removed],
+        favRecipes: hadFavorite ? [...st.favRecipes, id] : st.favRecipes,
+      }));
+      get().persist();
+    });
   },
   addShoppingItem: (input) => {
     const name = input.name.trim();
