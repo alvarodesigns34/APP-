@@ -45,7 +45,7 @@ export type BrioStore = PersistedState & {
     food?: Food,
   ) => void;
   removeMeal: (key: string, meal: MealId, entryId: string) => MealEntry | null;
-  restoreMeal: (key: string, meal: MealId, entry: MealEntry) => void;
+  restoreMeal: (key: string, meal: MealId, entry: MealEntry, at?: number) => void;
   duplicateMeal: (key: string, meal: MealId, entryId: string) => void;
   moveMeal: (key: string, from: MealId, to: MealId, entryId: string) => void;
   copyDayMeals: (fromKey: string, toKey: string) => number;
@@ -209,11 +209,16 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       sat: n.sat == null ? null : round(n.sat, 1),
       sod: n.sod == null ? null : round(n.sod, 1),
     };
+    const prevRecents = s.recents;
     const recents = [food.id, ...s.recents.filter((x) => x !== food.id)].slice(0, 25);
     set({ days: withDay(s, key, (d) => d.meals[meal].push(entry)), recents });
     get().persist();
     recordUndo("Comida añadida", () => {
       get().removeMeal(key, meal, id);
+      // Si no, un alimento que has registrado por error y has deshecho al
+      // momento se queda encabezando la pestaña "Recientes" para siempre.
+      set({ recents: prevRecents });
+      get().persist();
     });
     return id;
   },
@@ -273,27 +278,41 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
   removeMeal: (key, meal, entryId) => {
     const s = get();
     let removed: MealEntry | null = null;
+    let removedAt = -1;
     set({
       days: withDay(s, key, (d) => {
         const i = d.meals[meal].findIndex((x) => x.id === entryId);
-        if (i >= 0) removed = d.meals[meal].splice(i, 1)[0];
+        if (i >= 0) {
+          removed = d.meals[meal].splice(i, 1)[0];
+          removedAt = i;
+        }
       }),
     });
     get().persist();
     if (removed) {
       const entry = removed;
+      const at = removedAt;
       recordUndo("Comida quitada", () => {
-        get().restoreMeal(key, meal, entry);
+        get().restoreMeal(key, meal, entry, at);
       });
     }
     return removed;
   },
 
-  restoreMeal: (key, meal, entry) => {
+  /**
+   * `at` devuelve la entrada a su sitio, no al final de la comida. La lista del
+   * día se pinta en el orden del array, así que quitar el primero de tres y
+   * deshacer dejaba [b, c, a]: el deshacer no restauraba el estado anterior,
+   * lo reordenaba. Sin `at` (o fuera de rango) se añade al final, que es lo
+   * que quieren los que reinsertan algo que nunca estuvo en esa lista.
+   */
+  restoreMeal: (key, meal, entry, at) => {
     const s = get();
     set({
       days: withDay(s, key, (d) => {
-        d.meals[meal].push(entry);
+        const arr = d.meals[meal];
+        if (at != null && at >= 0 && at <= arr.length) arr.splice(at, 0, entry);
+        else arr.push(entry);
       }),
     });
     get().persist();
@@ -323,21 +342,37 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
   moveMeal: (key, from, to, entryId) => {
     if (from === to) return;
     const s = get();
-    let moved = false;
+    let moved: MealEntry | null = null;
+    let movedFrom = -1;
     set({
       days: withDay(s, key, (d) => {
         const i = d.meals[from].findIndex((x) => x.id === entryId);
         if (i < 0) return;
         const [e] = d.meals[from].splice(i, 1);
         d.meals[to].push(e);
-        moved = true;
+        moved = e;
+        movedFrom = i;
       }),
     });
     get().persist();
     if (moved) {
+      const entry: MealEntry = moved;
+      const at = movedFrom;
       const mealName = MEALS.find((x) => x.id === to)?.n.toLowerCase() ?? to;
+      // No se puede deshacer con otro `moveMeal`: eso lo devolvería al final de
+      // la comida de origen en vez de a la posición que ocupaba.
       recordUndo(`Movido a ${mealName}`, () => {
-        get().moveMeal(key, to, from, entryId);
+        const st = get();
+        set({
+          days: withDay(st, key, (d) => {
+            const i = d.meals[to].findIndex((x) => x.id === entryId);
+            if (i >= 0) d.meals[to].splice(i, 1);
+            const arr = d.meals[from];
+            if (at >= 0 && at <= arr.length) arr.splice(at, 0, entry);
+            else arr.push(entry);
+          }),
+        });
+        get().persist();
       });
     }
   },
@@ -412,14 +447,37 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     });
     return id;
   },
+  /**
+   * Lleva deshacer porque la hoja de Agua tiene un botón "Quitar" por vaso: no
+   * es solo la inversa de `addWater`. Era la única acción destructiva del store
+   * sin deshacer, así que tocar el vaso equivocado no tenía vuelta atrás,
+   * mientras que quitar una comida, un entreno o un pesaje sí la tiene.
+   *
+   * Cuando llega por la vía del deshacer de `addWater`, `recordUndo` se calla
+   * solo (`isApplyingUndo`), así que no se apila una entrada por deshacer otra.
+   */
   removeWater: (key, id) => {
     const s = get();
+    const prev = s.days[key]?.water.find((w) => w.id === id) ?? null;
+    const at = s.days[key]?.water.findIndex((w) => w.id === id) ?? -1;
     set({
       days: withDay(s, key, (d) => {
         d.water = d.water.filter((w) => w.id !== id);
       }),
     });
     get().persist();
+    if (prev) {
+      recordUndo("Agua quitada", () => {
+        const st = get();
+        set({
+          days: withDay(st, key, (d) => {
+            if (at >= 0 && at <= d.water.length) d.water.splice(at, 0, prev);
+            else d.water.push(prev);
+          }),
+        });
+        get().persist();
+      });
+    }
   },
   setSteps: (key, steps) => {
     const s = get();
@@ -638,6 +696,7 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     const s = get();
     const removed = s.customFoods.find((f) => f.id === id);
     if (!removed) return;
+    const at = s.customFoods.findIndex((f) => f.id === id);
     const hadFavorite = s.favorites.includes(id);
     const hadPantry = s.pantry.includes(id);
     set({
@@ -651,11 +710,16 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     });
     get().persist();
     recordUndo(`Quitado ${removed.name}`, () => {
-      set((st) => ({
-        customFoods: [...st.customFoods, removed],
-        favorites: hadFavorite ? [...st.favorites, id] : st.favorites,
-        pantry: hadPantry ? [...st.pantry, id] : st.pantry,
-      }));
+      set((st) => {
+        const foods = [...st.customFoods];
+        if (at >= 0 && at <= foods.length) foods.splice(at, 0, removed);
+        else foods.push(removed);
+        return {
+          customFoods: foods,
+          favorites: hadFavorite ? [...st.favorites, id] : st.favorites,
+          pantry: hadPantry ? [...st.pantry, id] : st.pantry,
+        };
+      });
       get().persist();
     });
   },
@@ -722,6 +786,8 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     const next = [...s.shopping];
     const addedIds: string[] = [];
     const revivedIds: string[] = [];
+    /** Cómo estaba cada línea fusionada antes de tocarla, para el deshacer. */
+    const revived: { id: string; qty: string; done: boolean }[] = [];
     for (const input of inputs) {
       const name = input.name.trim();
       if (!name) continue;
@@ -733,6 +799,9 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
         // invisible while shopping — and dropped the second recipe's amount.
         const qty = mergeQty(existing.qty, input.qty ?? "");
         if (existing.done || qty !== existing.qty) {
+          if (!revived.some((r) => r.id === existing.id)) {
+            revived.push({ id: existing.id, qty: existing.qty, done: existing.done });
+          }
           next[next.indexOf(existing)] = { ...existing, done: false, qty };
           revivedIds.push(existing.id);
         }
@@ -749,11 +818,17 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     const label = added === 1 ? "1 producto" : `${added} productos`;
     recordUndo(`${label} a la lista`, () => {
       const drop = new Set(addedIds);
-      const retick = new Set(revivedIds);
+      // La cantidad de antes de la fusión, no solo el tick: reponer el "✓" y
+      // dejar "350 g" donde había "200 g" no es deshacer, es deshacer a medias
+      // — te llevabas a la compra la suma de una receta que ya no está.
+      const restore = new Map(revived.map((r) => [r.id, r]));
       set((st) => ({
         shopping: st.shopping
           .filter((i) => !drop.has(i.id))
-          .map((i) => (retick.has(i.id) ? { ...i, done: true } : i)),
+          .map((i) => {
+            const prev = restore.get(i.id);
+            return prev ? { ...i, done: prev.done, qty: prev.qty } : i;
+          }),
       }));
       get().persist();
     });
@@ -808,7 +883,14 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     set({ shopping: [] });
     get().persist();
     recordUndo("Lista vaciada", () => {
-      set({ shopping: all });
+      // Devolver el snapshot en crudo (`set({ shopping: all })`) borraba todo
+      // lo añadido entre el vaciado y el deshacer, y entre las dos cosas puede
+      // pasar un buen rato: la pila guarda veinte acciones y Ajustes deja
+      // deshacer desde su propio panel.
+      set((s) => {
+        const have = new Set(s.shopping.map((i) => i.id));
+        return { shopping: [...s.shopping, ...all.filter((i) => !have.has(i.id))] };
+      });
       get().persist();
     });
   },
@@ -820,12 +902,23 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     if (!done.length) return 0;
     const ids = done.map((i) => i.foodId).filter((id): id is string => !!id);
     const pantry = [...s.pantry];
-    for (const id of ids) if (!pantry.includes(id)) pantry.push(id);
-    const prevPantry = s.pantry;
+    /** Solo lo que esta acción metió: lo que ya estaba no es suyo y no lo quita. */
+    const addedToPantry = new Set<string>();
+    for (const id of ids) {
+      if (!pantry.includes(id)) {
+        pantry.push(id);
+        addedToPantry.add(id);
+      }
+    }
     set({ pantry, shopping: s.shopping.filter((i) => !i.done) });
     get().persist();
     recordUndo(`${plural(done.length, "producto guardado", "productos guardados")}`, () => {
-      set((st) => ({ pantry: prevPantry, shopping: [...st.shopping, ...done] }));
+      // Reponer la despensa entera desde el snapshot se llevaba por delante
+      // cualquier alimento marcado después, desde el catálogo o desde aquí.
+      set((st) => ({
+        pantry: st.pantry.filter((p) => !addedToPantry.has(p)),
+        shopping: [...st.shopping, ...done],
+      }));
       get().persist();
     });
     return done.length;
