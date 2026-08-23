@@ -22,6 +22,17 @@ pantallas abren sin red; las gráficas de Tendencias (Recharts, ~420 kB) y el
 escáner de códigos (ZXing, ~450 kB) se quedan fuera del precache a propósito y
 degradan solos cuando no hay conexión.
 
+## v4.9
+
+- Buscar alimentos en Open Food Facts por nombre, no solo por código
+- Techos opcionales de azúcar y sodio, con aviso al pasarse
+- Aviso de copia de seguridad, con descarga desde Hoy
+- Atajo de entreno en el icono de la app
+- El peso del perfil se deriva del último pesaje: se acabó el IMC partido
+- Las recetas propias ya suman azúcar, saturada y sodio
+- Actividad no deja registrar en días futuros; Hoy tampoco lo hacía
+- El CSV de Ajustes exporta las medidas y los micros que faltaban
+
 ## v4.8
 
 - Las cinco pantallas abren sin red, no solo Hoy

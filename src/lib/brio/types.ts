@@ -1,7 +1,7 @@
 import type { AccentId } from "./accent";
 
 export const APP_NAME = "Brío";
-export const APP_VERSION = "4.8.0";
+export const APP_VERSION = "4.9.0";
 export const SCHEMA_VERSION = 4;
 export const STORE_KEY = "brio.v4";
 export const LEGACY_STORE_KEYS = ["brio.v1", "salud.v1"] as const;
