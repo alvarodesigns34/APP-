@@ -1,4 +1,4 @@
-import { addDays, dateOf, mealForHour, nowMinutes, rangeKeys, sleepDuration, todayKey } from "./dates";
+import { addDays, dateOf, daysBetween, mealForHour, nowMinutes, rangeKeys, sleepDuration, todayKey } from "./dates";
 import { kcalFloor, kcalFromSteps } from "./domain";
 import { nf } from "./format";
 import { emptyDay } from "./persist";
@@ -253,7 +253,7 @@ export function weightTrend(s: SelectorState) {
   if (ws.length < 2) return null;
   const first = ws[0];
   const last = ws[ws.length - 1];
-  const days = Math.max(1, (dateOf(last.date).getTime() - dateOf(first.date).getTime()) / 86400000);
+  const days = Math.max(1, daysBetween(first.date, last.date));
   const rate = (last.kg - first.kg) / days;
   const current = last.kg;
   const goal = s.goals.weight;
