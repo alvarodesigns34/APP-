@@ -2,12 +2,13 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import { Card, Empty, Screen, SectionLabel, Title } from "@/components/brio/section";
-import { addDays, rangeKeys, sleepDuration, todayKey, weekColumns, WEEKDAYS } from "@/lib/brio/dates";
+import { WEEKDAYS, addDays, fmtMonthYear, rangeKeys, sleepDuration, todayKey, weekColumns } from "@/lib/brio/dates";
 import { nf, plural } from "@/lib/brio/format";
 import { buildMacroSeries, DEFAULT_TREND_RANGE, TREND_RANGES, type TrendRange } from "@/lib/brio/macro-series";
 import { latestWaist, measureChanges, waistToHeight } from "@/lib/brio/measures";
 import { achievements, achievementsDone, nextAchievements } from "@/lib/brio/achievements";
 import { AchievementsSheet } from "@/components/brio/achievements-sheet";
+import { MonthRecapSheet } from "@/components/brio/month-recap-sheet";
 import {
   currentStreak,
   dayFoodTotals,
@@ -181,6 +182,7 @@ export function TrendsScreen() {
   const navigate = useNavigate();
   const [range, setRange] = useState<TrendRange>(DEFAULT_TREND_RANGE);
   const [logrosOpen, setLogrosOpen] = useState(false);
+  const [mesOpen, setMesOpen] = useState(false);
   const data = useMemo(() => {
     const keys = rangeKeys(todayKey(), range);
     const days = keys.map((k) => {
@@ -334,6 +336,14 @@ export function TrendsScreen() {
         </>
       ) : null}
 
+      <SectionLabel>Tu mes</SectionLabel>
+      <Card className="mb-3" onClick={() => setMesOpen(true)}>
+        <span className="font-medium">{fmtMonthYear(todayKey())}</span>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Medias por día y comparación con el mes anterior.
+        </p>
+      </Card>
+
       <SectionLabel>Logros</SectionLabel>
       <Card className="mb-3" onClick={() => setLogrosOpen(true)}>
         <div className="flex items-baseline justify-between gap-3">
@@ -477,6 +487,7 @@ export function TrendsScreen() {
         <TrendsCharts data={data} wChart={wChart} pesoDomain={pesoDomain} units={units} />
       </Suspense>
           <AchievementsSheet open={logrosOpen} onOpenChange={setLogrosOpen} />
+      <MonthRecapSheet open={mesOpen} onOpenChange={setMesOpen} />
     </Screen>
   );
 }
