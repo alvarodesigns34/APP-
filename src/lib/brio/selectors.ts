@@ -10,6 +10,35 @@ export function dayOf(s: SelectorState, key: string): DayLog {
   return s.days[key] ?? emptyDay();
 }
 
+/**
+ * Azúcar, saturada y sodio se guardaban en cada `MealEntry` desde siempre —
+ * se ven en la ficha de un alimento — pero nada los sumaba para el día. Aquí
+ * `null` significa "no lo sabemos" (un alimento sin ese dato en Open Food
+ * Facts, o uno propio sin rellenarlo), no cero: quedarse sin dato en un solo
+ * alimento del día no debería convertir el total en "0 mg de sodio", que
+ * leería como una afirmación en vez de como un hueco. El total es `null`
+ * solo cuando *ningún* alimento del día aporta ese dato; en cuanto uno lo
+ * trae, se suma y el resto de nulls no restan nada.
+ */
+function sumOptional(entries: MealEntry[], key: "sug" | "sat" | "sod"): number | null {
+  let sum = 0;
+  let any = false;
+  for (const e of entries) {
+    const v = e[key];
+    if (v != null) {
+      sum += v;
+      any = true;
+    }
+  }
+  return any ? sum : null;
+}
+
+function addOptional(a: number | null, b: number | null): number | null {
+  if (a == null) return b;
+  if (b == null) return a;
+  return a + b;
+}
+
 export function sumEntries(entries: MealEntry[]) {
   const t = { kcal: 0, prot: 0, carb: 0, fat: 0, fib: 0 };
   for (const e of entries) {
@@ -19,12 +48,20 @@ export function sumEntries(entries: MealEntry[]) {
     t.fat += e.fat;
     t.fib += e.fib;
   }
-  return t;
+  return {
+    ...t,
+    sug: sumOptional(entries, "sug"),
+    sat: sumOptional(entries, "sat"),
+    sod: sumOptional(entries, "sod"),
+  };
 }
 
 export function dayFoodTotals(s: SelectorState, key: string) {
   const d = dayOf(s, key);
   const t = { kcal: 0, prot: 0, carb: 0, fat: 0, fib: 0 };
+  let sug: number | null = null;
+  let sat: number | null = null;
+  let sod: number | null = null;
   for (const m of MEALS) {
     const part = sumEntries(d.meals[m.id]);
     t.kcal += part.kcal;
@@ -32,8 +69,11 @@ export function dayFoodTotals(s: SelectorState, key: string) {
     t.carb += part.carb;
     t.fat += part.fat;
     t.fib += part.fib;
+    sug = addOptional(sug, part.sug);
+    sat = addOptional(sat, part.sat);
+    sod = addOptional(sod, part.sod);
   }
-  return t;
+  return { ...t, sug, sat, sod };
 }
 
 export function waterTotal(s: SelectorState, key: string): number {

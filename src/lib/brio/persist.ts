@@ -187,9 +187,17 @@ function parseMealEntry(v: unknown, index: number): MealEntry | null {
     carb,
     fat,
     fib,
-    sug: macro(v.sug),
-    sat: macro(v.sat),
-    sod: macro(v.sod),
+    // `macro()` treats `null` as "must be a number, and null is not one",
+    // which is right for kcal/prot/etc — an entry can't be missing those.
+    // For estos tres es al revés: `null` es el valor legítimo de "Open Food
+    // Facts no traía este dato", no un error de carga. `macro(null)` volvía
+    // 0 (Number(null) es 0, y 0 es finito), así que cada recarga de la app
+    // convertía "no lo sabemos" en "cero gramos de azúcar" en silencio —
+    // justo la distinción que dayFoodTotals necesita para no enseñar un
+    // total falso. `numOrNull` sí distingue ausente de cero.
+    sug: numOrNull(v.sug),
+    sat: numOrNull(v.sat),
+    sod: numOrNull(v.sod),
   };
 }
 

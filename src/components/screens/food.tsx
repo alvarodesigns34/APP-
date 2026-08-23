@@ -32,6 +32,13 @@ export function FoodScreen() {
   const isFuture = key > todayKey();
   const t = useMemo(() => {
     const tot = { kcal: 0, prot: 0, carb: 0, fat: 0, fib: 0 };
+    // null = "ningún alimento del día trae este dato" — no cero. Cada
+    // `part.sug` ya es null salvo que al menos un alimento de esa comida lo
+    // traiga; sumar aquí solo lo que no sea null preserva esa distinción a
+    // lo largo del día entero.
+    let sug: number | null = null;
+    let sat: number | null = null;
+    let sod: number | null = null;
     for (const m of MEALS) {
       const part = sumEntries(days[key]?.meals[m.id] ?? []);
       tot.kcal += part.kcal;
@@ -39,8 +46,11 @@ export function FoodScreen() {
       tot.carb += part.carb;
       tot.fat += part.fat;
       tot.fib += part.fib;
+      if (part.sug != null) sug = (sug ?? 0) + part.sug;
+      if (part.sat != null) sat = (sat ?? 0) + part.sat;
+      if (part.sod != null) sod = (sod ?? 0) + part.sod;
     }
-    return tot;
+    return { ...tot, sug, sat, sod };
   }, [days, key]);
   const [logOpen, setLogOpen] = useState(false);
   const [meal, setMeal] = useState<MealId>("comida");
@@ -85,6 +95,22 @@ export function FoodScreen() {
   return (
     <Screen>
       <Title sub={`${isFuture ? "Planificado: " : ""}${nf(t.kcal)} kcal · ${nf(t.prot)} g prot`}>Comida</Title>
+      {t.sug != null || t.sat != null || t.sod != null ? (
+        // Se guardaban desde siempre y se ven en la ficha de cada alimento,
+        // pero nunca se sumaban para el día — quien registra un
+        // ultraprocesado no veía el sodio del día en ningún sitio. Una línea
+        // de texto, no un aro más: sin objetivo definido para estos tres,
+        // un anillo compararía contra nada.
+        <p className="mb-3 -mt-2 text-xs text-muted-foreground">
+          {[
+            t.sug != null ? `${nf(t.sug, 1)} g azúcar` : null,
+            t.sat != null ? `${nf(t.sat, 1)} g sat.` : null,
+            t.sod != null ? `${nf(t.sod)} mg sodio` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      ) : null}
       <DateNav />
       <div className="mb-3 flex gap-2">
         <Button className="flex-1" onClick={() => openAdd("comida")}>

@@ -235,6 +235,41 @@ describe("migrate", () => {
       expect(e.id.length).toBeGreaterThan(0);
       expect(e.sug).toBeNull();
     });
+
+    it("un `sug`/`sat`/`sod` explícitamente null se queda en null, no se convierte en 0", () => {
+      // `Number(null)` es `0`, y `0` es un número finito: el `macro()` que
+      // valida kcal/prot/etc convertía un null explícito (lo que guarda
+      // JSON.parse cuando Open Food Facts no trae el dato) en un 0 real. Eso
+      // hacía que dayFoodTotals sumara "cero azúcar" de un alimento del que
+      // en realidad no se sabe nada, en vez de tratarlo como ausente.
+      const s = migrate({
+        days: {
+          "2026-08-22": {
+            meals: {
+              cena: [{ foodId: "f003", kcal: 100, prot: 1, carb: 2, fat: 3, fib: 0, sug: null, sat: null, sod: null }],
+            },
+          },
+        },
+      });
+      const e = s.days["2026-08-22"].meals.cena[0];
+      expect(e.sug).toBeNull();
+      expect(e.sat).toBeNull();
+      expect(e.sod).toBeNull();
+    });
+
+    it("un `sug`/`sat`/`sod` que sí es 0 se queda en 0, no se pierde", () => {
+      const s = migrate({
+        days: {
+          "2026-08-22": {
+            meals: { cena: [{ foodId: "f004", kcal: 100, prot: 1, carb: 2, fat: 3, fib: 0, sug: 0, sat: 0, sod: 0 }] },
+          },
+        },
+      });
+      const e = s.days["2026-08-22"].meals.cena[0];
+      expect(e.sug).toBe(0);
+      expect(e.sat).toBe(0);
+      expect(e.sod).toBe(0);
+    });
   });
 
   describe("numeric goals and profile", () => {

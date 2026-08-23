@@ -2,9 +2,70 @@ import { describe, expect, it } from "vitest";
 import { addDays, dateOf, rangeKeys, todayKey } from "./dates";
 import { bmr, macrosFromKcal, targetKcal, tdee } from "./domain";
 import { defaultState, emptyDay } from "./persist";
-import { fastingStatus, kcalGoalFor, latestWeight, macroGoalsFor, weeklyInsights } from "./selectors";
+import { dayFoodTotals, fastingStatus, kcalGoalFor, latestWeight, macroGoalsFor, sumEntries, weeklyInsights } from "./selectors";
 import { scaleMacros } from "./scale-macros";
-import type { Food } from "./types";
+import type { Food, MealEntry } from "./types";
+
+function meal(over: Partial<MealEntry> = {}): MealEntry {
+  return {
+    id: "e1",
+    foodId: "f1",
+    name: "X",
+    qty: 1,
+    unitName: "g",
+    grams: 100,
+    kcal: 100,
+    prot: 5,
+    carb: 10,
+    fat: 2,
+    fib: 1,
+    sug: null,
+    sat: null,
+    sod: null,
+    ...over,
+  };
+}
+
+describe("azúcar, saturada y sodio del día", () => {
+  it("suma los alimentos que sí traen el dato", () => {
+    const t = sumEntries([meal({ sug: 5, sat: 1, sod: 200 }), meal({ sug: 10, sat: 2, sod: 300 })]);
+    expect(t.sug).toBe(15);
+    expect(t.sat).toBe(3);
+    expect(t.sod).toBe(500);
+  });
+
+  it("null es 'no lo sabemos', no cero: un alimento sin dato no lo destruye", () => {
+    const t = sumEntries([meal({ sug: 5 }), meal({ sug: null })]);
+    expect(t.sug).toBe(5);
+  });
+
+  it("solo es null cuando ningún alimento del día trae el dato", () => {
+    const t = sumEntries([meal({ sug: null }), meal({ sug: null })]);
+    expect(t.sug).toBeNull();
+  });
+
+  it("una lista vacía es null, no cero", () => {
+    expect(sumEntries([]).sod).toBeNull();
+  });
+
+  it("dayFoodTotals suma a través de las cuatro comidas del día", () => {
+    const s = defaultState();
+    const d = emptyDay();
+    d.meals.desayuno = [meal({ sod: 100 })];
+    d.meals.cena = [meal({ sod: 250 })];
+    s.days["2026-08-20"] = d;
+    const t = dayFoodTotals(s, "2026-08-20");
+    expect(t.sod).toBe(350);
+  });
+
+  it("dayFoodTotals es null si nadie del día aportó sodio, aunque haya comidas", () => {
+    const s = defaultState();
+    const d = emptyDay();
+    d.meals.desayuno = [meal({ sod: null })];
+    s.days["2026-08-20"] = d;
+    expect(dayFoodTotals(s, "2026-08-20").sod).toBeNull();
+  });
+});
 
 describe("weeklyInsights water average", () => {
   it("divides water by days with a log, not by 7", () => {
