@@ -221,8 +221,16 @@ export function TrendsScreen() {
   const [picked, setPicked] = useState<{ k: string; c: number } | null>(null);
   const [logrosOpen, setLogrosOpen] = useState(false);
   const [mesOpen, setMesOpen] = useState(false);
+  // Suscribirse a `viewDate` es lo que hace que esta pantalla se entere de que
+  // ha cambiado el día: app-shell lo mueve desde su intervalo al pasar la
+  // medianoche. Sin esto, los memos de abajo llamaban a `todayKey()` por dentro
+  // pero solo dependían de `snap`, así que dejar Tendencias abierta a las 23:55
+  // te dejaba el resumen semanal y el calendario congelados en los de ayer
+  // hasta que registraras algo o recargaras.
+  useBrioStore((s) => s.viewDate);
+  const today = todayKey();
   const data = useMemo(() => {
-    const keys = rangeKeys(todayKey(), range);
+    const keys = rangeKeys(today, range);
     const days = keys.map((k) => {
       const t = dayFoodTotals(snap, k);
       const sl = snap.days[k]?.sleep;
@@ -247,9 +255,13 @@ export function TrendsScreen() {
       carb: snap.goals.carb,
       fat: snap.goals.fat,
     });
-  }, [snap, range]);
-  const week = rangeKeys(todayKey(), 7);
-  const prevWeek = rangeKeys(addDays(todayKey(), -7), 7);
+  }, [snap, range, today]);
+  // Memoizadas por su identidad, no por ahorrarse el `rangeKeys`: son
+  // dependencias del memo de `summary`, y un array nuevo en cada render lo
+  // invalidaría siempre — que es justo lo que ese memo existe para evitar,
+  // porque `goalsMet` acaba filtrando el array entero de pesajes 84 veces.
+  const week = useMemo(() => rangeKeys(today, 7), [today]);
+  const prevWeek = useMemo(() => rangeKeys(addDays(today, -7), 7), [today]);
   // goalsMet chains into kcalGoalFor → activityKcal → stepsKcal → latestWeight,
   // which filters the whole weights array. Unmemoized that ran 84 times on
   // every render of this screen.
@@ -258,10 +270,10 @@ export function TrendsScreen() {
   // lands on a weekday if day one happened to be a Monday.
   const heat = useMemo(
     () =>
-      weekColumns(todayKey(), 12).map((col) =>
+      weekColumns(today, 12).map((col) =>
         col.map((k) => (k == null ? null : { k, c: goalsMet(snap, k).count })),
       ),
-    [snap],
+    [snap, today],
   );
   const insights = useMemo(() => weeklyInsights(snap), [snap]);
   const wChart = useMemo(
@@ -304,9 +316,7 @@ export function TrendsScreen() {
       thisWeekTotals: weekTotals(week, foodOf, stepsOf, moveOf),
       prevWeekTotals: weekTotals(prevWeek, foodOf, stepsOf, moveOf),
     };
-    // `week`/`prevWeek` are derived from todayKey() and change only with it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snap]);
+  }, [snap, week, prevWeek]);
   const { weekKcal, weekProt, logged, hasAny, thisWeekTotals, prevWeekTotals } = summary;
 
   return (

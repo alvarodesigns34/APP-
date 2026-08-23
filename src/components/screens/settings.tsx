@@ -384,10 +384,19 @@ export function SettingsScreen() {
               ] as const
             ).map(([k, n]) => (
               <Field key={k} label={n}>
-                <Input
+                {/* El mismo `NumField` que el resto de la pantalla, y por la
+                    misma razón. Con el `value` atado al store y un
+                    `parseNum(...) || 0` por tecla, seleccionar el campo y
+                    borrarlo no lo dejaba vacío: ponía un 0, recalculaba los
+                    otros dos macros al vuelo y luego escribir "4" se leía
+                    "04". Y cada pulsación era un patchGoals + patchSettings,
+                    o sea una escritura a localStorage por tecla. */}
+                <NumField
                   inputMode="numeric"
+                  min={0}
+                  max={100}
                   value={settings.macroPct[k]}
-                  onChange={(e) => onCustomPct(k, parseNum(e.target.value) || 0)}
+                  onCommit={(v) => onCustomPct(k, v)}
                 />
                 <span className="mt-1 block text-xs text-muted-foreground">{liveMacros[k]} g</span>
               </Field>

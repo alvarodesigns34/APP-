@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Activity, Home, Settings2, TrendingUp, Utensils } from "lucide-react";
 import { Toaster } from "sonner";
@@ -13,6 +13,7 @@ import { Onboarding } from "@/components/brio/onboarding";
 import { RemindersBoot } from "@/components/brio/reminders-boot";
 import { ScrollRestore } from "@/components/layout/scroll-restore";
 import { Button } from "@/components/ui/button";
+import { useSheetZ } from "@/components/ui/sheet-z";
 
 const TABS = [
   { to: "/", n: "Hoy", icon: Home },
@@ -42,30 +43,49 @@ function applyTheme(pref: "auto" | "light" | "dark", accent: AccentId) {
 }
 
 function HotkeyHelp({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  // Este panel es lo único de la app que se declaraba `aria-modal` sin
+  // comportarse como tal: no movía el foco al abrirse, así que con teclado el
+  // Tab seguía recorriendo la navegación y los botones de detrás, y al cerrar
+  // el foco se perdía al principio del documento. Como es un panel de atajos
+  // de teclado, es justo la gente que lo abre la que lo nota.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+  // Se reparte capa del mismo contador que las hojas. Con un `z-50` fijo se
+  // pintaba por debajo de cualquier hoja abierta, que arrancan en 70.
+  const z = useSheetZ(open);
+
   useEffect(() => {
     if (!open) return;
+    restoreRef.current = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
       e.preventDefault();
       onOpenChange(false);
     }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      restoreRef.current?.focus?.();
+    };
   }, [open, onOpenChange]);
 
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4"
+      className="fixed inset-0 flex items-center justify-center bg-foreground/40 p-4"
+      style={{ zIndex: z }}
       onClick={() => onOpenChange(false)}
       role="presentation"
     >
       <div
+        ref={panelRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="hotkey-help-title"
-        className="w-[min(22rem,calc(100vw-2rem))] rounded-3xl bg-card p-5 text-card-foreground shadow-raised"
+        className="w-[min(22rem,calc(100vw-2rem))] rounded-3xl bg-card p-5 text-card-foreground shadow-raised focus:outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="hotkey-help-title" className="font-display text-xl tracking-tight">
