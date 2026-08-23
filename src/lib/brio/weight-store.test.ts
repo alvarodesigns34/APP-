@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { defaultState } from "./persist";
 import { useBrioStore } from "./store";
 import { clearUndo, undoCount } from "./undo";
@@ -68,5 +68,58 @@ describe("deshacer un pesaje con medidas", () => {
     const s = useBrioStore.getState();
     s.upsertWeight("2026-08-20", 80, { waist: 92 });
     expect(undoCount()).toBe(1);
+  });
+});
+
+/**
+ * `profile.weight` se deriva del último pesaje. Antes la hoja de Peso hacía dos
+ * escrituras —`upsertWeight` y un `patchProfile` aparte— y solo la primera
+ * entraba en el deshacer.
+ */
+describe("el peso del perfil sigue al último pesaje", () => {
+  beforeEach(() => {
+    useBrioStore.setState({ ...defaultState(), hydrated: true });
+    clearUndo();
+  });
+
+  it("deshacer un pesaje devuelve también el peso del perfil", () => {
+    const st = useBrioStore.getState();
+    st.upsertWeight("2026-08-20", 80);
+    clearUndo();
+    expect(useBrioStore.getState().profile.weight).toBe(80);
+
+    useBrioStore.getState().upsertWeight("2026-08-21", 78);
+    expect(useBrioStore.getState().profile.weight).toBe(78);
+
+    useBrioStore.getState().undoLast();
+    // Antes se quedaba en 78: el IMC de Ajustes y el de Actividad divergían.
+    expect(useBrioStore.getState().profile.weight).toBe(80);
+  });
+
+  it("borrar el último pesaje devuelve el perfil al anterior", () => {
+    const st = useBrioStore.getState();
+    st.upsertWeight("2026-08-20", 80);
+    st.upsertWeight("2026-08-21", 78);
+    clearUndo();
+
+    useBrioStore.getState().deleteWeight("2026-08-21");
+    expect(useBrioStore.getState().profile.weight).toBe(80);
+  });
+
+  it("apuntar un pesaje de un día pasado no machaca el peso actual", () => {
+    const st = useBrioStore.getState();
+    st.upsertWeight("2026-08-21", 78);
+    // Rellenas un hueco de hace tres semanas: eso no es tu peso de hoy.
+    useBrioStore.getState().upsertWeight("2026-08-01", 82);
+    expect(useBrioStore.getState().profile.weight).toBe(78);
+  });
+
+  it("borrar el único pesaje deja el peso del perfil como estaba", () => {
+    const st = useBrioStore.getState();
+    st.upsertWeight("2026-08-20", 80);
+    clearUndo();
+    useBrioStore.getState().deleteWeight("2026-08-20");
+    // Sin serie no hay de dónde derivarlo; no se pone a cero.
+    expect(useBrioStore.getState().profile.weight).toBe(80);
   });
 });

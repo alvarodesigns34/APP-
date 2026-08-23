@@ -392,7 +392,6 @@ export function WeightSheet({
 }) {
   const upsert = useBrioStore((s) => s.upsertWeight);
   const del = useBrioStore((s) => s.deleteWeight);
-  const patchProfile = useBrioStore((s) => s.patchProfile);
   const units = useBrioStore((s) => s.settings.units);
   const weights = useBrioStore((s) => s.weights);
   const profileWeight = useBrioStore((s) => s.profile.weight);
@@ -468,8 +467,11 @@ export function WeightSheet({
               if (isMeasureInRange(raw)) cms[def.id] = round(raw, 1);
             }
             const extra = { ...(f != null ? { fat: f } : {}), ...(m != null ? { muscle: m } : {}), ...cms };
+            // `upsertWeight` deriva `profile.weight` del último pesaje. Antes
+            // se escribía aquí con un `patchProfile` aparte, que no entraba en
+            // el deshacer y que además machacaba el peso actual al apuntar uno
+            // de un día pasado.
             upsert(date, kg, Object.keys(extra).length > 0 ? extra : undefined);
-            patchProfile({ weight: kg });
             onOpenChange(false);
           }}
         >

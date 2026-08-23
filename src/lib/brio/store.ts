@@ -57,7 +57,7 @@ export type BrioStore = PersistedState & {
   addWorkout: (key: string, type: string, min: number, intensity: IntensityId) => string;
   updateWorkout: (key: string, id: string, patch: { type?: string; min?: number; intensity?: IntensityId }) => void;
   removeWorkout: (key: string, id: string) => WorkoutEntry | null;
-  restoreWorkout: (key: string, entry: WorkoutEntry) => void;
+  restoreWorkout: (key: string, entry: WorkoutEntry, at?: number) => void;
   setSleep: (key: string, sleep: SleepEntry | null) => void;
   setNote: (key: string, note: string) => void;
   upsertWeight: (date: string, kg: number, extra?: Partial<Omit<WeightEntry, "date" | "kg">>) => void;
@@ -547,26 +547,33 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
   removeWorkout: (key, id) => {
     const s = get();
     let removed: WorkoutEntry | null = null;
+    let removedAt = -1;
     set({
       days: withDay(s, key, (d) => {
         const i = d.workouts.findIndex((w) => w.id === id);
-        if (i >= 0) removed = d.workouts.splice(i, 1)[0];
+        if (i >= 0) {
+          removed = d.workouts.splice(i, 1)[0];
+          removedAt = i;
+        }
       }),
     });
     get().persist();
     if (removed) {
       const entry = removed;
+      const at = removedAt;
       recordUndo("Entrenamiento quitado", () => {
-        get().restoreWorkout(key, entry);
+        get().restoreWorkout(key, entry, at);
       });
     }
     return removed;
   },
-  restoreWorkout: (key, entry) => {
+  /** `at` como en `restoreMeal`: devuelve el entreno a su sitio, no al final. */
+  restoreWorkout: (key, entry, at) => {
     const s = get();
     set({
       days: withDay(s, key, (d) => {
-        d.workouts.push(entry);
+        if (at != null && at >= 0 && at <= d.workouts.length) d.workouts.splice(at, 0, entry);
+        else d.workouts.push(entry);
       }),
     });
     get().persist();
@@ -605,13 +612,28 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       });
     }
   },
+  /**
+   * `profile.weight` se deriva aquí, no lo escribe quien llama.
+   *
+   * La hoja de Peso hacía dos escrituras seguidas: `upsertWeight` y un
+   * `patchProfile({ weight })`. La primera dejaba entrada de deshacer y la
+   * segunda no, así que el toast decía "Deshecho", la serie volvía atrás y el
+   * perfil se quedaba con el kilo nuevo — y de ahí cuelgan el IMC de Ajustes,
+   * el recálculo de TDEE y el peso con el que se estiman las kcal de un
+   * entreno. Actividad lee el último pesaje y Ajustes leía el perfil, así que
+   * las dos pantallas podían enseñar IMC distintos.
+   *
+   * Derivarlo del último pesaje arregla además un caso que la escritura doble
+   * tenía mal de por sí: apuntar un peso en un día pasado machacaba el peso
+   * actual del perfil con el de hace tres semanas.
+   */
   upsertWeight: (date, kg, extra) => {
     const prev = get().weights.find((w) => w.date === date);
     const snapshot = prev ? { ...prev } : null;
     set((s) => {
       const rest = s.weights.filter((w) => w.date !== date);
       const next = [...rest, { date, kg: round(kg, 1), ...extra }].sort((a, b) => (a.date < b.date ? -1 : 1));
-      return { weights: next };
+      return { weights: next, profile: { ...s.profile, weight: latestWeight({ ...s, weights: next })?.kg ?? s.profile.weight } };
     });
     get().persist();
     if (snapshot) {
@@ -627,7 +649,10 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
   deleteWeight: (date) => {
     const prev = get().weights.find((w) => w.date === date);
     const snapshot = prev ? { ...prev } : null;
-    set((s) => ({ weights: s.weights.filter((w) => w.date !== date) }));
+    set((s) => {
+      const next = s.weights.filter((w) => w.date !== date);
+      return { weights: next, profile: { ...s.profile, weight: latestWeight({ ...s, weights: next })?.kg ?? s.profile.weight } };
+    });
     get().persist();
     if (snapshot) {
       recordUndo("Peso borrado", () => {
@@ -744,6 +769,7 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     const s = get();
     const removed = s.recipes.find((r) => r.id === id);
     if (!removed) return;
+    const at = s.recipes.findIndex((r) => r.id === id);
     const hadFavorite = s.favRecipes.includes(id);
     set({
       recipes: s.recipes.filter((r) => r.id !== id),
@@ -751,10 +777,12 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     });
     get().persist();
     recordUndo(`Quitada ${removed.name}`, () => {
-      set((st) => ({
-        recipes: [...st.recipes, removed],
-        favRecipes: hadFavorite ? [...st.favRecipes, id] : st.favRecipes,
-      }));
+      set((st) => {
+        const list = [...st.recipes];
+        if (at >= 0 && at <= list.length) list.splice(at, 0, removed);
+        else list.push(removed);
+        return { recipes: list, favRecipes: hadFavorite ? [...st.favRecipes, id] : st.favRecipes };
+      });
       get().persist();
     });
   },
@@ -841,6 +869,8 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
   },
 
   updateShoppingItem: (id, patch) => {
+    const prev = get().shopping.find((i) => i.id === id);
+    if (!prev) return;
     set((s) => ({
       shopping: s.shopping.map((i) =>
         i.id === id
@@ -853,15 +883,32 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
       ),
     }));
     get().persist();
+    const after = get().shopping.find((i) => i.id === id);
+    // Solo si algo ha cambiado de verdad: abrir el lápiz y cerrarlo sin tocar
+    // nada no debe apilar una entrada de deshacer vacía.
+    if (after && (after.name !== prev.name || after.qty !== prev.qty)) {
+      recordUndo("Producto corregido", () => {
+        set((s) => ({ shopping: s.shopping.map((i) => (i.id === id ? prev : i)) }));
+        get().persist();
+      });
+    }
   },
 
   removeShoppingItem: (id) => {
     const removed = get().shopping.find((i) => i.id === id);
     if (!removed) return;
+    // La lista se agrupa por pasillo pero dentro de cada grupo se pinta en el
+    // orden del array, así que reinsertar al final movía la línea de sitio.
+    const at = get().shopping.findIndex((i) => i.id === id);
     set((s) => ({ shopping: s.shopping.filter((i) => i.id !== id) }));
     get().persist();
     recordUndo(`Quitado ${removed.name}`, () => {
-      set((s) => ({ shopping: [...s.shopping, removed] }));
+      set((s) => {
+        const list = [...s.shopping];
+        if (at >= 0 && at <= list.length) list.splice(at, 0, removed);
+        else list.push(removed);
+        return { shopping: list };
+      });
       get().persist();
     });
   },

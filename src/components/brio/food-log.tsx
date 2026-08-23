@@ -16,7 +16,7 @@ import { HighlightText } from "@/components/brio/highlight-text";
 import { useBrioStore } from "@/lib/brio/store";
 import { habitualFoodIds } from "@/lib/brio/selectors";
 import { loadSearchPrefs, rememberQuery, saveSearchPrefs } from "@/lib/brio/search-prefs";
-import { nf, parseNum, round } from "@/lib/brio/format";
+import { nf, parseNum, round, uid } from "@/lib/brio/format";
 import {
   createBarcodeDetector,
   decodeBarcodeZXing,
@@ -84,6 +84,16 @@ export function FoodLogSheet({
   prefsRef.current = { queries, cat };
   /** Identifica la búsqueda de código de barras en curso; ver `handleBarcode`. */
   const lookupIdRef = useRef(0);
+  /**
+   * El alimento que ha traído el escáner, todavía sin guardar.
+   *
+   * Antes `handleBarcode` llamaba a `addCustomFood` en cuanto Open Food Facts
+   * respondía, así que escanear un bote y cerrar la hoja sin registrar nada te
+   * dejaba el producto en "Mis alimentos" para siempre — y `addCustomFood` no
+   * tiene deshacer. Ahora vive aquí hasta que confirmas la comida: si cierras,
+   * se va con la hoja.
+   */
+  const [pendingFood, setPendingFood] = useState<Food | null>(null);
 
   const editing = !!edit;
 
@@ -95,6 +105,7 @@ export function FoodLogSheet({
       setCreateDraft(null);
       setScanOpen(false);
       setDetailFood(null);
+      setPendingFood(null);
       // Cerrar la hoja invalida cualquier búsqueda de código de barras que
       // siga en el aire, para que no vuelva a abrir nada por su cuenta.
       lookupIdRef.current += 1;
@@ -150,8 +161,13 @@ export function FoodLogSheet({
   // deleted from its own ficha falls back to the list instead of staying
   // loggable. Same fix as `userRecipes.find` in recipe-browser.tsx.
   const picked = useMemo(
-    () => (pickedSnap ? (getFood(pickedSnap.id, { customFoods, recipes }) ?? null) : null),
-    [pickedSnap, customFoods, recipes],
+    () =>
+      pickedSnap
+        ? (getFood(pickedSnap.id, { customFoods, recipes }) ??
+          // Lo escaneado aún no está en el store; ver `pendingFood`.
+          (pendingFood && pendingFood.id === pickedSnap.id ? pendingFood : null))
+        : null,
+    [pickedSnap, customFoods, recipes, pendingFood],
   );
 
   const list = useMemo(
@@ -276,8 +292,11 @@ export function FoodLogSheet({
       if (!stillMine()) return;
       const draft = mapOffProduct(payload, ean);
       if (draft && foodDraftHasMacros(draft)) {
-        const id = addCustomFood({
+        const scanned: Food = {
+          id: uid("cf"),
           name: draft.name,
+          cat: "propio",
+          custom: true,
           kcal: draft.kcal,
           prot: draft.prot,
           carb: draft.carb,
@@ -289,10 +308,9 @@ export function FoodLogSheet({
           units: draft.units,
           base: draft.base,
           barcode: draft.barcode || ean,
-        });
-        const st = useBrioStore.getState();
-        const f = getFood(id, { customFoods: st.customFoods, recipes: st.recipes });
-        if (f) pick(f);
+        };
+        setPendingFood(scanned);
+        pick(scanned);
         toast.success(draft.name, { id: "off-lookup" });
         return;
       }
@@ -318,6 +336,13 @@ export function FoodLogSheet({
     const g = parseNum(grams);
     const qn = parseNum(qty);
     if (!g || g <= 0 || !qn || qn <= 0) return;
+    // El alimento escaneado se da de alta ahora, no al escanear: hasta aquí no
+    // sabíamos si ibas a registrarlo o a cerrar la hoja.
+    if (picked && pendingFood && picked.id === pendingFood.id) {
+      const { id, cat: _cat, custom: _custom, ...rest } = pendingFood;
+      addCustomFood({ ...rest, id });
+      setPendingFood(null);
+    }
     if (edit) {
       updateMeal(date, edit.meal, edit.entry.id, g, qn, unitName, picked ?? undefined);
     } else {
