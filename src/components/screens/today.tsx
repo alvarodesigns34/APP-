@@ -24,8 +24,10 @@ import {
 } from "@/lib/brio/selectors";
 import { activityOf } from "@/lib/brio/domain";
 import { NOTE_MAX } from "@/lib/brio/types";
+import { loadBackup, markBackupDone, shouldSuggestBackup, snoozeBackup } from "@/lib/brio/backup";
+import { backupFilename, download } from "@/lib/brio/download";
 import { QUICK_LOG_EVENT } from "@/lib/brio/hotkeys";
-import { useBrioStore } from "@/lib/brio/store";
+import { slicePersisted, useBrioStore } from "@/lib/brio/store";
 import { WaterSheet, StepsSheet, SleepSheet, WorkoutSheet, WeightSheet } from "@/components/brio/log-sheets";
 import { StreakSheet } from "@/components/brio/streak-sheet";
 import { cn } from "@/lib/utils";
@@ -92,6 +94,15 @@ export function TodayScreen() {
   const [wgOpen, setWgOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [streakOpen, setStreakOpen] = useState(false);
+  /**
+   * Se decide una vez al montar, no en cada render: que la tarjeta aparezca a
+   * media sesión porque un `Date.now()` ha cruzado un umbral sería desconcertante.
+   * `snap.days` no cambia de tamaño salvo al registrar el primer alimento de un
+   * día nuevo, así que contar días aquí es barato.
+   */
+  const [suggestBackup, setSuggestBackup] = useState(() =>
+    shouldSuggestBackup(loadBackup(), Object.keys(useBrioStore.getState().days).length),
+  );
   const [note, setNote] = useState(d?.note ?? "");
 
   useEffect(() => {
@@ -335,6 +346,42 @@ export function TodayScreen() {
           </div>
         ) : null}
       </Card>
+
+      {suggestBackup ? (
+        // Al final de Hoy y no en un modal ni un toast: recordar una copia no
+        // puede interrumpir lo que has venido a hacer. En Ajustes sola no
+        // serviría de nada — quien no exporta nunca tampoco entra ahí.
+        <Card className="mt-3">
+          <p className="text-sm font-medium">Haz una copia de tus datos</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Brío vive entero en este dispositivo. Si borras los datos del navegador o cambias de móvil, esto se va con
+            ellos.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <Button
+              className="flex-1"
+              onClick={() => {
+                const state = slicePersisted(useBrioStore.getState());
+                download(new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }), backupFilename("json"));
+                markBackupDone();
+                setSuggestBackup(false);
+              }}
+            >
+              Descargar copia
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                snoozeBackup();
+                setSuggestBackup(false);
+              }}
+            >
+              Ahora no
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       {foodMounted ? (
         <Suspense fallback={null}>

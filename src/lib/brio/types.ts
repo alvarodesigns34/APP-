@@ -10,7 +10,7 @@ export const LEGACY_STORE_KEYS = ["brio.v1", "salud.v1"] as const;
  * backup, but "borrar todos los datos" must still clear them — otherwise the
  * wipe leaves the last search and the reminder bookkeeping behind.
  */
-export const AUX_STORE_KEYS = ["brio.search-prefs", "brio.reminders.fired"] as const;
+export const AUX_STORE_KEYS = ["brio.search-prefs", "brio.reminders.fired", "brio.backup"] as const;
 export const NOTE_MAX = 600;
 
 export type Sex = "h" | "m" | "nb";

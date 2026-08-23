@@ -93,7 +93,14 @@ function withDay(s: PersistedState, key: string, mut: (d: DayLog) => void): Reco
   return days;
 }
 
-function slicePersisted(s: BrioStore): PersistedState {
+/**
+ * Los campos del estado que se guardan y se exportan.
+ *
+ * Exportada para que la tarjeta de copia de Hoy no tenga que repetir la lista:
+ * dos copias de esta lista es exactamente cómo se cuela un campo que se guarda
+ * pero no se exporta.
+ */
+export function slicePersisted(s: BrioStore): PersistedState {
   return {
     schema: s.schema,
     onboarded: s.onboarded,

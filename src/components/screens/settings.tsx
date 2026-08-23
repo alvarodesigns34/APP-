@@ -36,7 +36,7 @@ import { ACCENTS, accentName } from "@/lib/brio/accent";
 import { useBrioStore } from "@/lib/brio/store";
 import { clockToMinutes, minutesToClock } from "@/lib/brio/dates";
 import { combinedCsv } from "@/lib/brio/export-csv";
-import { nf, parseNum } from "@/lib/brio/format";
+import { nf, parseNum, plural } from "@/lib/brio/format";
 import { DEFAULT_WEEKDAY_PLAN, MIN_DAY_KCAL, kcalForWeekday } from "@/lib/brio/weekday-goals";
 import { formatBackupPreview, previewBackup, type BackupPreview } from "@/lib/brio/backup-preview";
 import { useUndoList } from "@/lib/brio/undo";
@@ -53,6 +53,8 @@ import {
   weightUnit,
   type UnitSystem,
 } from "@/lib/brio/units";
+import { backupFilename, download } from "@/lib/brio/download";
+import { STALE_DAYS, daysSinceBackup, loadBackup, markBackupDone } from "@/lib/brio/backup";
 import { cn } from "@/lib/utils";
 
 type GoalKey = "kcal" | "prot" | "fib" | "sug" | "sod" | "steps" | "water" | "weight" | "sleep" | "activityMin";
@@ -115,23 +117,6 @@ const GOAL_FIELDS: {
   { key: "activityMin", label: () => "Ejercicio a la semana (min)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
 ];
 
-/**
- * Descarga un blob y suelta la url.
- *
- * Sin el `revokeObjectURL`, cada exportación deja una copia entera del estado
- * viva en memoria hasta que se recargue el documento — y esto es una PWA que
- * se queda abierta días. Con un histórico largo son varios MB por pulsación.
- */
-function download(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  // En el mismo turno el navegador aún no ha empezado a leer la url.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
 export function SettingsScreen() {
   const profile = useBrioStore((s) => s.profile);
   const settings = useBrioStore((s) => s.settings);
@@ -166,6 +151,12 @@ export function SettingsScreen() {
   const activeFasting = FASTING_PRESETS.find((p) => p.id === settings.fasting && p.id !== "off");
   const b = bmi(profile.weight, profile.height);
   const cat = bmiCategory(b);
+  // Se relee al marcar una copia para que la línea se actualice sin recargar.
+  const [backupDays, setBackupDays] = useState<number | null>(() => daysSinceBackup(loadBackup()));
+  function doneBackup() {
+    markBackupDone();
+    setBackupDays(daysSinceBackup(loadBackup()));
+  }
   const [wipeOpen, setWipeOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<BackupPreview | null>(null);
@@ -671,27 +662,38 @@ export function SettingsScreen() {
 
       <SectionLabel>Datos</SectionLabel>
       <Card className="space-y-2">
+        {/* Sin esto, exportar era un botón sin memoria: no había forma de saber
+            si la última copia era de la semana pasada o de hace medio año. */}
+        <p className={cn("text-xs", backupDays != null && backupDays >= STALE_DAYS ? "text-[var(--brio-warn)]" : "text-muted-foreground")}>
+          {backupDays == null
+            ? "Todo vive en este dispositivo y aún no has hecho ninguna copia."
+            : backupDays === 0
+              ? "Última copia: hoy."
+              : `Última copia: hace ${plural(backupDays, "día", "días")}.`}
+        </p>
         <Button
           variant="secondary"
           className="w-full"
-          onClick={() =>
+          onClick={() => {
             download(
               new Blob([JSON.stringify(exportSlice, null, 2)], { type: "application/json" }),
-              `brio-${new Date().toISOString().slice(0, 10)}.json`,
-            )
-          }
+              backupFilename("json"),
+            );
+            doneBackup();
+          }}
         >
           Exportar JSON
         </Button>
         <Button
           variant="secondary"
           className="w-full"
-          onClick={() =>
+          onClick={() => {
             download(
               new Blob([combinedCsv(exportSlice)], { type: "text/csv;charset=utf-8" }),
-              `brio-${new Date().toISOString().slice(0, 10)}.csv`,
-            )
-          }
+              backupFilename("csv"),
+            );
+            doneBackup();
+          }}
         >
           Exportar CSV
         </Button>
