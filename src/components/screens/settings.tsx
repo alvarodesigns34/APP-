@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { Check } from "lucide-react";
 import { toast } from "sonner";
 import { Card, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ import {
   type ThemePref,
   type WeekdayPlan,
 } from "@/lib/brio/types";
+import { ACCENTS, accentName } from "@/lib/brio/accent";
 import { useBrioStore } from "@/lib/brio/store";
 import { clockToMinutes, minutesToClock } from "@/lib/brio/dates";
 import { combinedCsv } from "@/lib/brio/export-csv";
@@ -473,18 +475,58 @@ export function SettingsScreen() {
       </Card>
 
       <SectionLabel>Apariencia</SectionLabel>
-      <Card>
-        <div className="flex gap-2">
-          {(["auto", "light", "dark"] as ThemePref[]).map((t) => (
-            <Button
-              key={t}
-              variant={settings.theme === t ? "default" : "secondary"}
-              size="sm"
-              onClick={() => patchSettings({ theme: t })}
-            >
-              {t === "auto" ? "Auto" : t === "light" ? "Claro" : "Oscuro"}
-            </Button>
-          ))}
+      <Card className="space-y-4">
+        <div>
+          <p className="mb-2 text-sm font-medium">Tema</p>
+          <div className="flex gap-2">
+            {(["auto", "light", "dark"] as ThemePref[]).map((t) => (
+              <Button
+                key={t}
+                variant={settings.theme === t ? "default" : "secondary"}
+                size="sm"
+                onClick={() => patchSettings({ theme: t })}
+              >
+                {t === "auto" ? "Auto" : t === "light" ? "Claro" : "Oscuro"}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="mb-2 text-sm font-medium">
+            Color principal <span className="text-muted-foreground">· {accentName(settings.accent)}</span>
+          </p>
+          {/* Each swatch carries its own `data-accent`, so the CSS in styles.css
+              paints it with that palette's own `--brio-primary` — in whichever
+              theme is active. The colour values therefore live in exactly one
+              place, and the preview cannot drift from what picking it does. */}
+          <div className="grid grid-cols-4 gap-2">
+            {ACCENTS.map((a) => {
+              const on = settings.accent === a.id;
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  data-accent={a.id}
+                  aria-pressed={on}
+                  aria-label={`Color ${a.n}`}
+                  onClick={() => patchSettings({ accent: a.id })}
+                  className="flex min-h-11 flex-col items-center gap-1 rounded-xl py-1"
+                >
+                  <span
+                    className={cn(
+                      "grid size-8 place-items-center rounded-full bg-primary transition-transform",
+                      on && "ring-2 ring-primary ring-offset-2 ring-offset-card",
+                    )}
+                  >
+                    {on ? <Check className="size-4 text-primary-foreground" /> : null}
+                  </span>
+                  <span className={cn("text-[10px]", on ? "font-medium text-foreground" : "text-muted-foreground")}>
+                    {a.n}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </Card>
 

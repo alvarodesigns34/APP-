@@ -11,6 +11,30 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preload" href="/fonts/outfit-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/fraunces-latin-opsz-wght.woff2" as="font" type="font/woff2" crossorigin />
+    <script>
+      /* Theme and accent live inside the app's own state blob, but the React
+         tree that applies them only mounts after hydration — so someone on the
+         dark theme got a full cream-coloured flash on every cold start, and the
+         accent landed a frame later on top of that. Resolve both here, before
+         first paint. Deliberately defensive: anything unexpected just leaves
+         the stylesheet defaults in place.
+         The key is STORE_KEY from src/lib/brio/types.ts; accent.test.ts asserts
+         the two stay in step, because a silent mismatch would only show up as
+         the flash quietly coming back. */
+      (function () {
+        try {
+          var raw = localStorage.getItem("brio.v4");
+          var s = (raw ? JSON.parse(raw) || {} : {}).settings || {};
+          var pref = s.theme === "light" || s.theme === "dark" ? s.theme : "auto";
+          if (pref === "dark" || (pref === "auto" && matchMedia("(prefers-color-scheme: dark)").matches)) {
+            document.documentElement.classList.add("dark");
+          }
+          document.documentElement.dataset.accent = typeof s.accent === "string" ? s.accent : "verde";
+        } catch (e) {
+          /* private mode, blocked storage, corrupt JSON — defaults are fine */
+        }
+      })();
+    </script>
   </head>
   <body class="antialiased">
     <div id="root"></div>

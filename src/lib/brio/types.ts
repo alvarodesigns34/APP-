@@ -1,3 +1,5 @@
+import type { AccentId } from "./accent";
+
 export const APP_NAME = "Brío";
 export const APP_VERSION = "4.1.0";
 export const SCHEMA_VERSION = 4;
@@ -170,6 +172,8 @@ export type WeekdayPlan = {
 
 export type Settings = {
   theme: ThemePref;
+  /** Which palette drives `--brio-primary`/`--brio-kcal`. See lib/brio/accent.ts. */
+  accent: AccentId;
   units: "met" | "imp";
   glass: number;
   pantryBasics: boolean;

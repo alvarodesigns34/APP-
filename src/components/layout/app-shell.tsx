@@ -4,6 +4,7 @@ import { Activity, Home, Settings2, TrendingUp, Utensils } from "lucide-react";
 import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
 import { useBrioStore } from "@/lib/brio/store";
+import type { AccentId } from "@/lib/brio/accent";
 import { shouldRollViewDate, todayKey } from "@/lib/brio/dates";
 import { emitQuickLog, isTypingTarget, resolveHotkey } from "@/lib/brio/hotkeys";
 import { bootShortcut } from "@/lib/brio/shortcut-search";
@@ -23,9 +24,21 @@ const TABS = [
 
 type TabTo = (typeof TABS)[number]["to"];
 
-function applyTheme(pref: "auto" | "light" | "dark") {
+function applyTheme(pref: "auto" | "light" | "dark", accent: AccentId) {
+  const root = document.documentElement;
   const dark = pref === "dark" || (pref === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.classList.toggle("dark", dark);
+  root.classList.toggle("dark", dark);
+  root.dataset.accent = accent;
+  // The browser chrome (status bar on iOS, address bar on Android) is painted
+  // from this meta tag, not from the stylesheet, so a hardcoded green stayed
+  // green whatever the user picked — and stayed *light* green behind a dark
+  // theme. Read the resolved value back out of CSS so this can never drift
+  // from the palette in styles.css.
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    const bg = getComputedStyle(root).getPropertyValue("--brio-bg").trim();
+    if (bg) meta.setAttribute("content", bg);
+  }
 }
 
 function HotkeyHelp({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -125,6 +138,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const hydrated = useBrioStore((s) => s.hydrated);
   const onboarded = useBrioStore((s) => s.onboarded);
   const theme = useBrioStore((s) => s.settings.theme);
+  const accent = useBrioStore((s) => s.settings.accent);
   const setViewDate = useBrioStore((s) => s.setViewDate);
   const viewDate = useBrioStore((s) => s.viewDate);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -162,12 +176,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!hydrated) return;
-    applyTheme(theme);
+    applyTheme(theme, accent);
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => applyTheme(theme);
+    const onChange = () => applyTheme(theme, accent);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
-  }, [hydrated, theme]);
+  }, [hydrated, theme, accent]);
 
   if (!hydrated) {
     return <HoySkeleton />;

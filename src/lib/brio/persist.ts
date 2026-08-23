@@ -1,3 +1,4 @@
+import { DEFAULT_ACCENT, isAccentId } from "./accent";
 import { DEFAULT_MACRO_PCT, clampMacroPct, isMacroPresetId, pctForPreset } from "./domain";
 import { DEFAULT_REMINDERS, parseReminders } from "./reminders";
 import { DEFAULT_WEEKDAY_PLAN, parseWeekdayPlan } from "./weekday-goals";
@@ -50,6 +51,7 @@ export function defaultState(): PersistedState {
     },
     settings: {
       theme: "auto",
+      accent: DEFAULT_ACCENT,
       units: "met",
       glass: 250,
       pantryBasics: true,
@@ -289,6 +291,10 @@ export function migrate(raw: unknown): PersistedState {
   profile.birth = typeof profile.birth === "string" ? profile.birth : "";
   const settings = { ...base.settings, ...(isObj(out.settings) ? out.settings : {}) } as Settings;
   if (settings.theme !== "auto" && settings.theme !== "light" && settings.theme !== "dark") settings.theme = "auto";
+  // An unknown accent would leave `data-accent` pointing at a rule that does
+  // not exist, so the app would silently fall back to the bare `:root` green
+  // while Ajustes highlighted nothing — better to land on the real default.
+  if (!isAccentId(settings.accent)) settings.accent = DEFAULT_ACCENT;
   const fasting = (settings as Settings).fasting;
   if (fasting !== "off" && fasting !== "12-12" && fasting !== "14-10" && fasting !== "16-8" && fasting !== "18-6") {
     settings.fasting = "off";
