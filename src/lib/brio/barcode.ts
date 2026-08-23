@@ -213,12 +213,20 @@ export async function createBarcodeDetector(): Promise<DetectorInstance | null> 
   }
 }
 
+/**
+ * Se aceptan los códigos bien formados aunque el dígito de control no cuadre:
+ * hay etiquetas impresas con el checksum mal, y Open Food Facts dirá que no lo
+ * conoce, que es un fallo mucho más benigno que negarse a buscarlo.
+ *
+ * Había dos ramas, `isValidEan` primero y `isWellFormedEan` después, y el test
+ * se titulaba "prefiere los códigos con checksum válido" — pero las dos
+ * devolvían lo mismo y la primera está contenida en la segunda (la comprobación
+ * de checksum ya exige 8/12/13 dígitos), así que no había preferencia ninguna.
+ */
 export function pickDetectedCode(raw: string | undefined): string | null {
   if (!raw) return null;
   const digits = normalizeEan(raw);
-  if (isValidEan(digits)) return digits;
-  if (isWellFormedEan(digits)) return digits;
-  return null;
+  return isWellFormedEan(digits) ? digits : null;
 }
 
 export async function detectBarcodeFromImage(source: ImageBitmapSource): Promise<string | null> {

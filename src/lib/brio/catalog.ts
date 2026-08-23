@@ -235,10 +235,6 @@ function ctxFoods(ctx: CatalogContext): Food[] {
   return [...custom, ...userRecipes];
 }
 
-export function allFoods(ctx: CatalogContext): Food[] {
-  return [...BASE_FOODS, ...RECIPE_FOODS, ...ctxFoods(ctx)];
-}
-
 export function getFood(id: string, ctx: CatalogContext): Food | undefined {
   const custom = ctx.customFoods.find((f) => f.id === id);
   if (custom) return { ...custom, custom: true, cat: "propio" };

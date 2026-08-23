@@ -37,7 +37,12 @@ export function addDays(key: string, n: number): string {
   return keyOf(d);
 }
 
-/** How far ahead a day can be planned — see MAX_PLAN_DAYS_AHEAD in date-nav.tsx. */
+/**
+ * Cuántos días se puede planificar hacia delante. Esta es la única definición:
+ * el comentario que había apuntaba a una constante del mismo nombre en
+ * date-nav.tsx que no existe — ese componente llama a `canPlanFurther` sin
+ * tercer argumento y se queda con este valor por defecto.
+ */
 export const MAX_PLAN_DAYS_AHEAD = 7;
 
 /** True while `key` is still within the plannable window ahead of `today`. */
