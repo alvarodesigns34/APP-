@@ -91,6 +91,20 @@ describe("groupShopping", () => {
   it("handles an empty list", () => {
     expect(groupShopping([])).toEqual({ pending: [], done: [] });
   });
+
+  it("does not invent an aisle out of a category that is not one", () => {
+    // "propio" / "receta" / "receta_base" are catalog tabs, not supermarket
+    // aisles: picking one of your own foods as a suggestion used to open a
+    // heading called "Mis alimentos", and "Recetas" even sorted after "Otros".
+    const { pending } = groupShopping([
+      item("Mi tortilla", "propio"),
+      item("Papel", SHOPPING_OTHER),
+      item("Manzanas", "fruta"),
+      item("Lentejas de la abuela", "receta_base"),
+    ]);
+    expect(pending.map((g) => g.name)).toEqual(["Frutas", "Otros"]);
+    expect(pending[1].items.map((i) => i.name)).toEqual(["Mi tortilla", "Papel", "Lentejas de la abuela"]);
+  });
 });
 
 describe("shoppingCounts", () => {

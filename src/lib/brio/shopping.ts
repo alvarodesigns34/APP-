@@ -26,16 +26,30 @@ const AISLE_ORDER = [
   "dulce",
 ] as const;
 
+const AISLE_IDS = new Set<string>(AISLE_ORDER);
+
 const AISLE_NAMES: Record<string, string> = {
-  ...Object.fromEntries(CATEGORIES.map((c) => [c.id, c.n])),
+  ...Object.fromEntries(CATEGORIES.filter((c) => AISLE_IDS.has(c.id)).map((c) => [c.id, c.n])),
   [SHOPPING_OTHER]: "Otros",
 };
 
-export function aisleName(cat: string): string {
-  return AISLE_NAMES[cat] ?? "Otros";
+/**
+ * The aisle a catalog category is walked in.
+ *
+ * `propio`, `receta` and `receta_base` are tabs of the food catalog, not
+ * aisles: an item picked from one of them used to open a heading of its own
+ * ("Mis alimentos"), and "Recetas" even sorted past "Otros", which is supposed
+ * to be the last group.
+ */
+function aisleOf(cat: string): string {
+  return AISLE_IDS.has(cat) ? cat : SHOPPING_OTHER;
 }
 
-/** Position of a category in the walk order; unknown ones sort last. */
+export function aisleName(cat: string): string {
+  return AISLE_NAMES[aisleOf(cat)];
+}
+
+/** Position in the walk order; "Otros" sorts last. */
 function aisleRank(cat: string): number {
   const i = AISLE_ORDER.indexOf(cat as (typeof AISLE_ORDER)[number]);
   return i < 0 ? AISLE_ORDER.length : i;
@@ -100,14 +114,15 @@ export function groupShopping(items: ShoppingItem[]): { pending: ShoppingGroup[]
       done.push(item);
       continue;
     }
-    const cat = item.cat || SHOPPING_OTHER;
+    const cat = aisleOf(item.cat);
     const bucket = byCat.get(cat);
     if (bucket) bucket.push(item);
     else byCat.set(cat, [item]);
   }
+  // Every bucket is now a distinct aisle, so the rank alone is a total order.
   const pending = [...byCat.entries()]
     .map(([cat, list]) => ({ cat, name: aisleName(cat), items: list }))
-    .sort((a, b) => aisleRank(a.cat) - aisleRank(b.cat) || a.name.localeCompare(b.name, "es"));
+    .sort((a, b) => aisleRank(a.cat) - aisleRank(b.cat));
   return { pending, done };
 }
 
