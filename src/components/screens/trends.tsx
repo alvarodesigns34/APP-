@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import { Card, Empty, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { Button } from "@/components/ui/button";
+import { Sparkline } from "@/components/brio/sparkline";
 import {
   WEEKDAYS,
   addDays,
@@ -16,7 +17,7 @@ import {
 } from "@/lib/brio/dates";
 import { nf, plural } from "@/lib/brio/format";
 import { buildMacroSeries, DEFAULT_TREND_RANGE, TREND_RANGES, type TrendRange } from "@/lib/brio/macro-series";
-import { latestWaist, measureChanges, waistToHeight } from "@/lib/brio/measures";
+import { latestWaist, measureChanges, measureSeries, waistToHeight } from "@/lib/brio/measures";
 import { achievements, achievementsDone, nextAchievements } from "@/lib/brio/achievements";
 import { AchievementsSheet } from "@/components/brio/achievements-sheet";
 import { MonthRecapSheet } from "@/components/brio/month-recap-sheet";
@@ -434,9 +435,17 @@ export function TrendsScreen() {
             {measures.length > 0 ? (
               <ul className={cn("space-y-1", waist != null && "border-t border-border pt-3")}>
                 {measures.map((m) => (
-                  <li key={m.id} className="flex items-baseline justify-between gap-3 text-sm">
-                    <span className="text-muted-foreground">{m.n}</span>
-                    <span className="tabular-nums">
+                  // Rejilla y no flex: con `justify-between`, cada línea
+                  // arrancaba en un sitio distinto según lo ancho que fuera su
+                  // valor, y cinco líneas escalonadas no se comparan de un
+                  // vistazo. En columna, sí.
+                  <li key={m.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 text-sm">
+                    <span className="truncate text-muted-foreground">{m.n}</span>
+                    {/* Se llevaban meses apuntando cinco medidas y solo se veía
+                        el último valor: la evolución, que es justo para lo que
+                        uno se mide, no estaba en ninguna parte. */}
+                    <Sparkline values={measureSeries(snap.weights, m.id).map((p) => p.cm)} className="text-primary" />
+                    <span className="min-w-[5.5rem] text-right tabular-nums">
                       <b className="font-medium">{nf(m.last, 1)} cm</b>
                       {m.delta != null && Math.abs(m.delta) >= 0.05 ? (
                         <span className="text-muted-foreground">
