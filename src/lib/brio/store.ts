@@ -12,7 +12,7 @@ import type {
   WeightEntry,
   WorkoutEntry,
 } from "./types";
-import { MEALS, NOTE_MAX } from "./types";
+import { MEALS, MEASURES, NOTE_MAX } from "./types";
 import { clearAuxStorage, defaultState, emptyDay, isEmptyDay, loadState, migrate, saveState } from "./persist";
 import { uid, round, plural } from "./format";
 import { scaleMacros } from "./scale-macros";
@@ -111,9 +111,25 @@ function slicePersisted(s: BrioStore): PersistedState {
   };
 }
 
-function weightExtra(w: WeightEntry): { fat?: number; muscle?: number } | undefined {
-  if (w.fat == null && w.muscle == null) return undefined;
-  return { fat: w.fat, muscle: w.muscle };
+/**
+ * Todo lo que un pesaje lleva además de fecha y kg, para restaurarlo tal cual
+ * al deshacer un `upsertWeight`/`deleteWeight`.
+ *
+ * Antes solo copiaba `fat`/`muscle`. Las cinco medidas de MEASURES (cintura,
+ * pecho, cadera, brazo, muslo) se añadieron después a `WeightEntry` y esta
+ * función se quedó sin actualizar: apuntar la cintura, guardar, y deshacer el
+ * pesaje siguiente la borraba sin avisar. Se deriva de MEASURES para que no
+ * vuelva a pasar si se añade una medida más.
+ */
+function weightExtra(w: WeightEntry): Partial<Omit<WeightEntry, "date" | "kg">> | undefined {
+  const extra: Partial<Omit<WeightEntry, "date" | "kg">> = {};
+  if (w.fat != null) extra.fat = w.fat;
+  if (w.muscle != null) extra.muscle = w.muscle;
+  for (const m of MEASURES) {
+    const v = w[m.id];
+    if (v != null) extra[m.id] = v;
+  }
+  return Object.keys(extra).length > 0 ? extra : undefined;
 }
 
 function recordUndo(label: string, apply: () => void) {

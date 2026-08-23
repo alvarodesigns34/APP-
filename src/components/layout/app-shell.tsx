@@ -192,7 +192,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="min-h-dvh bg-background text-foreground">
         <Onboarding />
         <Hotkeys />
-        <Toaster position="top-center" richColors />
+        {/* Cualquier hoja abierta (Vaul Drawer, modal) pone `pointer-events: none`
+            en <body> para que no se pueda tocar lo de detrás — correcto para
+            el contenido que tapa, pero el toast es un portal aparte que
+            hereda esa regla igual que cualquier otro hijo de body. Sin este
+            `auto` explícito, el botón "Deshacer" se ve perfectamente pero no
+            recibe ningún toque mientras haya una hoja abierta: exactamente
+            el caso más común, borrar algo desde dentro de una hoja y que
+            salga el toast de deshacer detrás de ella. Ningún z-index lo
+            arregla, porque pointer-events no es una cuestión de capas. */}
+        <Toaster position="top-center" richColors style={{ pointerEvents: "auto" }} />
       </div>
     );
   }
@@ -233,7 +242,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Hotkeys />
       <ShortcutBoot />
       <RemindersBoot />
-      <Toaster position="top-center" richColors />
+      <Toaster position="top-center" richColors style={{ pointerEvents: "auto" }} />
     </div>
   );
 }
