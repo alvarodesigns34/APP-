@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, dateOf, todayKey } from "./dates";
+import { addDays, dateOf, rangeKeys, todayKey } from "./dates";
 import { bmr, macrosFromKcal, targetKcal, tdee } from "./domain";
 import { defaultState, emptyDay } from "./persist";
 import { fastingStatus, kcalGoalFor, latestWeight, macroGoalsFor, weeklyInsights } from "./selectors";
@@ -113,6 +113,10 @@ describe("energy math", () => {
 });
 
 describe("macroGoalsFor follows the weekday plan like kcalGoalFor", () => {
+  const MON_FRI = [false, true, true, true, true, true, false];
+  const MONDAY = "2026-08-24";
+  const SUNDAY = "2026-08-23";
+
   it("returns the flat goal when the weekday plan is off", () => {
     const s = defaultState();
     s.goals = { ...s.goals, kcal: 2000, prot: 125, carb: 225, fat: 67 };
@@ -135,6 +139,31 @@ describe("macroGoalsFor follows the weekday plan like kcalGoalFor", () => {
     if (s.settings.weekdayPlan.training[dateOf(key).getDay()] !== undefined && dayKcal !== 2000) {
       expect(mg).not.toEqual({ prot: 125, carb: 225, fat: 67 });
     }
+  });
+
+  it("scales the macros you actually set, not the preset percentages", () => {
+    const s = defaultState();
+    // Protein raised by hand in Ajustes, so the goals no longer match macroPct.
+    s.goals = { ...s.goals, kcal: 2000, prot: 180, carb: 225, fat: 67 };
+    s.settings.macroPct = { prot: 25, carb: 45, fat: 30 };
+    s.settings.activityAdjust = false;
+    s.settings.weekdayPlan = { enabled: true, training: [...MON_FRI] };
+
+    // A training day has more kcal than the flat goal, so it must also ask for
+    // more protein — not the 138 g that 25 % of that day's kcal would give.
+    expect(kcalGoalFor(s, MONDAY)).toBeGreaterThan(2000);
+    expect(macroGoalsFor(s, MONDAY).prot).toBeGreaterThan(180);
+    expect(macroGoalsFor(s, SUNDAY).prot).toBeLessThan(180);
+  });
+
+  it("keeps the weekly protein total at 7x the flat goal", () => {
+    const s = defaultState();
+    s.goals = { ...s.goals, kcal: 2000, prot: 180, carb: 225, fat: 67 };
+    s.settings.activityAdjust = false;
+    s.settings.weekdayPlan = { enabled: true, training: [...MON_FRI] };
+    const week = rangeKeys("2026-08-29", 7); // sunday 23 → saturday 29
+    const total = week.reduce((n, k) => n + macroGoalsFor(s, k).prot, 0);
+    expect(total).toBe(7 * 180);
   });
 
   it("does not fold the activity-kcal bonus into macro grams", () => {

@@ -1,5 +1,5 @@
 import { addDays, dateOf, mealForHour, nowMinutes, rangeKeys, sleepDuration, todayKey } from "./dates";
-import { kcalFloor, kcalFromSteps, macrosFromKcal } from "./domain";
+import { kcalFloor, kcalFromSteps } from "./domain";
 import { nf } from "./format";
 import { emptyDay } from "./persist";
 import type { DayLog, FastingId, MealEntry, MealId, SelectorState } from "./types";
@@ -84,19 +84,32 @@ export function kcalGoalFor(s: SelectorState, key: string): number {
  * grams too, at the same split). Deliberately excludes the activity-kcal
  * bonus: that extra allowance has no defined split, so it stays a kcal-only
  * buffer, same as the "Incluye X kcal de actividad" note already shows it.
+ *
+ * The day's grams come from scaling `goals`, not from re-deriving them out of
+ * `settings.macroPct`: the two drift apart as soon as you edit "Proteína (g)"
+ * or "Calorías (kcal)" by hand in Ajustes, and re-deriving threw your own
+ * numbers away — a 180 g protein goal came back as 138 g on a training day,
+ * lower than on a rest day. Scaling keeps your split and keeps the 7-day sum
+ * on `7 * goals`, exactly like the kcal it follows.
  */
 export function macroGoalsFor(s: SelectorState, key: string): { prot: number; carb: number; fat: number } {
-  if (!s.settings.weekdayPlan?.enabled) {
-    return { prot: s.goals.prot, carb: s.goals.carb, fat: s.goals.fat };
-  }
+  const flat = { prot: s.goals.prot, carb: s.goals.carb, fat: s.goals.fat };
+  if (!s.settings.weekdayPlan?.enabled) return flat;
   const k = kcalForWeekday(
     s.goals.kcal,
     s.settings.weekdayPlan.training,
     dateOf(key).getDay(),
     kcalFloor(s.profile.sex),
   );
-  if (k === s.goals.kcal) return { prot: s.goals.prot, carb: s.goals.carb, fat: s.goals.fat };
-  return macrosFromKcal(k, s.settings.macroPct);
+  // Also the guard against dividing by a kcal goal switched off: a zero base
+  // comes back unchanged from kcalForWeekday, so it leaves through here.
+  if (k === s.goals.kcal) return flat;
+  const factor = k / s.goals.kcal;
+  return {
+    prot: Math.round(flat.prot * factor),
+    carb: Math.round(flat.carb * factor),
+    fat: Math.round(flat.fat * factor),
+  };
 }
 
 export function latestWeight(s: SelectorState, beforeKey?: string) {
