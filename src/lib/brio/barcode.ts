@@ -126,16 +126,13 @@ export function mapOffProduct(payload: unknown, ean: string): OffFoodDraft | nul
 
   const kcal100g = nutriment(nutriments, ["energy-kcal_100g", "energy-kcal", "energy_kcal_100g"]);
   const kcal100ml = nutriment(nutriments, ["energy-kcal_100ml", "energy_kcal_100ml"]);
-  let kcal = kcal100g ?? kcal100ml;
-  if (kcal == null) {
-    const kj = nutriment(nutriments, [
-      kcal100ml != null ? "energy-kj_100ml" : "energy-kj_100g",
-      "energy-kj_100g",
-      "energy_100g",
-      "energy-kj",
-    ]);
-    if (kj != null) kcal = kj / 4.184;
-  }
+  const kj100g = nutriment(nutriments, ["energy-kj_100g", "energy_100g", "energy-kj"]);
+  const kj100ml = nutriment(nutriments, ["energy-kj_100ml", "energy_100ml"]);
+  // kJ only when no kcal figure is published. The per-100-ml kJ key used to sit
+  // behind a condition that this branch had already ruled out, so it was never
+  // read: a drink listed only as kJ/100 ml came through as a 0 kcal food.
+  const kjKcal = kj100g != null ? kj100g / 4.184 : kj100ml != null ? kj100ml / 4.184 : null;
+  const kcal = kcal100g ?? kcal100ml ?? kjKcal;
 
   const prot = nutriment(nutriments, ["proteins_100g", "proteins_100ml", "proteins"]) ?? 0;
   const carb = nutriment(nutriments, ["carbohydrates_100g", "carbohydrates_100ml", "carbohydrates"]) ?? 0;
@@ -147,7 +144,9 @@ export function mapOffProduct(payload: unknown, ean: string): OffFoodDraft | nul
   const saltG = nutriment(nutriments, ["salt_100g", "salt_100ml", "salt"]);
   const sodMg = sodiumG != null ? sodiumG * 1000 : saltG != null ? saltG * 400 : null;
 
-  const base: FoodBase = kcal100g == null && kcal100ml != null ? "ml" : "g";
+  // A liquid is one whose only energy figure is a per-100-ml key, in kcal or kJ.
+  const perMl = kcal100g == null && kj100g == null && (kcal100ml != null || kj100ml != null);
+  const base: FoodBase = perMl ? "ml" : "g";
   const serving = asNum(product.serving_quantity) ?? asNum(product.serving_quantity_g);
   const units: FoodUnit[] = serving != null && serving > 0 ? [{ name: "ración", g: round(serving, 1) }] : [];
 
