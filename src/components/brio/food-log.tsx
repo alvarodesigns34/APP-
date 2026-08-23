@@ -69,7 +69,7 @@ export function FoodLogSheet({
   const [cat, setCat] = useState<string | null>(null);
   const [queries, setQueries] = useState<string[]>([]);
   const [meal, setMeal] = useState<MealId>(defaultMeal);
-  const [picked, setPicked] = useState<Food | null>(null);
+  const [pickedSnap, setPickedSnap] = useState<Food | null>(null);
   const [grams, setGrams] = useState("100");
   const [qty, setQty] = useState("1");
   const [unitName, setUnitName] = useState("g");
@@ -85,7 +85,7 @@ export function FoodLogSheet({
 
   useEffect(() => {
     if (!open) {
-      setPicked(null);
+      setPickedSnap(null);
       setQ("");
       setCreateOpen(false);
       setCreateDraft(null);
@@ -103,17 +103,28 @@ export function FoodLogSheet({
         customFoods: useBrioStore.getState().customFoods,
         recipes: useBrioStore.getState().recipes,
       });
-      setPicked(food ?? null);
+      setPickedSnap(food ?? null);
       setQty(String(edit.entry.qty));
       setGrams(String(edit.entry.grams));
       setUnitName(edit.entry.unitName);
     } else {
-      setPicked(null);
+      setPickedSnap(null);
       setQty("1");
       setGrams("100");
       setUnitName("g");
     }
   }, [open, edit, defaultMeal, catalogReady]);
+
+  // `pickedSnap` only pins *which* food is selected; the values come from the
+  // live store. You can open the ficha of a custom food from here and edit it,
+  // and the frozen snapshot kept the pre-edit name and macros — so the footer
+  // still offered "Añadir · 100 kcal" and that is what got logged. A food
+  // deleted from its own ficha falls back to the list instead of staying
+  // loggable. Same fix as `userRecipes.find` in recipe-browser.tsx.
+  const picked = useMemo(
+    () => (pickedSnap ? (getFood(pickedSnap.id, { customFoods, recipes }) ?? null) : null),
+    [pickedSnap, customFoods, recipes],
+  );
 
   const list = useMemo(
     () =>
@@ -190,7 +201,7 @@ export function FoodLogSheet({
   function pick(f: Food) {
     rememberCurrentQuery();
     const unit = f.units[0];
-    setPicked(f);
+    setPickedSnap(f);
     if (unit) {
       setUnitName(unit.name);
       setQty("1");
@@ -273,7 +284,7 @@ export function FoodLogSheet({
       if (!picked) return;
       addMeal(date, meal, picked, g, qn, unitName);
     }
-    setPicked(null);
+    setPickedSnap(null);
     onOpenChange(false);
   }
 
@@ -289,7 +300,7 @@ export function FoodLogSheet({
         open={open}
         onOpenChange={(v) => {
           if (!v && (createOpen || scanOpen || detailFood)) return;
-          if (!v) setPicked(null);
+          if (!v) setPickedSnap(null);
           onOpenChange(v);
         }}
         title={showQty ? titleName : "Registrar comida"}
@@ -305,7 +316,7 @@ export function FoodLogSheet({
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
               {!editing ? (
-                <Button type="button" variant="ghost" size="sm" onClick={() => setPicked(null)}>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setPickedSnap(null)}>
                   Atrás
                 </Button>
               ) : null}

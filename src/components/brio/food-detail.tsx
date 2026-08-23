@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { CustomFoodSheet } from "@/components/brio/custom-food";
-import { BASE_RECIPES } from "@/lib/brio/catalog";
+import { BASE_RECIPES, getFood } from "@/lib/brio/catalog";
 import { energySplit, lastLogged, recipesUsingFood } from "@/lib/brio/food-detail";
 import { fmtDateRelative, todayKey } from "@/lib/brio/dates";
 import { nf } from "@/lib/brio/format";
@@ -13,7 +13,7 @@ import { CATEGORIES, MEALS, type Food } from "@/lib/brio/types";
 export function FoodDetailSheet({
   open,
   onOpenChange,
-  food,
+  food: pinned,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -23,6 +23,17 @@ export function FoodDetailSheet({
   const catalog = useCatalog();
   const catalogReady = catalog.ready;
   const days = useBrioStore((s) => s.days);
+  const customFoods = useBrioStore((s) => s.customFoods);
+  const userRecipes = useBrioStore((s) => s.recipes);
+  // The prop only pins *which* food this card is about. Re-reading it from the
+  // live store on every render means editing it below (Editar → Guardar) shows
+  // the new macros here straight away, instead of leaving a frozen snapshot
+  // from before the edit. Same reasoning as `userRecipes.find` in
+  // recipe-browser.tsx.
+  const food = useMemo(
+    () => getFood(pinned.id, { customFoods, recipes: userRecipes }) ?? pinned,
+    [pinned, customFoods, userRecipes],
+  );
   const catLabel = CATEGORIES.find((c) => c.id === food.cat)?.n;
   const split = useMemo(() => energySplit(food), [food]);
   const recipes = useMemo(() => {
@@ -155,7 +166,9 @@ export function FoodDetailSheet({
           open={editOpen}
           onOpenChange={setEditOpen}
           edit={food}
-          onSaved={() => onOpenChange(false)}
+          // Saving used to close this card too, which was the only way to avoid
+          // showing the pre-edit numbers. Now that the card reads the store it
+          // stays open on the updated values — you see the change land.
           onDeleted={() => onOpenChange(false)}
         />
       ) : null}
