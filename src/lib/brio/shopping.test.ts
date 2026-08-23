@@ -206,3 +206,16 @@ describe("mergeQty", () => {
     expect(mergeQty("", "")).toBe("");
   });
 });
+
+describe("mergeQty: cantidades iguales", () => {
+  // El caso simétrico es el más corriente: dos recetas que piden lo mismo.
+  it("suma dos cantidades numéricas idénticas", () => {
+    expect(mergeQty("200 g", "200 g")).toBe("400 g");
+    expect(mergeQty("2", "2")).toBe("4");
+    expect(mergeQty("0,5 l", "0,5 l")).toBe("1 l");
+  });
+
+  it("no inventa una suma con texto libre idéntico", () => {
+    expect(mergeQty("un paquete", "un paquete")).toBe("un paquete");
+  });
+});

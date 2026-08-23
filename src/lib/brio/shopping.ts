@@ -125,10 +125,16 @@ export function mergeQty(a: string, b: string): string {
   const right = b.trim();
   if (!left) return right;
   if (!right) return left;
-  if (left === right) return left;
+  // El intento de suma va antes del corte por igualdad. Al revés, dos recetas
+  // que llevan exactamente lo mismo — 200 g de arroz cada una, el caso más
+  // corriente — se cortaban en `left === right` y la lista se quedaba en 200 g:
+  // el fallo que esta función existe para evitar, y justo en el caso simétrico.
   const pa = parseAmount(left);
   const pb = parseAmount(right);
   if (pa && pb && pa.unit === pb.unit) return fmtAmount({ n: pa.n + pb.n, unit: pa.unit });
+  // Texto libre idéntico ("un paquete" y "un paquete") no se puede sumar, y
+  // "un paquete + un paquete" se lee peor que dejarlo como estaba.
+  if (left === right) return left;
   return `${left} + ${right}`;
 }
 

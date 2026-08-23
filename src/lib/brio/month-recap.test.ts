@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { monthKeys, monthRecap, monthWeightDelta } from "./month-recap";
+import { monthStart, todayKey } from "./dates";
 import { defaultState, emptyDay } from "./persist";
 import type { DayLog, MealEntry, SelectorState } from "./types";
 
@@ -121,5 +122,20 @@ describe("monthRecap", () => {
     const r = monthRecap(state({}), "2026-01-15");
     expect(r.key).toBe("2026-01-01");
     expect(r.prevKey).toBe("2025-12-01");
+  });
+});
+
+describe("monthRecap: el mes en curso", () => {
+  it("promedia solo los días vividos, no el mes natural entero", () => {
+    const s = defaultState();
+    const today = todayKey();
+    const start = monthStart(today);
+    // Mismos pasos todos los días transcurridos de este mes.
+    for (const k of monthKeys(today)) {
+      if (k > today) continue;
+      s.days[k] = { ...emptyDay(), steps: 10000 };
+    }
+    const r = monthRecap(s, start);
+    expect(r.curr.stepsAvg).toBe(10000);
   });
 });

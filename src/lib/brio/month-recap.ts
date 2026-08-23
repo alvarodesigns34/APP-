@@ -1,4 +1,4 @@
-import { addMonths, dateOf, keyOf, monthStart } from "./dates";
+import { addMonths, dateOf, keyOf, monthStart, todayKey } from "./dates";
 import { compareWeeks, weekTotals, type WeekDelta, type WeekTotals } from "./week-compare";
 import { dayFoodTotals, workoutMinTotal } from "./selectors";
 import type { SelectorState, WeightEntry } from "./types";
@@ -53,7 +53,15 @@ export function monthWeightDelta(weights: WeightEntry[], keys: string[]): number
 }
 
 export function monthRecap(s: SelectorState, anyKeyInMonth: string): MonthRecap {
-  const keys = monthKeys(anyKeyInMonth);
+  const allKeys = monthKeys(anyKeyInMonth);
+  // El mes en curso se corta en hoy. Sin esto, las medias por día del mes
+  // actual se dividen entre los 31 días naturales aunque solo se hayan vivido
+  // tres, así que el día 3 de agosto alguien que anda sus 10.000 pasos diarios
+  // desde enero veía "Pasos al día: 968 · −90 %" comparado con julio. Los meses
+  // pasados no cambian: ya están enteros por debajo de hoy.
+  const today = todayKey();
+  const lived = allKeys.filter((k) => k <= today);
+  const keys = lived.length > 0 ? lived : allKeys;
   const prevKey = addMonths(anyKeyInMonth, -1);
   const prevKeys = monthKeys(prevKey);
 
