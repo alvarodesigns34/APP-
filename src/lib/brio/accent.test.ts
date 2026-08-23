@@ -175,4 +175,24 @@ describe("arranque sin destello", () => {
   it("el script en línea cae en el acento por defecto real", () => {
     expect(HTML).toContain(`: "${DEFAULT_ACCENT}"`);
   });
+
+  it("el theme-color inicial no es un color de acento clavado", () => {
+    // Un valor de un acento concreto (el verde de antes, o cualquier otro)
+    // sería tan incorrecto como el que estaba: pintaría la barra de estado del
+    // color de acento en vez del fondo, que es lo que de verdad pinta ahí.
+    const m = HTML.match(/<meta name="theme-color" content="(#[0-9a-fA-F]{6})"/);
+    expect(m, "no se encuentra <meta name=theme-color> en index.html").not.toBeNull();
+    const light = declOf(":root", "--brio-bg");
+    expect(m![1].toLowerCase()).toBe(light.toLowerCase());
+  });
+
+  it("el script en línea resuelve el theme-color a los mismos dos fondos que styles.css", () => {
+    // El script no puede leer `--brio-bg` computado (el CSS entra por el
+    // módulo JS, no por un <link>, así que aún no existe en este punto), así
+    // que lleva los dos hex escritos. Si `:root`/`.dark` cambian de fondo sin
+    // tocar aquí, la barra de estado se queda pintando el color viejo.
+    const light = declOf(":root", "--brio-bg");
+    const dark = declOf(".dark", "--brio-bg");
+    expect(HTML.toLowerCase()).toContain(`? "${dark.toLowerCase()}" : "${light.toLowerCase()}"`);
+  });
 });
