@@ -1,6 +1,6 @@
 import { BASE_RECIPES, defaultServing, getFood, isPantryBasic } from "./catalog";
 import { mealForHour, rangeKeys, todayKey } from "./dates";
-import { dayFoodTotals, kcalGoalFor } from "./selectors";
+import { dayFoodTotals, kcalGoalFor, macroGoalsFor } from "./selectors";
 import type { MealId, SelectorState, Recipe } from "./types";
 import { MEALS } from "./types";
 
@@ -55,7 +55,13 @@ export function pantryHint(miss: number): string | null {
 export function suggestRecipes(s: SelectorState, key: string, limit = 3) {
   const food = dayFoodTotals(s, key);
   const remKcal = kcalGoalFor(s, key) - food.kcal;
-  const remProt = s.goals.prot - food.prot;
+  // El objetivo del día, no el plano: las kcal de arriba ya pasan por
+  // `kcalGoalFor`, que aplica el plan de días de entreno/descanso, pero la
+  // proteína salía de `s.goals.prot` a secas. Con el plan activado, "Te encaja
+  // para lo que queda" contradecía a las barras de macros de la misma pantalla
+  // — en un día de descanso las barras decían que quedaban 39 g y la tarjeta
+  // decía 53 g. Y no es solo el texto: `remProt` decide qué recetas entran.
+  const remProt = macroGoalsFor(s, key).prot - food.prot;
   if (remKcal < 120) return { remKcal, remProt, list: [] as SuggestedRecipe[] };
   return { remKcal, remProt, list: pickSuggestedRecipes(BASE_RECIPES, s, remKcal, remProt, limit) };
 }

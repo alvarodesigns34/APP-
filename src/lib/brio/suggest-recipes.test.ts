@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { defaultState } from "./persist";
-import { pickSuggestedRecipes, pantryHint } from "./selectors-catalog";
+import { pickSuggestedRecipes, pantryHint, suggestRecipes } from "./selectors-catalog";
+import { macroGoalsFor } from "./selectors";
+import { dateOf, todayKey } from "./dates";
 import type { Recipe } from "./types";
 
 function recipe(id: string, prot: number, ingIds: string[], kcal = 400): Recipe {
@@ -47,6 +49,37 @@ describe("pickSuggestedRecipes", () => {
     const list = pickSuggestedRecipes([low, high], s, 2000, 100, 2);
     expect(list[0]?.recipe.id).toBe("high");
     expect(list[0]?.miss).toBe(1);
+  });
+});
+
+describe("suggestRecipes", () => {
+  // Las kcal restantes ya salían del objetivo del día (`kcalGoalFor`), pero la
+  // proteína salía del objetivo plano, así que con el plan semanal activado la
+  // tarjeta de sugerencias contradecía a las barras de macros de Hoy.
+  it("descuenta la proteína del objetivo del día, no del plano", () => {
+    const s = defaultState();
+    // Lunes a viernes entreno, fin de semana descanso: hace falta mezcla, porque
+    // con los siete días iguales no hay nada que redistribuir.
+    s.settings.weekdayPlan = { enabled: true, training: [false, true, true, true, true, true, false] };
+
+    const domingo = "2026-08-23";
+    const miercoles = "2026-08-26";
+    expect(dateOf(domingo).getDay()).toBe(0);
+    expect(dateOf(miercoles).getDay()).toBe(3);
+
+    const descanso = macroGoalsFor(s, domingo).prot;
+    const entreno = macroGoalsFor(s, miercoles).prot;
+    expect(descanso).toBeLessThan(s.goals.prot);
+    expect(entreno).toBeGreaterThan(s.goals.prot);
+
+    expect(suggestRecipes(s, domingo).remProt).toBe(descanso);
+    expect(suggestRecipes(s, miercoles).remProt).toBe(entreno);
+  });
+
+  it("sin plan semanal el objetivo del día es el plano", () => {
+    const s = defaultState();
+    s.settings.weekdayPlan = { enabled: false, training: [...s.settings.weekdayPlan.training] };
+    expect(suggestRecipes(s, todayKey()).remProt).toBe(s.goals.prot);
   });
 });
 
