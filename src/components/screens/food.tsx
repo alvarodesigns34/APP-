@@ -27,6 +27,10 @@ export function FoodScreen() {
   const duplicateMeal = useBrioStore((s) => s.duplicateMeal);
   const moveMeal = useBrioStore((s) => s.moveMeal);
   const pantryCount = useBrioStore((s) => s.pantry.length);
+  // Solo los dos techos, no el objeto entero: así tocar cualquier otro
+  // objetivo no vuelve a renderizar esta pantalla.
+  const sugGoal = useBrioStore((s) => s.goals.sug);
+  const sodGoal = useBrioStore((s) => s.goals.sod);
   const shopPending = useBrioStore((s) => s.shopping.reduce((n, i) => (i.done ? n : n + 1), 0));
   const key = viewDate || todayKey();
   const isFuture = key > todayKey();
@@ -97,18 +101,33 @@ export function FoodScreen() {
       <Title sub={`${isFuture ? "Planificado: " : ""}${nf(t.kcal)} kcal · ${nf(t.prot)} g prot`}>Comida</Title>
       {t.sug != null || t.sat != null || t.sod != null ? (
         // Se guardaban desde siempre y se ven en la ficha de cada alimento,
-        // pero nunca se sumaban para el día — quien registra un
-        // ultraprocesado no veía el sodio del día en ningún sitio. Una línea
-        // de texto, no un aro más: sin objetivo definido para estos tres,
-        // un anillo compararía contra nada.
+        // pero nunca se sumaban para el día — quien registra un ultraprocesado
+        // no veía el sodio del día en ningún sitio. Una línea de texto y no un
+        // aro más, porque estos techos son opcionales y casi siempre están sin
+        // poner: un anillo vacío ocuparía sitio sin decir nada.
+        //
+        // Con un techo puesto en Ajustes el número deja de ser solo
+        // informativo: se ve contra qué va y se marca al pasarse. Sin techo
+        // (0), se queda exactamente como estaba. Saturada no lleva objetivo:
+        // no hay un techo de saturada que signifique lo mismo para todo el
+        // mundo, así que inventarlo sería peor que no tenerlo.
         <p className="mb-3 -mt-2 text-xs text-muted-foreground">
           {[
-            t.sug != null ? `${nf(t.sug, 1)} g azúcar` : null,
-            t.sat != null ? `${nf(t.sat, 1)} g sat.` : null,
-            t.sod != null ? `${nf(t.sod)} mg sodio` : null,
+            t.sug != null
+              ? { txt: sugGoal > 0 ? `${nf(t.sug, 1)} / ${nf(sugGoal)} g azúcar` : `${nf(t.sug, 1)} g azúcar`, over: sugGoal > 0 && t.sug > sugGoal }
+              : null,
+            t.sat != null ? { txt: `${nf(t.sat, 1)} g sat.`, over: false } : null,
+            t.sod != null
+              ? { txt: sodGoal > 0 ? `${nf(t.sod)} / ${nf(sodGoal)} mg sodio` : `${nf(t.sod)} mg sodio`, over: sodGoal > 0 && t.sod > sodGoal }
+              : null,
           ]
-            .filter(Boolean)
-            .join(" · ")}
+            .filter((x): x is { txt: string; over: boolean } => x != null)
+            .map((x, i, arr) => (
+              <span key={x.txt} className={cn(x.over && "font-medium text-[var(--brio-warn)]")}>
+                {x.txt}
+                {i < arr.length - 1 ? <span className="text-muted-foreground"> · </span> : null}
+              </span>
+            ))}
         </p>
       ) : null}
       <DateNav />

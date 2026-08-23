@@ -223,6 +223,16 @@ export type Goals = {
   carb: number;
   fat: number;
   fib: number;
+  /**
+   * Techos opcionales de azúcar (g) y sodio (mg). 0 significa "sin objetivo",
+   * igual que en el resto de objetivos, y es el valor de salida: el día ya
+   * sumaba estos dos y los enseñaba, pero sin un techo el número solo informa
+   * y no se puede cumplir. Deliberadamente fuera de `goalsMet`: la racha pide
+   * 3 de 5 y meter dos más cambiaría en silencio lo que significa una racha
+   * que la gente ya lleva acumulada.
+   */
+  sug: number;
+  sod: number;
   steps: number;
   water: number;
   sleep: number;

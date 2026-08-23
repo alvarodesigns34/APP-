@@ -79,6 +79,11 @@ export function Onboarding() {
         carb: g.carb,
         fat: g.fat,
         fib: g.fib,
+        // Los techos de azúcar y sodio no se preguntan aquí: son opcionales y
+        // el onboarding ya pide bastante. Arrancan apagados y se ponen en
+        // Ajustes quien los quiera.
+        sug: 0,
+        sod: 0,
         steps: g.steps,
         water: g.water,
         sleep: g.sleep,

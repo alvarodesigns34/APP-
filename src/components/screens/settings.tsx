@@ -55,13 +55,15 @@ import {
 } from "@/lib/brio/units";
 import { cn } from "@/lib/utils";
 
-type GoalKey = "kcal" | "prot" | "fib" | "steps" | "water" | "weight" | "sleep" | "activityMin";
+type GoalKey = "kcal" | "prot" | "fib" | "sug" | "sod" | "steps" | "water" | "weight" | "sleep" | "activityMin";
 
 /** Lower bounds applied when a goal field loses focus. */
 const GOAL_MIN: Partial<Record<GoalKey, number>> = {
   kcal: MIN_DAY_KCAL,
   prot: 0,
   fib: 0,
+  sug: 0,
+  sod: 0,
   steps: 0,
   water: 0,
   weight: 1,
@@ -87,6 +89,10 @@ const GOAL_FIELDS: {
   { key: "kcal", label: () => "Calorías (kcal)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
   { key: "prot", label: () => "Proteína (g)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
   { key: "fib", label: () => "Fibra (g)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
+  // Techos, no metas: aquí un 0 es "sin objetivo" y la línea de Comida vuelve a
+  // ser informativa. Van en las unidades en las que el catálogo los guarda.
+  { key: "sug", label: () => "Azúcar máx. (g)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
+  { key: "sod", label: () => "Sodio máx. (mg)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
   { key: "steps", label: () => "Pasos", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
   {
     key: "water",
