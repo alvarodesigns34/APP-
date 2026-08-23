@@ -150,6 +150,22 @@ describe("paleta de acentos", () => {
     }
   });
 
+  it("el texto atenuado cumple AA sobre las tres superficies, en los dos temas", () => {
+    // `--brio-muted-fg` es el gris de las etiquetas, los chips y los subtítulos:
+    // el color con más texto pequeño de la app. Sobre el fondo y sobre la
+    // tarjeta iba sobrado, pero sobre `--brio-muted` —los chips, justo donde
+    // más se usa y a 11 px— se quedaba en 4,41:1. Era el único par de toda la
+    // app que no llegaba a AA, medido en navegador sobre las cinco pantallas.
+    for (const mode of ["light", "dark"] as const) {
+      const root = mode === "light" ? ":root" : ".dark";
+      const fg = declOf(root, "--brio-muted-fg");
+      for (const prop of ["--brio-bg", "--brio-card", "--brio-muted"]) {
+        const ratio = contrast(fg, declOf(root, prop));
+        expect(ratio, `muted-fg ${mode} sobre ${prop}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
   it("mantiene el aro de calorías en sintonía con el color principal", () => {
     // `--brio-kcal` pinta el aro grande de Hoy, que es el elemento con más peso
     // visual de la app: si no siguiera al acento, elegir «Ciruela» dejaría la

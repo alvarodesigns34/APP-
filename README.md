@@ -22,6 +22,16 @@ pantallas abren sin red; las gráficas de Tendencias (Recharts, ~420 kB) y el
 escáner de códigos (ZXing, ~450 kB) se quedan fuera del precache a propósito y
 degradan solos cuando no hay conexión.
 
+## v4.8
+
+- Las cinco pantallas abren sin red, no solo Hoy
+- La hora a la que registraste cada comida, junto a la cantidad
+- Evolución de cada medida corporal, no solo la última
+- Editar y compartir la lista de la compra
+- La gráfica de peso deja ver los cambios de peso
+- Deshacer devuelve el estado anterior, no uno parecido
+- Toda la interfaz cumple AA de contraste, medido en las cinco pantallas
+
 ## v4.7
 
 - 719 alimentos, 211 recetas, 12 rutinas

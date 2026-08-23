@@ -1,4 +1,4 @@
-const CACHE = "brio-v4.7";
+const CACHE = "brio-v4.8";
 // Deployment-agnostic on purpose: this file is a raw public/ asset, so Vite
 // never rewrites it. Every entry is relative (no leading "/"), which the Cache
 // API resolves against this script's own URL — the site root whether that is

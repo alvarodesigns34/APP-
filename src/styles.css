@@ -67,10 +67,10 @@
   --shadow-card: var(--brio-shadow-card);
   --shadow-raised: var(--brio-shadow-raised);
 
-  /* Entrances run fast and settle slowly; exits are quicker than entrances.
-     A symmetric ease-in-out is the curve that gives a UI away. */
+  /* Las entradas arrancan rápido y se posan despacio; una curva simétrica
+     ease-in-out es lo que delata que una interfaz está hecha por defecto.
+     Solo queda esta: `--ease-standard` se definió y no llegó a usarla nadie. */
   --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
 :root {
@@ -78,7 +78,13 @@
   --brio-fg: #1c1b16;
   --brio-card: #fffdf8;
   --brio-muted: #e8e3d8;
-  --brio-muted-fg: #6b675c;
+  /* Un punto más oscuro que el #6b675c de antes. Sobre el fondo y sobre la
+     tarjeta cumplía de sobra, pero sobre `--brio-muted` —los chips y las
+     píldoras, que es donde más se usa— se quedaba en 4,41:1, justo por debajo
+     del 4,5:1 que pide AA para texto pequeño, y ahí va a 11 px. Medido en
+     navegador sobre las cinco pantallas; era el único par de toda la app que
+     no llegaba. */
+  --brio-muted-fg: #646056;
   --brio-border: color-mix(in oklab, var(--brio-fg) 12%, transparent);
   --brio-primary: #2f6f4e;
   --brio-primary-fg: #f4f1ea;
