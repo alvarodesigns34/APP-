@@ -129,6 +129,16 @@ export function macrosFromKcal(kcal: number, pct: MacroPct = DEFAULT_MACRO_PCT) 
   };
 }
 
+/**
+ * The common "14 g fibre per 1000 kcal" adequate-intake rule, floored at the
+ * general adult recommendation of 25 g/day. Fibre doesn't scale with
+ * TDEE/purpose the way the other macros do, so this is a simple food-volume
+ * estimate rather than another energy-split formula.
+ */
+export function fiberGoalFor(kcal: number): number {
+  return Math.max(25, Math.round((kcal / 1000) * 14));
+}
+
 export function bmi(kg: number, cm: number): number {
   if (!kg || !cm) return 0;
   const m = cm / 100;
@@ -188,6 +198,7 @@ export function computeGoals(input: {
     tdee: t,
     ...k,
     ...macros,
+    fib: fiberGoalFor(k.kcal),
     steps: 8000,
     water,
     sleep: 480,

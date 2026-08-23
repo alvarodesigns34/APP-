@@ -191,30 +191,45 @@ export type FastingStatus = {
   progress: number;
 };
 
-export function fastingStatus(id: FastingId, now = nowMinutes()): FastingStatus | null {
+/** Minutes from `from` to `now`, wrapped into [0, 1440) — handles the window crossing midnight. */
+function minutesSince(from: number, now: number): number {
+  return (((now - from) % 1440) + 1440) % 1440;
+}
+
+/**
+ * `startOverride` lets the eating window start somewhere other than the
+ * preset's own default (`settings.fastingStart`) — see that field's doc for
+ * why. The window length always comes from the preset; only its position on
+ * the clock moves, and the math is done with wraparound so a window that
+ * crosses midnight (e.g. starting at 22:00) still works.
+ */
+export function fastingStatus(id: FastingId, now = nowMinutes(), startOverride?: number): FastingStatus | null {
   const preset = FASTING_PRESETS.find((p) => p.id === id);
   if (!preset || preset.id === "off") return null;
-  const eating = now >= preset.start && now < preset.end;
   const windowLen = Math.max(1, preset.end - preset.start);
   const fastLen = 1440 - windowLen;
+  const start = ((startOverride ?? preset.start) % 1440 + 1440) % 1440;
+  const end = (start + windowLen) % 1440;
+  const sinceStart = minutesSince(start, now);
+  const eating = sinceStart < windowLen;
   if (eating) {
     return {
       label: preset.n,
       eating: true,
-      start: preset.start,
-      end: preset.end,
-      remaining: preset.end - now,
-      elapsed: now - preset.start,
-      progress: (now - preset.start) / windowLen,
+      start,
+      end,
+      remaining: windowLen - sinceStart,
+      elapsed: sinceStart,
+      progress: sinceStart / windowLen,
     };
   }
-  const elapsed = now >= preset.end ? now - preset.end : now + (1440 - preset.end);
+  const elapsed = sinceStart - windowLen;
   return {
     label: preset.n,
     eating: false,
-    start: preset.start,
-    end: preset.end,
-    remaining: Math.max(0, now < preset.start ? preset.start - now : preset.start + 1440 - now),
+    start,
+    end,
+    remaining: Math.max(0, fastLen - elapsed),
     elapsed,
     progress: elapsed / fastLen,
   };

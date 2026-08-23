@@ -55,6 +55,10 @@ export function defaultState(): PersistedState {
       pantryBasics: true,
       activityAdjust: true,
       fasting: "off",
+      // Matches FASTING_PRESETS' own "16-8" start (12:00); irrelevant while
+      // fasting is "off", but a real default avoids a 00:00 fallback the one
+      // time someone turns fasting on without ever touching this field.
+      fastingStart: 12 * 60,
       macroPreset: "equilibrado",
       macroPct: { ...DEFAULT_MACRO_PCT },
       reminders: { ...DEFAULT_REMINDERS },
@@ -65,6 +69,7 @@ export function defaultState(): PersistedState {
       prot: 138,
       carb: 248,
       fat: 73,
+      fib: 31,
       steps: 8000,
       water: 2000,
       sleep: 480,
@@ -289,6 +294,10 @@ export function migrate(raw: unknown): PersistedState {
     settings.fasting = "off";
   }
   if (settings.units !== "met" && settings.units !== "imp") settings.units = "met";
+  {
+    const n = numOrNull((settings as Settings).fastingStart);
+    settings.fastingStart = n != null && n >= 0 && n < 1440 ? Math.round(n) : base.settings.fastingStart;
+  }
   if (!isMacroPresetId(settings.macroPreset)) {
     settings.macroPreset = "equilibrado";
     settings.macroPct = { ...DEFAULT_MACRO_PCT };
@@ -321,6 +330,7 @@ export function migrate(raw: unknown): PersistedState {
     prot: nonNegative(rawGoals.prot, base.goals.prot),
     carb: nonNegative(rawGoals.carb, base.goals.carb),
     fat: nonNegative(rawGoals.fat, base.goals.fat),
+    fib: nonNegative(rawGoals.fib, base.goals.fib),
     steps: nonNegative(rawGoals.steps, base.goals.steps),
     water: nonNegative(rawGoals.water, base.goals.water),
     sleep: nonNegative(rawGoals.sleep, base.goals.sleep),

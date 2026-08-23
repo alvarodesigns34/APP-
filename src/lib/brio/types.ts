@@ -175,6 +175,14 @@ export type Settings = {
   pantryBasics: boolean;
   activityAdjust: boolean;
   fasting: FastingId;
+  /**
+   * Minutes-from-midnight the eating window opens. The presets fix a window
+   * length (16:8 = 8h eating) but previously also fixed *when* — always
+   * 12:00–20:00 for 16:8, so someone eating 14:00–22:00 (normal in Spain)
+   * could not represent their actual schedule. This shifts the same-length
+   * window; it means nothing while `fasting` is "off".
+   */
+  fastingStart: number;
   macroPreset: MacroPresetId;
   macroPct: MacroPct;
   reminders: ReminderSettings;
@@ -186,6 +194,7 @@ export type Goals = {
   prot: number;
   carb: number;
   fat: number;
+  fib: number;
   steps: number;
   water: number;
   sleep: number;

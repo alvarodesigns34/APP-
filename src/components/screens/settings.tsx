@@ -32,6 +32,7 @@ import {
   type WeekdayPlan,
 } from "@/lib/brio/types";
 import { useBrioStore } from "@/lib/brio/store";
+import { clockToMinutes, minutesToClock } from "@/lib/brio/dates";
 import { combinedCsv } from "@/lib/brio/export-csv";
 import { nf, parseNum, parsePositive } from "@/lib/brio/format";
 import { DEFAULT_WEEKDAY_PLAN, MIN_DAY_KCAL, kcalForWeekday } from "@/lib/brio/weekday-goals";
@@ -52,12 +53,13 @@ import {
 } from "@/lib/brio/units";
 import { cn } from "@/lib/utils";
 
-type GoalKey = "kcal" | "prot" | "steps" | "water" | "weight" | "sleep" | "activityMin";
+type GoalKey = "kcal" | "prot" | "fib" | "steps" | "water" | "weight" | "sleep" | "activityMin";
 
 /** Lower bounds applied when a goal field loses focus. */
 const GOAL_MIN: Partial<Record<GoalKey, number>> = {
   kcal: MIN_DAY_KCAL,
   prot: 0,
+  fib: 0,
   steps: 0,
   water: 0,
   weight: 1,
@@ -82,6 +84,7 @@ const GOAL_FIELDS: {
 }[] = [
   { key: "kcal", label: () => "Calorías (kcal)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
   { key: "prot", label: () => "Proteína (g)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
+  { key: "fib", label: () => "Fibra (g)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
   { key: "steps", label: () => "Pasos", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
   {
     key: "water",
@@ -135,6 +138,7 @@ export function SettingsScreen() {
   );
   const fileRef = useRef<HTMLInputElement>(null);
   const units = settings.units;
+  const activeFasting = FASTING_PRESETS.find((p) => p.id === settings.fasting && p.id !== "off");
   const b = bmi(profile.weight, profile.height);
   const cat = bmiCategory(b);
   const [wipeOpen, setWipeOpen] = useState(false);
@@ -153,6 +157,7 @@ export function SettingsScreen() {
       prot: g.prot,
       carb: g.carb,
       fat: g.fat,
+      fib: g.fib,
       water: g.water,
     });
     toast.success("Calorías y macros recalculadas");
@@ -397,7 +402,7 @@ export function SettingsScreen() {
       </Card>
 
       <SectionLabel>Ayuno</SectionLabel>
-      <Card className="space-y-2">
+      <Card className="space-y-3">
         <p className="text-sm text-muted-foreground">Ventana de comida opcional. Se muestra en Hoy.</p>
         <div className="flex flex-wrap gap-2">
           {FASTING_PRESETS.map((p) => (
@@ -411,7 +416,29 @@ export function SettingsScreen() {
             </Button>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">{FASTING_PRESETS.find((p) => p.id === settings.fasting)?.hint}</p>
+        {activeFasting ? (
+          <>
+            {/* The presets used to fix WHEN you eat, not just how long the
+                window is — 16:8 was always 12:00-20:00. Someone eating
+                14:00-22:00 (normal in Spain) could not represent that, so the
+                start is editable and the window just keeps its length. */}
+            <Field label="Empieza a comer a las">
+              <Input
+                type="time"
+                value={minutesToClock(settings.fastingStart)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) return;
+                  patchSettings({ fastingStart: clockToMinutes(v) });
+                }}
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              {activeFasting.n} · come de {minutesToClock(settings.fastingStart)} a{" "}
+              {minutesToClock((settings.fastingStart + (activeFasting.end - activeFasting.start)) % 1440)}.
+            </p>
+          </>
+        ) : null}
       </Card>
 
       <SectionLabel>Unidades</SectionLabel>

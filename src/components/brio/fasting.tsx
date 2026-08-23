@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 
 export function FastingCard() {
   const fasting = useBrioStore((s) => s.settings.fasting);
-  const status = fastingStatus(fasting);
+  const fastingStart = useBrioStore((s) => s.settings.fastingStart);
+  const status = fastingStatus(fasting, undefined, fastingStart);
   if (!status) return null;
 
   return (

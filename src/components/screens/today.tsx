@@ -200,6 +200,15 @@ export function TodayScreen() {
               pct={mg.fat ? (t.fat / mg.fat) * 100 : 0}
               color="var(--brio-move)"
             />
+            {g.fib > 0 ? (
+              <LabeledBar
+                label="Fibra"
+                value={`${nf(t.fib)} g`}
+                hint={`/ ${nf(g.fib)} g`}
+                pct={(t.fib / g.fib) * 100}
+                color="var(--brio-sleep)"
+              />
+            ) : null}
           </div>
           {snap.settings.activityAdjust && actKcal > 0 ? (
             <p className="mt-3 text-xs text-muted-foreground">Incluye {nf(actKcal)} kcal de actividad.</p>
