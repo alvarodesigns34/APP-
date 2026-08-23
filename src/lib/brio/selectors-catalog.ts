@@ -15,7 +15,8 @@ export type PantryState = Pick<SelectorState, "pantry" | "customFoods" | "recipe
   settings: Pick<SelectorState["settings"], "pantryBasics">;
 };
 
-export function missingIngredients(s: PantryState, recipe: Recipe): string[] {
+/** Only `ing` is read, so a user recipe's scaled ingredient list works here too, honestly typed instead of cast through a fake `Recipe`. */
+export function missingIngredients(s: PantryState, recipe: Pick<Recipe, "ing">): string[] {
   return recipe.ing
     .filter((i) => {
       if (s.pantry.includes(i.id)) return false;

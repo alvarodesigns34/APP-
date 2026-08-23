@@ -1,3 +1,4 @@
+import { EmptyLine } from "@/components/brio/section";
 import { useMemo, useState } from "react";
 import { Check, Plus, X } from "lucide-react";
 import { toast } from "sonner";
@@ -63,8 +64,12 @@ export function PantrySheet({ open, onOpenChange }: { open: boolean; onOpenChang
             <CatalogNotice state={catalog} loadingText="Cargando alimentos…" />
           </li>
         ) : list.length === 0 ? (
-          <li className="py-6 text-center text-sm text-muted-foreground">
-            {query ? "No hay resultados." : "La despensa está vacía."}
+          <li>
+            <EmptyLine>
+              {query
+                ? "Ningún alimento coincide. Escríbelo entero y podrás añadirlo igual."
+                : "Busca arriba lo que tengas en casa. Con la despensa puesta, Brío te dice qué recetas puedes hacer ya."}
+            </EmptyLine>
           </li>
         ) : (
           list.map((f) => (
@@ -223,9 +228,9 @@ export function ShoppingSheet({ open, onOpenChange }: { open: boolean; onOpenCha
       {fromRecipes ? <RecipeToListPicker onDone={() => setFromRecipes(false)} /> : null}
 
       {counts.total === 0 && !fromRecipes ? (
-        <p className="rounded-2xl bg-muted/40 px-4 py-6 text-center text-sm text-muted-foreground">
+        <EmptyLine>
           Escribe arriba lo que necesites, o pulsa «Desde recetas» para traer los ingredientes que te falten.
-        </p>
+        </EmptyLine>
       ) : null}
 
       {pending.map((group) => (
@@ -333,7 +338,7 @@ function RecipeToListPicker({ onDone }: { onDone: () => void }) {
   const state = { pantry, settings, customFoods, recipes };
 
   if (!catalog.ready) {
-    return <CatalogNotice state={catalog} loadingText="Cargando recetas…" />;
+    return <CatalogNotice state={catalog} loadingText="Cargando recetas…" noun="las recetas" />;
   }
 
   return (

@@ -78,6 +78,7 @@ export function Onboarding() {
         prot: g.prot,
         carb: g.carb,
         fat: g.fat,
+        fib: g.fib,
         steps: g.steps,
         water: g.water,
         sleep: g.sleep,

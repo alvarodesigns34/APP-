@@ -26,16 +26,30 @@ const AISLE_ORDER = [
   "dulce",
 ] as const;
 
+const AISLE_IDS = new Set<string>(AISLE_ORDER);
+
 const AISLE_NAMES: Record<string, string> = {
-  ...Object.fromEntries(CATEGORIES.map((c) => [c.id, c.n])),
+  ...Object.fromEntries(CATEGORIES.filter((c) => AISLE_IDS.has(c.id)).map((c) => [c.id, c.n])),
   [SHOPPING_OTHER]: "Otros",
 };
 
-export function aisleName(cat: string): string {
-  return AISLE_NAMES[cat] ?? "Otros";
+/**
+ * The aisle a catalog category is walked in.
+ *
+ * `propio`, `receta` and `receta_base` are tabs of the food catalog, not
+ * aisles: an item picked from one of them used to open a heading of its own
+ * ("Mis alimentos"), and "Recetas" even sorted past "Otros", which is supposed
+ * to be the last group.
+ */
+function aisleOf(cat: string): string {
+  return AISLE_IDS.has(cat) ? cat : SHOPPING_OTHER;
 }
 
-/** Position of a category in the walk order; unknown ones sort last. */
+export function aisleName(cat: string): string {
+  return AISLE_NAMES[aisleOf(cat)];
+}
+
+/** Position in the walk order; "Otros" sorts last. */
 function aisleRank(cat: string): number {
   const i = AISLE_ORDER.indexOf(cat as (typeof AISLE_ORDER)[number]);
   return i < 0 ? AISLE_ORDER.length : i;
@@ -60,6 +74,62 @@ export function parseShoppingInput(raw: string): ParsedShoppingInput {
   const amount = m[1];
   const unit = m[2] ? ` ${m[2].toLowerCase()}` : "";
   return { name: m[3].trim(), qty: `${amount}${unit}` };
+}
+
+/**
+ * Unidades que se pueden sumar entre sí, normalizadas a una forma canónica.
+ * «gr», «gramos» y «g» son la misma unidad escrita de tres maneras, y quien
+ * manda ingredientes desde dos recetas distintas no debería quedarse corto por
+ * eso.
+ */
+const UNIT_ALIASES: Record<string, string> = {
+  g: "g", gr: "g", gramo: "g", gramos: "g",
+  kg: "kg", kilo: "kg", kilos: "kg",
+  l: "l", litro: "l", litros: "l",
+  ml: "ml", cl: "cl",
+  ud: "ud", uds: "ud", unidad: "ud", unidades: "ud",
+};
+
+type Amount = { n: number; unit: string };
+
+/** «200 g» → {n:200, unit:"g"}; «un paquete» → null, porque no se puede sumar. */
+function parseAmount(qty: string): Amount | null {
+  const m = /^(\d+(?:[.,]\d+)?)\s*([a-zá-ú]*)$/i.exec(qty.trim());
+  if (!m) return null;
+  const n = Number(m[1].replace(",", "."));
+  if (!Number.isFinite(n)) return null;
+  const raw = m[2].toLowerCase();
+  if (!raw) return { n, unit: "" };
+  const unit = UNIT_ALIASES[raw];
+  return unit ? { n, unit } : null;
+}
+
+function fmtAmount(a: Amount): string {
+  // Español: coma decimal, y sin decimales cuando no hacen falta.
+  const n = Math.round(a.n * 100) / 100;
+  const txt = Number.isInteger(n) ? String(n) : String(n).replace(".", ",");
+  return a.unit ? `${txt} ${a.unit}` : txt;
+}
+
+/**
+ * Junta dos cantidades del mismo producto.
+ *
+ * Mandar a la lista los ingredientes de dos recetas que llevan arroz dejaba
+ * solo la cantidad de la primera: la segunda se descartaba sin decir nada y en
+ * el súper te quedabas corto. Se suman cuando las dos son un número con la
+ * misma unidad; si alguna es texto libre («un paquete») se conservan las dos
+ * separadas por «+», que es peor de leer pero nunca pierde información.
+ */
+export function mergeQty(a: string, b: string): string {
+  const left = a.trim();
+  const right = b.trim();
+  if (!left) return right;
+  if (!right) return left;
+  if (left === right) return left;
+  const pa = parseAmount(left);
+  const pb = parseAmount(right);
+  if (pa && pb && pa.unit === pb.unit) return fmtAmount({ n: pa.n + pb.n, unit: pa.unit });
+  return `${left} + ${right}`;
 }
 
 /** Match key for "is this already on the list": accent- and case-insensitive. */
@@ -100,14 +170,15 @@ export function groupShopping(items: ShoppingItem[]): { pending: ShoppingGroup[]
       done.push(item);
       continue;
     }
-    const cat = item.cat || SHOPPING_OTHER;
+    const cat = aisleOf(item.cat);
     const bucket = byCat.get(cat);
     if (bucket) bucket.push(item);
     else byCat.set(cat, [item]);
   }
+  // Every bucket is now a distinct aisle, so the rank alone is a total order.
   const pending = [...byCat.entries()]
     .map(([cat, list]) => ({ cat, name: aisleName(cat), items: list }))
-    .sort((a, b) => aisleRank(a.cat) - aisleRank(b.cat) || a.name.localeCompare(b.name, "es"));
+    .sort((a, b) => aisleRank(a.cat) - aisleRank(b.cat));
   return { pending, done };
 }
 

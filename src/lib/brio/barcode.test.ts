@@ -136,6 +136,40 @@ describe("mapOffProduct", () => {
     expect(draft!.kcal).toBe(400.1);
   });
 
+  it("falls back to kJ per 100 ml on a drink listed only that way", () => {
+    // The per-100-ml kJ key sat behind a condition that could only be false by
+    // the time it was read, so this came out as a 0 kcal food.
+    const draft = mapOffProduct(
+      {
+        status: 1,
+        product: {
+          product_name: "Refresco de cola",
+          nutriments: { "energy-kj_100ml": 180, proteins_100ml: 0, carbohydrates_100ml: 10.6, fat_100ml: 0 },
+        },
+      },
+      "0000000000000",
+    );
+    expect(draft).not.toBeNull();
+    expect(draft!.kcal).toBe(43);
+    expect(draft!.base).toBe("ml");
+    expect(draft!.carb).toBe(10.6);
+  });
+
+  it("keeps kcal per 100 ml over kJ and marks the food as a liquid", () => {
+    const draft = mapOffProduct(
+      {
+        status: 1,
+        product: {
+          product_name: "Leche entera",
+          nutriments: { "energy-kcal_100ml": 64, proteins_100ml: 3.1, carbohydrates_100ml: 4.7, fat_100ml: 3.6 },
+        },
+      },
+      "0000000000000",
+    );
+    expect(draft!.kcal).toBe(64);
+    expect(draft!.base).toBe("ml");
+  });
+
   it("returns null when the product is missing or status is 0", () => {
     expect(mapOffProduct({ status: 0, status_verbose: "product not found" }, NUTELLA)).toBeNull();
     expect(mapOffProduct({ status: 1 }, NUTELLA)).toBeNull();

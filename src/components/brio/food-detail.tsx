@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { BASE_RECIPES } from "@/lib/brio/catalog";
+import { CustomFoodSheet } from "@/components/brio/custom-food";
+import { BASE_RECIPES, getFood } from "@/lib/brio/catalog";
 import { energySplit, lastLogged, recipesUsingFood } from "@/lib/brio/food-detail";
 import { fmtDateRelative, todayKey } from "@/lib/brio/dates";
 import { nf } from "@/lib/brio/format";
@@ -12,15 +13,27 @@ import { CATEGORIES, MEALS, type Food } from "@/lib/brio/types";
 export function FoodDetailSheet({
   open,
   onOpenChange,
-  food,
+  food: pinned,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   food: Food;
 }) {
+  const [editOpen, setEditOpen] = useState(false);
   const catalog = useCatalog();
   const catalogReady = catalog.ready;
   const days = useBrioStore((s) => s.days);
+  const customFoods = useBrioStore((s) => s.customFoods);
+  const userRecipes = useBrioStore((s) => s.recipes);
+  // The prop only pins *which* food this card is about. Re-reading it from the
+  // live store on every render means editing it below (Editar → Guardar) shows
+  // the new macros here straight away, instead of leaving a frozen snapshot
+  // from before the edit. Same reasoning as `userRecipes.find` in
+  // recipe-browser.tsx.
+  const food = useMemo(
+    () => getFood(pinned.id, { customFoods, recipes: userRecipes }) ?? pinned,
+    [pinned, customFoods, userRecipes],
+  );
   const catLabel = CATEGORIES.find((c) => c.id === food.cat)?.n;
   const split = useMemo(() => energySplit(food), [food]);
   const recipes = useMemo(() => {
@@ -40,9 +53,22 @@ export function FoodDetailSheet({
       onOpenChange={onOpenChange}
       title={food.name}
       footer={
-        <Button type="button" variant="secondary" className="w-full" onClick={() => onOpenChange(false)}>
-          Cerrar
-        </Button>
+        // Custom foods could be created but never edited or fixed after a
+        // typo, and never removed — anything you added stayed forever.
+        food.custom ? (
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" className="flex-1" onClick={() => setEditOpen(true)}>
+              Editar
+            </Button>
+            <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+              Cerrar
+            </Button>
+          </div>
+        ) : (
+          <Button type="button" variant="secondary" className="w-full" onClick={() => onOpenChange(false)}>
+            Cerrar
+          </Button>
+        )
       }
     >
       <div className="space-y-5">
@@ -135,6 +161,17 @@ export function FoodDetailSheet({
           )}
         </section>
       </div>
+      {food.custom ? (
+        <CustomFoodSheet
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          edit={food}
+          // Saving used to close this card too, which was the only way to avoid
+          // showing the pre-edit numbers. Now that the card reads the store it
+          // stays open on the updated values — you see the change land.
+          onDeleted={() => onOpenChange(false)}
+        />
+      ) : null}
     </Sheet>
   );
 }

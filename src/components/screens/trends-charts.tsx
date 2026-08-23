@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Card, SectionLabel } from "@/components/brio/section";
+import { Card, Empty, SectionLabel } from "@/components/brio/section";
 import { nf } from "@/lib/brio/format";
 import { niceCeil, type MacroSeriesPoint } from "@/lib/brio/macro-series";
 import { cn } from "@/lib/utils";
@@ -49,12 +49,16 @@ const MACRO_CHARTS: {
   goal: "kcalGoal" | "protGoal" | "carbGoal" | "fatGoal";
   label: string;
   unit: string;
-  color: string;
 }[] = [
-  { key: "kcal", ma: "kcalMa", goal: "kcalGoal", label: "Calorías", unit: " kcal", color: "var(--brio-kcal)" },
-  { key: "prot", ma: "protMa", goal: "protGoal", label: "Proteína", unit: " g", color: "var(--brio-kcal)" },
-  { key: "carb", ma: "carbMa", goal: "carbGoal", label: "Hidratos", unit: " g", color: "var(--brio-steps)" },
-  { key: "fat", ma: "fatMa", goal: "fatGoal", label: "Grasa", unit: " g", color: "var(--brio-move)" },
+  // Todos con el color de acento a propósito. Antes «Hidratos» se pintaba con
+  // el azul de Pasos y «Grasa» con el terracota de Ejercicio, así que el mismo
+  // color significaba una cosa aquí y otra distinta en los aros de Hoy —
+  // dos significados por color, a dos dedos de distancia. El color pasa a
+  // decir «esto es nutrición»; cuál de los cuatro lo dice el título.
+  { key: "kcal", ma: "kcalMa", goal: "kcalGoal", label: "Calorías", unit: " kcal" },
+  { key: "prot", ma: "protMa", goal: "protGoal", label: "Proteína", unit: " g" },
+  { key: "carb", ma: "carbMa", goal: "carbGoal", label: "Hidratos", unit: " g" },
+  { key: "fat", ma: "fatMa", goal: "fatGoal", label: "Grasa", unit: " g" },
 ];
 
 function macroYDomain(
@@ -75,6 +79,42 @@ function macroYDomain(
   return [0, niceCeil(max * 1.02)];
 }
 
+/**
+ * Hay serie cuando algún día del rango tiene un valor mayor que cero.
+ *
+ * No vale con `Number.isFinite`: `water` es siempre un número y vale 0 los días
+ * sin registrar, así que la comprobación pasaba siempre y la gráfica vacía
+ * seguía dibujándose. Un 0 de agua, pasos o sueño tampoco es un dato que
+ * merezca una gráfica: es la ausencia de dato, igual que el null.
+ */
+function hasSeries(data: DayPoint[], key: "water" | "sleep" | "steps"): boolean {
+  return data.some((d) => Number(d[key]) > 0);
+}
+
+/**
+ * Una sola leyenda para las cuatro gráficas de nutrición, que comparten
+ * codificación. Repetirla debajo de cada una sumaba tres bloques idénticos de
+ * ruido vertical sin añadir nada.
+ */
+function MacroLegend() {
+  return (
+    <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 px-1 text-[11px] text-muted-foreground">
+      <li className="flex items-center gap-1.5">
+        <span className="h-2 w-3 rounded-sm bg-[var(--brio-kcal)]" />
+        Diario
+      </li>
+      <li className="flex items-center gap-1.5">
+        <span className="h-0.5 w-3 rounded-full bg-[var(--brio-kcal)]" />
+        Media 7 días
+      </li>
+      <li className="flex items-center gap-1.5">
+        <span className="w-3 border-t border-dotted border-[var(--brio-muted-fg)]" />
+        Meta
+      </li>
+    </ul>
+  );
+}
+
 function MacroComposedChart({
   data,
   valueKey,
@@ -82,7 +122,6 @@ function MacroComposedChart({
   goalKey,
   label,
   unit,
-  color,
 }: {
   data: DayPoint[];
   valueKey: MacroKey;
@@ -90,9 +129,9 @@ function MacroComposedChart({
   goalKey: (typeof MACRO_CHARTS)[number]["goal"];
   label: string;
   unit: string;
-  color: string;
 }) {
   const domain = macroYDomain(data, valueKey, maKey, goalKey);
+  const color = "var(--brio-kcal)";
   return (
     <>
       <SectionLabel>{label}</SectionLabel>
@@ -134,20 +173,6 @@ function MacroComposedChart({
             </ComposedChart>
           </ResponsiveContainer>
         </div>
-        <ul className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 px-1 text-[11px] text-muted-foreground">
-          <li className="flex items-center gap-1.5">
-            <span className="h-2 w-3 rounded-sm" style={{ background: color }} />
-            Diario
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span className="h-0.5 w-3 rounded-full" style={{ background: color }} />
-            Media 7d
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span className="w-3 border-t border-dotted border-[var(--brio-muted-fg)]" />
-            Meta
-          </li>
-        </ul>
       </Card>
     </>
   );
@@ -166,6 +191,7 @@ export function TrendsCharts({
 }) {
   return (
     <>
+      <MacroLegend />
       {MACRO_CHARTS.map((c) => (
         <MacroComposedChart
           key={c.key}
@@ -175,11 +201,15 @@ export function TrendsCharts({
           goalKey={c.goal}
           label={c.label}
           unit={c.unit}
-          color={c.color}
         />
       ))}
 
       <SectionLabel>Agua</SectionLabel>
+      {!hasSeries(data, "water") ? (
+        <div className="mb-3">
+          <Empty title="Aún sin agua" body="Registra un vaso desde Hoy y verás aquí tu semana." />
+        </div>
+      ) : (
       <Card className="mb-3 h-44 p-2">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
@@ -190,8 +220,14 @@ export function TrendsCharts({
           </BarChart>
         </ResponsiveContainer>
       </Card>
+      )}
 
       <SectionLabel>Sueño</SectionLabel>
+      {!hasSeries(data, "sleep") ? (
+        <div className="mb-3">
+          <Empty title="Aún sin sueño" body="Anota a qué hora te acuestas y te levantas para ver la evolución." />
+        </div>
+      ) : (
       <Card className="mb-3 h-44 p-2">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
@@ -210,8 +246,14 @@ export function TrendsCharts({
           </LineChart>
         </ResponsiveContainer>
       </Card>
+      )}
 
       <SectionLabel>Pasos</SectionLabel>
+      {!hasSeries(data, "steps") ? (
+        <div className="mb-3">
+          <Empty title="Aún sin pasos" body="Apunta tus pasos del día en Hoy para seguir la tendencia." />
+        </div>
+      ) : (
       <Card className="mb-3 h-44 p-2">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
@@ -229,6 +271,7 @@ export function TrendsCharts({
           </LineChart>
         </ResponsiveContainer>
       </Card>
+      )}
 
       {wChart.length > 0 ? (
         <>

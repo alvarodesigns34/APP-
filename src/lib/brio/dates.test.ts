@@ -1,5 +1,33 @@
-import { describe, expect, it } from "vitest";
-import { addDays, addMonths, canPlanFurther, fmtMonthYear, MAX_PLAN_DAYS_AHEAD, mealForHour, monthGrid, monthStart, shouldRollViewDate, weekColumns, dateOf } from "./dates";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { addDays, addMonths, canPlanFurther, daysBetween, fmtMonthYear, MAX_PLAN_DAYS_AHEAD, mealForHour, monthGrid, monthStart, shouldRollViewDate, weekColumns, dateOf } from "./dates";
+
+describe("daysBetween across the clock change", () => {
+  // Spain moves the clocks on the last Sunday of March and of October, so
+  // 2026-03-29 lasts 23 h and 2026-10-25 lasts 25 h. Under UTC the old
+  // millisecond division looked right; here it did not.
+  const originalTz = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Europe/Madrid";
+  });
+  afterAll(() => {
+    process.env.TZ = originalTz;
+  });
+
+  it("counts whole days when the clocks go forward", () => {
+    expect(daysBetween("2026-03-22", "2026-04-05")).toBe(14);
+    expect(daysBetween("2026-03-28", "2026-03-30")).toBe(2);
+  });
+
+  it("counts whole days when the clocks go back", () => {
+    expect(daysBetween("2026-10-24", "2026-10-26")).toBe(2);
+    expect(daysBetween("2026-10-01", "2026-11-01")).toBe(31);
+  });
+
+  it("is signed and zero on the same day", () => {
+    expect(daysBetween("2026-04-05", "2026-03-22")).toBe(-14);
+    expect(daysBetween("2026-03-29", "2026-03-29")).toBe(0);
+  });
+});
 
 describe("month helpers", () => {
   it("monthStart pins to day 01", () => {

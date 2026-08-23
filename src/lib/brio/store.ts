@@ -20,7 +20,7 @@ import { fmtDateRelative } from "./dates";
 import { kcalFromWorkout } from "./domain";
 import { latestWeight } from "./selectors";
 import { applyUndo, clearUndo, isApplyingUndo, popUndo, pushUndo } from "./undo";
-import { findShoppingItem, makeShoppingItem } from "./shopping";
+import { findShoppingItem, makeShoppingItem, mergeQty } from "./shopping";
 
 export type BrioStore = PersistedState & {
   hydrated: boolean;
@@ -59,13 +59,17 @@ export type BrioStore = PersistedState & {
   restoreWorkout: (key: string, entry: WorkoutEntry) => void;
   setSleep: (key: string, sleep: SleepEntry | null) => void;
   setNote: (key: string, note: string) => void;
-  upsertWeight: (date: string, kg: number, extra?: { fat?: number; muscle?: number }) => void;
+  upsertWeight: (date: string, kg: number, extra?: Partial<Omit<WeightEntry, "date" | "kg">>) => void;
   deleteWeight: (date: string) => void;
   toggleFavorite: (id: string) => void;
   toggleFavRecipe: (id: string) => void;
   togglePantry: (id: string) => void;
   addCustomFood: (food: Omit<Food, "id" | "custom" | "cat"> & { id?: string }) => string;
+  updateCustomFood: (id: string, patch: Omit<Food, "id" | "custom" | "cat">) => void;
+  removeCustomFood: (id: string) => void;
   addUserRecipe: (recipe: UserRecipe) => void;
+  updateUserRecipe: (id: string, recipe: UserRecipe) => void;
+  deleteUserRecipe: (id: string) => void;
   addShoppingItem: (input: { name: string; qty?: string; cat?: string; foodId?: string }) => string | null;
   addShoppingItems: (inputs: { name: string; qty?: string; cat?: string; foodId?: string }[]) => number;
   toggleShoppingItem: (id: string) => void;
@@ -558,9 +562,85 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     get().persist();
     return id;
   },
+  updateCustomFood: (id, patch) => {
+    const prev = get().customFoods.find((f) => f.id === id);
+    if (!prev) return;
+    set((s) => ({
+      customFoods: s.customFoods.map((f) =>
+        f.id === id
+          ? { ...patch, id, cat: "propio", custom: true, sug: patch.sug ?? null, sat: patch.sat ?? null, sod: patch.sod ?? null }
+          : f,
+      ),
+    }));
+    get().persist();
+    // Meal entries already logged keep their own snapshot of macros taken at
+    // add-time (see addMeal), so editing a custom food's numbers never rewrites
+    // history — only future uses of it see the new values.
+    recordUndo("Alimento actualizado", () => {
+      set((s) => ({ customFoods: s.customFoods.map((f) => (f.id === id ? prev : f)) }));
+      get().persist();
+    });
+  },
+
+  removeCustomFood: (id) => {
+    const s = get();
+    const removed = s.customFoods.find((f) => f.id === id);
+    if (!removed) return;
+    const hadFavorite = s.favorites.includes(id);
+    const hadPantry = s.pantry.includes(id);
+    set({
+      customFoods: s.customFoods.filter((f) => f.id !== id),
+      // Otherwise the id sits in these lists forever: getFood(id) resolves to
+      // nothing once the food is gone, and every screen that maps over them
+      // already has to silently filter out that undefined — cleaning it up
+      // here means they don't have to keep doing that for a deleted id.
+      favorites: s.favorites.filter((x) => x !== id),
+      pantry: s.pantry.filter((x) => x !== id),
+    });
+    get().persist();
+    recordUndo(`Quitado ${removed.name}`, () => {
+      set((st) => ({
+        customFoods: [...st.customFoods, removed],
+        favorites: hadFavorite ? [...st.favorites, id] : st.favorites,
+        pantry: hadPantry ? [...st.pantry, id] : st.pantry,
+      }));
+      get().persist();
+    });
+  },
+
   addUserRecipe: (recipe) => {
     set((s) => ({ recipes: [...s.recipes, recipe] }));
     get().persist();
+  },
+
+  updateUserRecipe: (id, recipe) => {
+    const prev = get().recipes.find((r) => r.id === id);
+    if (!prev) return;
+    set((s) => ({ recipes: s.recipes.map((r) => (r.id === id ? recipe : r)) }));
+    get().persist();
+    recordUndo("Receta actualizada", () => {
+      set((s) => ({ recipes: s.recipes.map((r) => (r.id === id ? prev : r)) }));
+      get().persist();
+    });
+  },
+
+  deleteUserRecipe: (id) => {
+    const s = get();
+    const removed = s.recipes.find((r) => r.id === id);
+    if (!removed) return;
+    const hadFavorite = s.favRecipes.includes(id);
+    set({
+      recipes: s.recipes.filter((r) => r.id !== id),
+      favRecipes: s.favRecipes.filter((x) => x !== id),
+    });
+    get().persist();
+    recordUndo(`Quitada ${removed.name}`, () => {
+      set((st) => ({
+        recipes: [...st.recipes, removed],
+        favRecipes: hadFavorite ? [...st.favRecipes, id] : st.favRecipes,
+      }));
+      get().persist();
+    });
   },
   addShoppingItem: (input) => {
     const name = input.name.trim();
@@ -568,9 +648,13 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
     const existing = findShoppingItem(get().shopping, name);
     if (existing) {
       // Adding the same thing twice should not produce two lines to tick off.
-      // An already-bought line comes back as pending instead.
-      if (existing.done) {
-        set((s) => ({ shopping: s.shopping.map((i) => (i.id === existing.id ? { ...i, done: false } : i)) }));
+      // An already-bought line comes back as pending, and the amounts are
+      // merged: keeping only the first one meant coming home short.
+      const qty = mergeQty(existing.qty, input.qty ?? "");
+      if (existing.done || qty !== existing.qty) {
+        set((s) => ({
+          shopping: s.shopping.map((i) => (i.id === existing.id ? { ...i, done: false, qty } : i)),
+        }));
         get().persist();
       }
       return existing.id;
@@ -584,22 +668,41 @@ export const useBrioStore = create<BrioStore>((set, get) => ({
   addShoppingItems: (inputs) => {
     const s = get();
     const next = [...s.shopping];
-    let added = 0;
+    const addedIds: string[] = [];
+    const revivedIds: string[] = [];
     for (const input of inputs) {
       const name = input.name.trim();
       if (!name) continue;
       const existing = findShoppingItem(next, name);
-      if (existing) continue;
-      next.push(makeShoppingItem({ ...input, name }));
-      added += 1;
+      if (existing) {
+        // Same rule as addShoppingItem: a line already ticked off comes back as
+        // pending, and the amounts are merged. Skipping it left an ingredient
+        // the user had just asked for sitting in the "comprados" section,
+        // invisible while shopping — and dropped the second recipe's amount.
+        const qty = mergeQty(existing.qty, input.qty ?? "");
+        if (existing.done || qty !== existing.qty) {
+          next[next.indexOf(existing)] = { ...existing, done: false, qty };
+          revivedIds.push(existing.id);
+        }
+        continue;
+      }
+      const item = makeShoppingItem({ ...input, name });
+      next.push(item);
+      addedIds.push(item.id);
     }
+    const added = addedIds.length + revivedIds.length;
     if (!added) return 0;
     set({ shopping: next });
     get().persist();
     const label = added === 1 ? "1 producto" : `${added} productos`;
     recordUndo(`${label} a la lista`, () => {
-      const ids = new Set(next.slice(s.shopping.length).map((i) => i.id));
-      set((st) => ({ shopping: st.shopping.filter((i) => !ids.has(i.id)) }));
+      const drop = new Set(addedIds);
+      const retick = new Set(revivedIds);
+      set((st) => ({
+        shopping: st.shopping
+          .filter((i) => !drop.has(i.id))
+          .map((i) => (retick.has(i.id) ? { ...i, done: true } : i)),
+      }));
       get().persist();
     });
     return added;

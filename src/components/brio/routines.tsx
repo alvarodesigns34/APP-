@@ -3,8 +3,13 @@ import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ROUTINES, ROUTINE_LEVELS, parseRestSeconds } from "@/lib/brio/catalog";
+import { INTENSITIES } from "@/lib/brio/domain";
+import { remainingSeconds } from "@/lib/brio/timer";
+import { keepAwake } from "@/lib/brio/wake-lock";
 import { useCatalog } from "@/lib/brio/use-catalog";
+import { CatalogNotice } from "@/components/brio/catalog-state";
 import { useBrioStore } from "@/lib/brio/store";
+import type { IntensityId } from "@/lib/brio/types";
 import { cn } from "@/lib/utils";
 
 export function RoutinesSheet({
@@ -23,17 +28,35 @@ export function RoutinesSheet({
   const [id, setId] = useState<string | null>(null);
   const [session, setSession] = useState(0);
   const routine = ROUTINES.find((r) => r.id === id);
-  const [timer, setTimer] = useState<number | null>(null);
+  // The rest timer is an absolute instant, not a counter: see remainingSeconds().
+  const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [intensity, setIntensity] = useState<IntensityId>("media");
+  const rest = restEndsAt == null ? 0 : remainingSeconds(restEndsAt, now);
 
   useEffect(() => {
-    if (timer == null) return;
-    if (timer <= 0) {
-      setTimer(null);
-      return;
-    }
-    const t = setTimeout(() => setTimer((n) => (n == null ? n : n - 1)), 1000);
-    return () => clearTimeout(t);
-  }, [timer]);
+    // Gated on `open` too: the sheet stays mounted when it closes, so a rest
+    // started and then dismissed kept re-rendering twice a second behind it.
+    // The instant is absolute, so the countdown is still right on reopening.
+    if (!open || restEndsAt == null) return;
+    // Descansando entre series el móvil está apoyado y las manos ocupadas:
+    // que la pantalla se apague justo cuando quieres ver los segundos que
+    // quedan es lo peor que puede hacer.
+    const wake = keepAwake();
+    setNow(Date.now());
+    // Twice a second so the number is right within half a second of coming back
+    // to a throttled tab. Missing ticks no longer matter — each one just asks
+    // the clock again.
+    const t = window.setInterval(() => {
+      const t0 = Date.now();
+      setNow(t0);
+      if (remainingSeconds(restEndsAt, t0) <= 0) setRestEndsAt(null);
+    }, 500);
+    return () => {
+      window.clearInterval(t);
+      wake();
+    };
+  }, [open, restEndsAt]);
 
   if (routine) {
     const sess = routine.sessions[session] ?? routine.sessions[0];
@@ -47,7 +70,7 @@ export function RoutinesSheet({
               type="button"
               onClick={() => {
                 setSession(i);
-                setTimer(null);
+                setRestEndsAt(null);
               }}
               className={cn(
                 "min-h-11 shrink-0 rounded-full px-3 py-1 text-xs",
@@ -58,41 +81,65 @@ export function RoutinesSheet({
             </button>
           ))}
         </div>
-        {timer != null && timer > 0 ? (
+        {rest > 0 ? (
           <div className="mb-4 rounded-3xl bg-muted py-6 text-center">
-            <div className="font-display text-5xl tabular-nums">{timer}s</div>
+            <div className="font-display text-5xl tabular-nums">{rest}s</div>
             <p className="text-sm text-muted-foreground">Descanso</p>
-            <Button className="mt-3" variant="secondary" onClick={() => setTimer(null)}>
+            <Button className="mt-3" variant="secondary" onClick={() => setRestEndsAt(null)}>
               Saltar
             </Button>
           </div>
         ) : null}
         <ul className="space-y-3">
           {sess.exercises.map((e) => {
-            const rest = parseRestSeconds(e.rest);
+            const secs = parseRestSeconds(e.rest);
             return (
               <li key={e.name} className="rounded-2xl bg-muted/50 p-3">
                 <div className="font-medium">{e.name}</div>
                 <div className="text-xs text-muted-foreground">
                   {e.rx} · descanso {e.rest}
                 </div>
-                {rest > 0 ? (
-                  <Button size="sm" variant="secondary" className="mt-2" onClick={() => setTimer(rest)}>
-                    Descanso {rest}s
+                {secs > 0 ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="mt-2"
+                    onClick={() => setRestEndsAt(Date.now() + secs * 1000)}
+                  >
+                    Descanso {secs}s
                   </Button>
                 ) : null}
               </li>
             );
           })}
         </ul>
+        {/* The session was always logged as "media": a day where you left
+            nothing on the bar and a day where you went through the motions
+            landed on the same kcal. */}
+        <p className="mb-1 mt-4 text-xs uppercase tracking-wider text-muted-foreground">Intensidad</p>
+        <div className="flex gap-2">
+          {INTENSITIES.map((i) => (
+            <Button
+              key={i.id}
+              className="flex-1"
+              variant={intensity === i.id ? "default" : "secondary"}
+              size="sm"
+              aria-pressed={intensity === i.id}
+              onClick={() => setIntensity(i.id)}
+            >
+              {i.n}
+            </Button>
+          ))}
+        </div>
         <Button
           className="mt-4 w-full"
           onClick={() => {
-            addWorkout(date, "fuerza", routine.minutes, "media");
+            addWorkout(date, "fuerza", routine.minutes, intensity);
             toast.success("Sesión registrada");
             onOpenChange(false);
             setId(null);
-            setTimer(null);
+            setRestEndsAt(null);
+            setIntensity("media");
           }}
         >
           Registrar sesión · {routine.minutes} min
@@ -102,7 +149,8 @@ export function RoutinesSheet({
           variant="outline"
           onClick={() => {
             setId(null);
-            setTimer(null);
+            setRestEndsAt(null);
+            setIntensity("media");
           }}
         >
           Todas las rutinas
@@ -111,11 +159,25 @@ export function RoutinesSheet({
     );
   }
 
-  const sorted = (catalogReady ? [...ROUTINES] : []).sort(
+  // Without this the sheet opened as a bare title strip whenever the builtin
+  // catalog was still loading or had failed — no explanation, no way to retry,
+  // unlike every other catalog-backed sheet.
+  if (!catalogReady) {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange} title="Rutinas">
+        <CatalogNotice state={catalog} loadingText="Cargando rutinas…" noun="las rutinas" />
+      </Sheet>
+    );
+  }
+
+  const sorted = [...ROUTINES].sort(
     (a, b) => Number(b.purposes.includes(purpose)) - Number(a.purposes.includes(purpose)),
   );
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Rutinas">
+      <p className="mb-3 text-sm text-muted-foreground">
+        Planes de varias sesiones con sus ejercicios y su descanso. Primero los que encajan con tu objetivo.
+      </p>
       <ul className="space-y-2">
         {sorted.map((r) => (
           <li key={r.id}>

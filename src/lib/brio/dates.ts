@@ -49,6 +49,19 @@ export function shouldRollViewDate(viewDate: string, prevToday: string, nextToda
   return viewDate === "" || viewDate === prevToday;
 }
 
+/**
+ * Whole calendar days from `a` to `b`, signed.
+ *
+ * Both keys resolve to local midnight, and the day the clocks change is 23 or
+ * 25 hours long, so dividing the millisecond gap gave 13,96 days for the two
+ * weeks around the last Sunday of March. That fed the weight rate and the
+ * "llegarías en unos N días" estimate. Rounding recovers the calendar count:
+ * the drift is at most an hour out of twenty-four.
+ */
+export function daysBetween(a: string, b: string): number {
+  return Math.round((dateOf(b).getTime() - dateOf(a).getTime()) / 86400000);
+}
+
 export function rangeKeys(endKey: string, n: number): string[] {
   const out: string[] = [];
   for (let i = n - 1; i >= 0; i--) out.push(addDays(endKey, -i));

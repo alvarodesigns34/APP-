@@ -1,15 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  aisleName,
-  findShoppingItem,
-  groupShopping,
-  makeShoppingItem,
-  parseShopping,
-  parseShoppingInput,
-  shoppingAsText,
-  shoppingCounts,
-  SHOPPING_OTHER,
-} from "./shopping";
+import { SHOPPING_OTHER, aisleName, findShoppingItem, groupShopping, makeShoppingItem, mergeQty, parseShopping, parseShoppingInput, shoppingAsText, shoppingCounts } from "./shopping";
 import type { ShoppingItem } from "./types";
 
 function item(name: string, cat = SHOPPING_OTHER, done = false, qty = ""): ShoppingItem {
@@ -91,6 +81,20 @@ describe("groupShopping", () => {
   it("handles an empty list", () => {
     expect(groupShopping([])).toEqual({ pending: [], done: [] });
   });
+
+  it("does not invent an aisle out of a category that is not one", () => {
+    // "propio" / "receta" / "receta_base" are catalog tabs, not supermarket
+    // aisles: picking one of your own foods as a suggestion used to open a
+    // heading called "Mis alimentos", and "Recetas" even sorted after "Otros".
+    const { pending } = groupShopping([
+      item("Mi tortilla", "propio"),
+      item("Papel", SHOPPING_OTHER),
+      item("Manzanas", "fruta"),
+      item("Lentejas de la abuela", "receta_base"),
+    ]);
+    expect(pending.map((g) => g.name)).toEqual(["Frutas", "Otros"]);
+    expect(pending[1].items.map((i) => i.name)).toEqual(["Mi tortilla", "Papel", "Lentejas de la abuela"]);
+  });
 });
 
 describe("shoppingCounts", () => {
@@ -165,5 +169,40 @@ describe("parseShopping", () => {
     expect(parseShopping(undefined)).toEqual([]);
     expect(parseShopping(null)).toEqual([]);
     expect(parseShopping({})).toEqual([]);
+  });
+});
+
+describe("mergeQty", () => {
+  it("suma cantidades con la misma unidad", () => {
+    // El caso real: dos recetas que llevan arroz. Antes se guardaba solo la
+    // primera y en el súper te quedabas corto.
+    expect(mergeQty("200 g", "150 g")).toBe("350 g");
+    expect(mergeQty("1 kg", "0,5 kg")).toBe("1,5 kg");
+  });
+
+  it("trata gr, gramos y g como la misma unidad", () => {
+    expect(mergeQty("200 g", "150 gr")).toBe("350 g");
+    expect(mergeQty("200 gramos", "50 g")).toBe("250 g");
+  });
+
+  it("no suma unidades distintas: las conserva las dos", () => {
+    // 200 g + 1 l no es un número; inventarse una conversión sería peor que
+    // enseñar las dos cifras.
+    expect(mergeQty("200 g", "1 l")).toBe("200 g + 1 l");
+  });
+
+  it("conserva el texto libre en vez de descartarlo", () => {
+    expect(mergeQty("un paquete", "200 g")).toBe("un paquete + 200 g");
+    expect(mergeQty("2", "3")).toBe("5");
+  });
+
+  it("no duplica cuando las dos cantidades son idénticas", () => {
+    expect(mergeQty("1 paquete", "1 paquete")).toBe("1 paquete");
+  });
+
+  it("un lado vacío devuelve el otro tal cual", () => {
+    expect(mergeQty("", "200 g")).toBe("200 g");
+    expect(mergeQty("200 g", "")).toBe("200 g");
+    expect(mergeQty("", "")).toBe("");
   });
 });

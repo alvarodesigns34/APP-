@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { Check } from "lucide-react";
 import { toast } from "sonner";
 import { Card, Screen, SectionLabel, Title } from "@/components/brio/section";
 import { Button } from "@/components/ui/button";
@@ -31,9 +32,11 @@ import {
   type ThemePref,
   type WeekdayPlan,
 } from "@/lib/brio/types";
+import { ACCENTS, accentName } from "@/lib/brio/accent";
 import { useBrioStore } from "@/lib/brio/store";
+import { clockToMinutes, minutesToClock } from "@/lib/brio/dates";
 import { combinedCsv } from "@/lib/brio/export-csv";
-import { nf, parseNum, parsePositive } from "@/lib/brio/format";
+import { nf, parseNum } from "@/lib/brio/format";
 import { DEFAULT_WEEKDAY_PLAN, MIN_DAY_KCAL, kcalForWeekday } from "@/lib/brio/weekday-goals";
 import { formatBackupPreview, previewBackup, type BackupPreview } from "@/lib/brio/backup-preview";
 import { useUndoList } from "@/lib/brio/undo";
@@ -52,12 +55,13 @@ import {
 } from "@/lib/brio/units";
 import { cn } from "@/lib/utils";
 
-type GoalKey = "kcal" | "prot" | "steps" | "water" | "weight" | "sleep" | "activityMin";
+type GoalKey = "kcal" | "prot" | "fib" | "steps" | "water" | "weight" | "sleep" | "activityMin";
 
 /** Lower bounds applied when a goal field loses focus. */
 const GOAL_MIN: Partial<Record<GoalKey, number>> = {
   kcal: MIN_DAY_KCAL,
   prot: 0,
+  fib: 0,
   steps: 0,
   water: 0,
   weight: 1,
@@ -82,6 +86,7 @@ const GOAL_FIELDS: {
 }[] = [
   { key: "kcal", label: () => "Calorías (kcal)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
   { key: "prot", label: () => "Proteína (g)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
+  { key: "fib", label: () => "Fibra (g)", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
   { key: "steps", label: () => "Pasos", toDisplay: (v) => v, toStore: (v) => Math.round(v) },
   {
     key: "water",
@@ -135,6 +140,7 @@ export function SettingsScreen() {
   );
   const fileRef = useRef<HTMLInputElement>(null);
   const units = settings.units;
+  const activeFasting = FASTING_PRESETS.find((p) => p.id === settings.fasting && p.id !== "off");
   const b = bmi(profile.weight, profile.height);
   const cat = bmiCategory(b);
   const [wipeOpen, setWipeOpen] = useState(false);
@@ -153,6 +159,7 @@ export function SettingsScreen() {
       prot: g.prot,
       carb: g.carb,
       fat: g.fat,
+      fib: g.fib,
       water: g.water,
     });
     toast.success("Calorías y macros recalculadas");
@@ -254,25 +261,17 @@ export function SettingsScreen() {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <Field label={`Altura ${heightUnit(units)}`}>
-            <Input
-              inputMode="decimal"
+            <NumField
               value={cmToDisplay(profile.height, units)}
-              onChange={(e) => {
-                const n = parsePositive(e.target.value);
-                if (!n) return;
-                patchProfile({ height: displayToCm(n, units) });
-              }}
+              min={1}
+              onCommit={(n) => patchProfile({ height: displayToCm(n, units) })}
             />
           </Field>
           <Field label={`Peso ${weightUnit(units)}`}>
-            <Input
-              inputMode="decimal"
+            <NumField
               value={kgToDisplay(profile.weight, units)}
-              onChange={(e) => {
-                const n = parsePositive(e.target.value);
-                if (!n) return;
-                patchProfile({ weight: displayToKg(n, units) });
-              }}
+              min={1}
+              onCommit={(n) => patchProfile({ weight: displayToKg(n, units) })}
             />
           </Field>
         </div>
@@ -318,19 +317,10 @@ export function SettingsScreen() {
       <Card className="space-y-2">
         {GOAL_FIELDS.map((f) => (
           <Field key={f.key} label={f.label(units)}>
-            <Input
-              inputMode="decimal"
+            <NumField
               value={f.toDisplay(goals[f.key], units)}
-              onChange={(e) => {
-                const n = parseNum(e.target.value) || 0;
-                patchGoals({ [f.key]: f.toStore(n, units) });
-              }}
-              // Clamp on blur, not on change: clamping mid-typing makes the
-              // field impossible to clear and retype.
-              onBlur={() => {
-                const min = GOAL_MIN[f.key];
-                if (min != null && goals[f.key] < min) patchGoals({ [f.key]: min });
-              }}
+              min={GOAL_MIN[f.key]}
+              onCommit={(n) => patchGoals({ [f.key]: f.toStore(n, units) })}
             />
           </Field>
         ))}
@@ -397,7 +387,7 @@ export function SettingsScreen() {
       </Card>
 
       <SectionLabel>Ayuno</SectionLabel>
-      <Card className="space-y-2">
+      <Card className="space-y-3">
         <p className="text-sm text-muted-foreground">Ventana de comida opcional. Se muestra en Hoy.</p>
         <div className="flex flex-wrap gap-2">
           {FASTING_PRESETS.map((p) => (
@@ -411,7 +401,29 @@ export function SettingsScreen() {
             </Button>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">{FASTING_PRESETS.find((p) => p.id === settings.fasting)?.hint}</p>
+        {activeFasting ? (
+          <>
+            {/* The presets used to fix WHEN you eat, not just how long the
+                window is — 16:8 was always 12:00-20:00. Someone eating
+                14:00-22:00 (normal in Spain) could not represent that, so the
+                start is editable and the window just keeps its length. */}
+            <Field label="Empieza a comer a las">
+              <Input
+                type="time"
+                value={minutesToClock(settings.fastingStart)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) return;
+                  patchSettings({ fastingStart: clockToMinutes(v) });
+                }}
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              {activeFasting.n} · come de {minutesToClock(settings.fastingStart)} a{" "}
+              {minutesToClock((settings.fastingStart + (activeFasting.end - activeFasting.start)) % 1440)}.
+            </p>
+          </>
+        ) : null}
       </Card>
 
       <SectionLabel>Unidades</SectionLabel>
@@ -429,14 +441,10 @@ export function SettingsScreen() {
           ))}
         </div>
         <Field label={`Tamaño del vaso (${volumeUnit(units)})`}>
-          <Input
-            inputMode="decimal"
+          <NumField
             value={mlToDisplay(settings.glass, units)}
-            onChange={(e) => {
-              const n = parsePositive(e.target.value);
-              if (!n) return;
-              patchSettings({ glass: displayToMl(n, units) });
-            }}
+            min={1}
+            onCommit={(n) => patchSettings({ glass: displayToMl(n, units) })}
           />
         </Field>
         <label className="flex items-center justify-between gap-3 text-sm">
@@ -446,18 +454,58 @@ export function SettingsScreen() {
       </Card>
 
       <SectionLabel>Apariencia</SectionLabel>
-      <Card>
-        <div className="flex gap-2">
-          {(["auto", "light", "dark"] as ThemePref[]).map((t) => (
-            <Button
-              key={t}
-              variant={settings.theme === t ? "default" : "secondary"}
-              size="sm"
-              onClick={() => patchSettings({ theme: t })}
-            >
-              {t === "auto" ? "Auto" : t === "light" ? "Claro" : "Oscuro"}
-            </Button>
-          ))}
+      <Card className="space-y-4">
+        <div>
+          <p className="mb-2 text-sm font-medium">Tema</p>
+          <div className="flex gap-2">
+            {(["auto", "light", "dark"] as ThemePref[]).map((t) => (
+              <Button
+                key={t}
+                variant={settings.theme === t ? "default" : "secondary"}
+                size="sm"
+                onClick={() => patchSettings({ theme: t })}
+              >
+                {t === "auto" ? "Auto" : t === "light" ? "Claro" : "Oscuro"}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="mb-2 text-sm font-medium">
+            Color principal <span className="text-muted-foreground">· {accentName(settings.accent)}</span>
+          </p>
+          {/* Each swatch carries its own `data-accent`, so the CSS in styles.css
+              paints it with that palette's own `--brio-primary` — in whichever
+              theme is active. The colour values therefore live in exactly one
+              place, and the preview cannot drift from what picking it does. */}
+          <div className="grid grid-cols-4 gap-2">
+            {ACCENTS.map((a) => {
+              const on = settings.accent === a.id;
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  data-accent={a.id}
+                  aria-pressed={on}
+                  aria-label={`Color ${a.n}`}
+                  onClick={() => patchSettings({ accent: a.id })}
+                  className="flex min-h-11 flex-col items-center gap-1 rounded-xl py-1"
+                >
+                  <span
+                    className={cn(
+                      "grid size-8 place-items-center rounded-full bg-primary transition-transform",
+                      on && "ring-2 ring-primary ring-offset-2 ring-offset-card",
+                    )}
+                  >
+                    {on ? <Check className="size-4 text-primary-foreground" /> : null}
+                  </span>
+                  <span className={cn("text-[10px]", on ? "font-medium text-foreground" : "text-muted-foreground")}>
+                    {a.n}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </Card>
 
@@ -553,21 +601,12 @@ export function SettingsScreen() {
           />
         </Field>
         <Field label="Avisar agua cada (min)">
-          <Input
+          <NumField
             inputMode="numeric"
-            type="number"
+            value={reminders.aguaEveryMin}
             min={30}
             max={360}
-            value={reminders.aguaEveryMin}
-            onChange={(e) => {
-              const n = parsePositive(e.target.value);
-              if (!n) return;
-              patchReminders({ aguaEveryMin: n });
-            }}
-            onBlur={() => {
-              const n = Math.round(Number(reminders.aguaEveryMin));
-              patchReminders({ aguaEveryMin: Math.min(360, Math.max(30, Number.isFinite(n) && n > 0 ? n : 120)) });
-            }}
+            onCommit={(n) => patchReminders({ aguaEveryMin: Math.round(n) })}
           />
         </Field>
         <p className="text-xs text-muted-foreground">
@@ -705,5 +744,55 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="mb-1 block text-muted-foreground">{label}</span>
       {children}
     </label>
+  );
+}
+
+/**
+ * A numeric field you can actually clear and retype.
+ *
+ * These used to write to the store on every keystroke and bail out on anything
+ * that did not parse (`if (!n) return`). With the displayed value controlled
+ * from the store, that made the field impossible to empty: backspacing put the
+ * old number straight back, so the digits you typed next landed *after* it.
+ * Correcting a height of 175 to 180 stored 175180 cm — and height feeds BMI,
+ * TDEE and therefore every calorie and macro target in the app.
+ *
+ * Holding a draft while the field is focused keeps half-typed values local:
+ * nothing reaches the store until blur, which also means typing "2200" leaves
+ * one undo entry instead of four. Anything unparseable reverts rather than
+ * inventing a number.
+ */
+function NumField({
+  value,
+  onCommit,
+  min,
+  max,
+  inputMode = "decimal",
+}: {
+  value: number;
+  onCommit: (n: number) => void;
+  min?: number;
+  max?: number;
+  inputMode?: "decimal" | "numeric";
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <Input
+      inputMode={inputMode}
+      value={draft ?? String(value)}
+      onFocus={(e) => setDraft(e.target.value)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const raw = draft;
+        setDraft(null);
+        if (raw == null) return;
+        const n = parseNum(raw);
+        if (!Number.isFinite(n)) return;
+        let next = n;
+        if (min != null) next = Math.max(min, next);
+        if (max != null) next = Math.min(max, next);
+        if (next !== value) onCommit(next);
+      }}
+    />
   );
 }

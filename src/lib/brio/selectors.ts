@@ -1,5 +1,5 @@
-import { addDays, dateOf, mealForHour, nowMinutes, rangeKeys, sleepDuration, todayKey } from "./dates";
-import { kcalFloor, kcalFromSteps, macrosFromKcal } from "./domain";
+import { addDays, dateOf, daysBetween, mealForHour, nowMinutes, rangeKeys, sleepDuration, todayKey } from "./dates";
+import { kcalFloor, kcalFromSteps } from "./domain";
 import { nf } from "./format";
 import { emptyDay } from "./persist";
 import type { DayLog, FastingId, MealEntry, MealId, SelectorState } from "./types";
@@ -84,19 +84,32 @@ export function kcalGoalFor(s: SelectorState, key: string): number {
  * grams too, at the same split). Deliberately excludes the activity-kcal
  * bonus: that extra allowance has no defined split, so it stays a kcal-only
  * buffer, same as the "Incluye X kcal de actividad" note already shows it.
+ *
+ * The day's grams come from scaling `goals`, not from re-deriving them out of
+ * `settings.macroPct`: the two drift apart as soon as you edit "Proteína (g)"
+ * or "Calorías (kcal)" by hand in Ajustes, and re-deriving threw your own
+ * numbers away — a 180 g protein goal came back as 138 g on a training day,
+ * lower than on a rest day. Scaling keeps your split and keeps the 7-day sum
+ * on `7 * goals`, exactly like the kcal it follows.
  */
 export function macroGoalsFor(s: SelectorState, key: string): { prot: number; carb: number; fat: number } {
-  if (!s.settings.weekdayPlan?.enabled) {
-    return { prot: s.goals.prot, carb: s.goals.carb, fat: s.goals.fat };
-  }
+  const flat = { prot: s.goals.prot, carb: s.goals.carb, fat: s.goals.fat };
+  if (!s.settings.weekdayPlan?.enabled) return flat;
   const k = kcalForWeekday(
     s.goals.kcal,
     s.settings.weekdayPlan.training,
     dateOf(key).getDay(),
     kcalFloor(s.profile.sex),
   );
-  if (k === s.goals.kcal) return { prot: s.goals.prot, carb: s.goals.carb, fat: s.goals.fat };
-  return macrosFromKcal(k, s.settings.macroPct);
+  // Also the guard against dividing by a kcal goal switched off: a zero base
+  // comes back unchanged from kcalForWeekday, so it leaves through here.
+  if (k === s.goals.kcal) return flat;
+  const factor = k / s.goals.kcal;
+  return {
+    prot: Math.round(flat.prot * factor),
+    carb: Math.round(flat.carb * factor),
+    fat: Math.round(flat.fat * factor),
+  };
 }
 
 export function latestWeight(s: SelectorState, beforeKey?: string) {
@@ -191,30 +204,45 @@ export type FastingStatus = {
   progress: number;
 };
 
-export function fastingStatus(id: FastingId, now = nowMinutes()): FastingStatus | null {
+/** Minutes from `from` to `now`, wrapped into [0, 1440) — handles the window crossing midnight. */
+function minutesSince(from: number, now: number): number {
+  return (((now - from) % 1440) + 1440) % 1440;
+}
+
+/**
+ * `startOverride` lets the eating window start somewhere other than the
+ * preset's own default (`settings.fastingStart`) — see that field's doc for
+ * why. The window length always comes from the preset; only its position on
+ * the clock moves, and the math is done with wraparound so a window that
+ * crosses midnight (e.g. starting at 22:00) still works.
+ */
+export function fastingStatus(id: FastingId, now = nowMinutes(), startOverride?: number): FastingStatus | null {
   const preset = FASTING_PRESETS.find((p) => p.id === id);
   if (!preset || preset.id === "off") return null;
-  const eating = now >= preset.start && now < preset.end;
   const windowLen = Math.max(1, preset.end - preset.start);
   const fastLen = 1440 - windowLen;
+  const start = ((startOverride ?? preset.start) % 1440 + 1440) % 1440;
+  const end = (start + windowLen) % 1440;
+  const sinceStart = minutesSince(start, now);
+  const eating = sinceStart < windowLen;
   if (eating) {
     return {
       label: preset.n,
       eating: true,
-      start: preset.start,
-      end: preset.end,
-      remaining: preset.end - now,
-      elapsed: now - preset.start,
-      progress: (now - preset.start) / windowLen,
+      start,
+      end,
+      remaining: windowLen - sinceStart,
+      elapsed: sinceStart,
+      progress: sinceStart / windowLen,
     };
   }
-  const elapsed = now >= preset.end ? now - preset.end : now + (1440 - preset.end);
+  const elapsed = sinceStart - windowLen;
   return {
     label: preset.n,
     eating: false,
-    start: preset.start,
-    end: preset.end,
-    remaining: Math.max(0, now < preset.start ? preset.start - now : preset.start + 1440 - now),
+    start,
+    end,
+    remaining: Math.max(0, fastLen - elapsed),
     elapsed,
     progress: elapsed / fastLen,
   };
@@ -225,7 +253,7 @@ export function weightTrend(s: SelectorState) {
   if (ws.length < 2) return null;
   const first = ws[0];
   const last = ws[ws.length - 1];
-  const days = Math.max(1, (dateOf(last.date).getTime() - dateOf(first.date).getTime()) / 86400000);
+  const days = Math.max(1, daysBetween(first.date, last.date));
   const rate = (last.kg - first.kg) / days;
   const current = last.kg;
   const goal = s.goals.weight;
@@ -286,7 +314,9 @@ export function weeklyInsights(s: SelectorState): string[] {
   }
   if (sleepN) {
     const h = sleepMin / sleepN / 60;
-    insights.push(`Has dormido de media ${h.toFixed(1)} h.`);
+    // toFixed writes "7.5"; every other figure in the recap goes through nf(),
+    // which is the Spanish "7,5". Same slip the steps line already had.
+    insights.push(`Has dormido de media ${nf(h, 1)} h.`);
   }
   if (waterDays) {
     const avgW = Math.round(water / waterDays);

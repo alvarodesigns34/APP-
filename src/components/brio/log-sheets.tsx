@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ACTIVITIES, ACTIVITY_GROUPS, INTENSITIES } from "@/lib/brio/domain";
+import { ACTIVITIES, ACTIVITY_GROUPS, INTENSITIES, activityOf, type Sport } from "@/lib/brio/domain";
 import { useBrioStore } from "@/lib/brio/store";
+import { recentSports, searchSports } from "@/lib/brio/workouts";
 import { latestWeight } from "@/lib/brio/selectors";
 import { nf, parseNum, parsePositive, round } from "@/lib/brio/format";
 import { clockToMinutes, fmtDateRelative, minutesToClock, minutesToHM, sleepDuration } from "@/lib/brio/dates";
@@ -17,7 +18,8 @@ import {
   volumeUnit,
   weightUnit,
 } from "@/lib/brio/units";
-import type { IntensityId } from "@/lib/brio/types";
+import { MEASURES, type IntensityId, type MeasureId } from "@/lib/brio/types";
+import { isMeasureInRange } from "@/lib/brio/measures";
 import { cn } from "@/lib/utils";
 
 /** Focus a quick-log input after vaul has painted. Delayed so iOS does not fight the keyboard. */
@@ -72,7 +74,9 @@ export function WaterSheet({
               <span>{fmtVolume(w.ml, units)}</span>
               <button
                 type="button"
-                aria-label="Quitar vaso"
+                // Every row used to announce the same "Quitar vaso", so a
+                // screen reader gave no way to tell which of them it was on.
+                aria-label={`Quitar el vaso de ${fmtVolume(w.ml, units)}`}
                 className="min-h-11 px-2 text-xs text-muted-foreground"
                 onClick={() => remove(date, w.id)}
               >
@@ -126,6 +130,7 @@ export function StepsSheet({
 }) {
   const steps = useBrioStore((s) => s.days[date]?.steps ?? 0);
   const setSteps = useBrioStore((s) => s.setSteps);
+  const goal = useBrioStore((s) => s.goals.steps);
   const [v, setV] = useState(String(steps));
   const inputRef = useOpenFocus(open, true);
   useEffect(() => {
@@ -148,7 +153,17 @@ export function StepsSheet({
         </Button>
       }
     >
-      <Input ref={inputRef} inputMode="numeric" value={v} onChange={(e) => setV(e.target.value)} />
+      <label className="mb-1 block text-sm font-medium" htmlFor="steps-count">
+        Pasos {fmtDateRelative(date).toLowerCase()}
+      </label>
+      <Input
+        id="steps-count"
+        ref={inputRef}
+        inputMode="numeric"
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+      />
+      <p className="mt-2 text-sm text-muted-foreground">Objetivo {nf(goal)} pasos.</p>
     </Sheet>
   );
 }
@@ -217,6 +232,23 @@ export function SleepSheet({
   );
 }
 
+/** One sport chip. Same look wherever it appears: Recientes, a group, or a search hit. */
+function SportChip({ sport, on, onPick }: { sport: Sport; on: boolean; onPick: (id: string) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(sport.id)}
+      aria-pressed={on}
+      className={cn(
+        "min-h-11 rounded-full px-3 py-1 text-xs",
+        on ? "bg-primary text-primary-foreground" : "bg-muted",
+      )}
+    >
+      {sport.n}
+    </button>
+  );
+}
+
 export function WorkoutSheet({
   open,
   onOpenChange,
@@ -227,15 +259,22 @@ export function WorkoutSheet({
   date: string;
 }) {
   const add = useBrioStore((s) => s.addWorkout);
+  const days = useBrioStore((s) => s.days);
   const [type, setType] = useState(ACTIVITIES[0].id);
   const [min, setMin] = useState("45");
   const [intensity, setIntensity] = useState<IntensityId>("media");
+  const [q, setQ] = useState("");
   useEffect(() => {
     if (!open) return;
     setType(ACTIVITIES[0].id);
     setMin("45");
     setIntensity("media");
+    setQ("");
   }, [open]);
+  // The four sports you actually train beat 45 chips sorted by category.
+  const recent = useMemo(() => recentSports({ days }, 4), [days]);
+  const query = q.trim();
+  const hits = useMemo(() => (query ? searchSports(query) : []), [query]);
   return (
     <Sheet
       open={open}
@@ -249,30 +288,54 @@ export function WorkoutSheet({
             onOpenChange(false);
           }}
         >
-          Guardar
+          {/* Naming the sport here matters now that search can hide the selected
+              chip: otherwise you type "pádel", forget to tap it and save fuerza. */}
+          Guardar · {activityOf(type).n}
         </Button>
       }
     >
-      {ACTIVITY_GROUPS.map((g) => (
-        <div key={g.id} className="mb-3">
-          <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">{g.n}</p>
-          <div className="flex flex-wrap gap-1">
-            {ACTIVITIES.filter((a) => a.g === g.id).map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() => setType(a.id)}
-                className={cn(
-                  "min-h-11 rounded-full px-3 py-1 text-xs",
-                  type === a.id ? "bg-primary text-primary-foreground" : "bg-muted",
-                )}
-              >
-                {a.n}
-              </button>
+      <Input
+        className="mb-3"
+        type="search"
+        placeholder="Buscar deporte"
+        aria-label="Buscar deporte"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      {query ? (
+        hits.length === 0 ? (
+          <p className="mb-3 text-sm text-muted-foreground">Ningún deporte coincide</p>
+        ) : (
+          <div className="mb-3 flex flex-wrap gap-1">
+            {hits.map((a) => (
+              <SportChip key={a.id} sport={a} on={type === a.id} onPick={setType} />
             ))}
           </div>
-        </div>
-      ))}
+        )
+      ) : (
+        <>
+          {recent.length > 0 ? (
+            <div className="mb-3">
+              <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">Recientes</p>
+              <div className="flex flex-wrap gap-1">
+                {recent.map((a) => (
+                  <SportChip key={a.id} sport={a} on={type === a.id} onPick={setType} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {ACTIVITY_GROUPS.map((g) => (
+            <div key={g.id} className="mb-3">
+              <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">{g.n}</p>
+              <div className="flex flex-wrap gap-1">
+                {ACTIVITIES.filter((a) => a.g === g.id).map((a) => (
+                  <SportChip key={a.id} sport={a} on={type === a.id} onPick={setType} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
       <label className="text-sm font-medium">Minutos</label>
       <Input className="mb-3" inputMode="numeric" value={min} onChange={(e) => setMin(e.target.value)} />
       <div className="flex gap-2">
@@ -316,15 +379,35 @@ export function WeightSheet({
   const [fat, setFat] = useState("");
   const [muscle, setMuscle] = useState("");
   const [showComp, setShowComp] = useState(false);
+  // Las medidas son un registro más esporádico todavía que la composición
+  // corporal (mucha gente se pesa a diario y se mide una vez al mes), así que
+  // van en su propio bloque plegado, no mezcladas con el peso.
+  const [meas, setMeas] = useState<Record<string, string>>({});
+  const [showMeas, setShowMeas] = useState(false);
   const inputRef = useOpenFocus(open, true);
+
+  // The seed values live in a ref rather than in the effect's deps: they are
+  // derived from `weights`, and the sheet lets you delete a weigh-in from the
+  // list below the field. With `current`/`today` as deps, tapping "Quitar"
+  // re-ran this effect and overwrote the number you had just typed.
+  const seed = useRef({ current, fat: today?.fat, muscle: today?.muscle, today });
+  seed.current = { current, fat: today?.fat, muscle: today?.muscle, today };
 
   useEffect(() => {
     if (!open) return;
-    setV(String(kgToDisplay(current, units)));
-    setFat(today?.fat != null ? String(today.fat) : "");
-    setMuscle(today?.muscle != null ? String(today.muscle) : "");
-    setShowComp(today?.fat != null || today?.muscle != null);
-  }, [open, date, units, current, today?.fat, today?.muscle]);
+    const s = seed.current;
+    setV(String(kgToDisplay(s.current, units)));
+    setFat(s.fat != null ? String(s.fat) : "");
+    setMuscle(s.muscle != null ? String(s.muscle) : "");
+    setShowComp(s.fat != null || s.muscle != null);
+    const m: Record<string, string> = {};
+    for (const def of MEASURES) {
+      const cm = s.today?.[def.id];
+      if (cm != null) m[def.id] = String(cm);
+    }
+    setMeas(m);
+    setShowMeas(Object.keys(m).length > 0);
+  }, [open, date, units]);
 
   const start = Math.max(0, weights.length - 8);
 
@@ -346,7 +429,13 @@ export function WeightSheet({
             };
             const f = pct(fat);
             const m = pct(muscle);
-            upsert(date, kg, f != null || m != null ? { fat: f, muscle: m } : undefined);
+            const cms: Partial<Record<MeasureId, number>> = {};
+            for (const def of MEASURES) {
+              const raw = parsePositive(meas[def.id] ?? "");
+              if (isMeasureInRange(raw)) cms[def.id] = round(raw, 1);
+            }
+            const extra = { ...(f != null ? { fat: f } : {}), ...(m != null ? { muscle: m } : {}), ...cms };
+            upsert(date, kg, Object.keys(extra).length > 0 ? extra : undefined);
             patchProfile({ weight: kg });
             onOpenChange(false);
           }}
@@ -400,6 +489,32 @@ export function WeightSheet({
         </Button>
       )}
 
+      {showMeas ? (
+        <div className="mb-4">
+          <p className="mb-1 text-xs text-muted-foreground">Medidas (cm)</p>
+          <div className="grid grid-cols-2 gap-2">
+            {MEASURES.map((def) => (
+              <div key={def.id}>
+                <label className="text-xs text-muted-foreground" htmlFor={`weight-${def.id}`}>
+                  {def.n}
+                </label>
+                <Input
+                  id={`weight-${def.id}`}
+                  inputMode="decimal"
+                  placeholder="opcional"
+                  value={meas[def.id] ?? ""}
+                  onChange={(e) => setMeas((prev) => ({ ...prev, [def.id]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <Button variant="ghost" size="sm" className="mb-4 w-full" onClick={() => setShowMeas(true)}>
+          Añadir medidas
+        </Button>
+      )}
+
       {weights.length === 0 ? (
         <p className="text-sm text-muted-foreground">Sin registros de peso.</p>
       ) : (
@@ -419,7 +534,7 @@ export function WeightSheet({
                 </span>
                 <button
                   type="button"
-                  aria-label="Quitar peso"
+                  aria-label={`Quitar el peso de ${fmtDateRelative(w.date)}`}
                   className="min-h-11 px-2 text-xs text-muted-foreground"
                   onClick={() => del(w.date)}
                 >

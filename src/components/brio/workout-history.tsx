@@ -10,7 +10,6 @@ import { nf, plural } from "@/lib/brio/format";
 import { allSessions, sportMarks, weekWorkoutMin } from "@/lib/brio/workouts";
 import { useBrioStore } from "@/lib/brio/store";
 import { activityOf } from "@/lib/brio/domain";
-import { cn } from "@/lib/utils";
 
 export function WorkoutWeekCard({ onOpen }: { onOpen: () => void }) {
   const snap = useBrioStore(
@@ -130,20 +129,28 @@ export function WorkoutHistorySheet({
       )}
 
       <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Volumen 14 días</h3>
-      <div className="mb-4 flex h-8 items-end gap-1">
+      {/* 32 px tall with a 12 % floor under every bar, a rest day and a 20 min
+          day drew the same stub: the strip read as a dotted line, not a shape.
+          Now each day has a full-height track and the bar is its real share of
+          90 min, so a zero is an empty column you can see across the row. */}
+      <div className="flex h-20 items-end gap-1">
         {bars.map((k) => {
           const min = snap.days[k]?.workouts.reduce((a, w) => a + w.min, 0) ?? 0;
           const h = Math.min(100, (min / 90) * 100);
           return (
-            <i
+            <div
               key={k}
-              title={`${k}: ${min} min`}
-              className={cn("flex-1 rounded-sm", min > 0 ? "bg-move" : "bg-muted")}
-              style={{ height: `${Math.max(12, h)}%` }}
-            />
+              title={`${fmtDateRelative(k)}: ${min} min`}
+              className="flex h-full flex-1 items-end rounded-sm bg-muted/60"
+            >
+              <i className="w-full rounded-sm bg-move" style={{ height: `${h}%` }} />
+            </div>
           );
         })}
       </div>
+      <p className="mb-4 mt-1 text-xs text-muted-foreground">
+        Un día por barra · lleno = 90 min · {plural(bars.filter((k) => (snap.days[k]?.workouts.length ?? 0) === 0).length, "día de descanso", "días de descanso")}
+      </p>
 
       <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Últimas sesiones</h3>
       <ul className="divide-y divide-border">

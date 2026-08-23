@@ -1,4 +1,4 @@
-import { addDays, dateOf } from "./dates";
+import { addDays, daysBetween } from "./dates";
 import type { WeightEntry } from "./types";
 
 /** Calendar days of weigh-ins to plot (one point per day in that span). */
@@ -23,11 +23,6 @@ export type WeightChartPoint = {
 function shortDate(key: string): string {
   const parts = key.split("-");
   return `${Number(parts[2])}/${Number(parts[1])}`;
-}
-
-/** Same day-count rule as `weightTrend`: ms delta / 86400000. */
-function daysBetween(a: string, b: string): number {
-  return (dateOf(b).getTime() - dateOf(a).getTime()) / 86400000;
 }
 
 function sampleStdev(values: number[]): number {

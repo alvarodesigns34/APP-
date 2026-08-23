@@ -119,6 +119,99 @@
   --brio-shadow-raised: inset 0 1px 0 rgb(242 239 230 / 0.06), 0 8px 24px rgb(0 0 0 / 0.55);
 }
 
+/* Accent palette — the "main colour" picker in Ajustes.
+   Ordering and selector shape both matter here:
+   - These blocks come *after* `.dark` because `[data-accent="x"]` and `.dark`
+     have the same specificity (0,1,0); source order is what decides. The dark
+     values then use the compound `.dark[data-accent="x"]` (0,2,0) so they win
+     outright on <html class="dark" data-accent="x">.
+   - The selectors are deliberately not anchored to `:root`, so they also apply
+     to any nested element carrying the attribute. That is what lets the
+     swatches in Ajustes preview themselves: a plain `bg-primary` chip wrapped
+     in `data-accent="ciruela"` renders in ciruela, in whichever theme is
+     active, with no duplicated colour values in the TypeScript.
+   Every value is contrast-checked against card/background/primary-foreground
+   in both themes by accent.test.ts, which parses this very file. */
+[data-accent="verde"] {
+  --brio-primary: #2f6f4e;
+  --brio-kcal: #2f6f4e;
+}
+.dark[data-accent="verde"],
+.dark [data-accent="verde"] {
+  --brio-primary: #7cb992;
+  --brio-kcal: #7cb992;
+}
+
+[data-accent="salvia"] {
+  --brio-primary: #4a6b45;
+  --brio-kcal: #4a6b45;
+}
+.dark[data-accent="salvia"],
+.dark [data-accent="salvia"] {
+  --brio-primary: #9dc094;
+  --brio-kcal: #9dc094;
+}
+
+[data-accent="oliva"] {
+  --brio-primary: #5d6b1c;
+  --brio-kcal: #5d6b1c;
+}
+.dark[data-accent="oliva"],
+.dark [data-accent="oliva"] {
+  --brio-primary: #b3c073;
+  --brio-kcal: #b3c073;
+}
+
+[data-accent="ciruela"] {
+  --brio-primary: #6a4485;
+  --brio-kcal: #6a4485;
+}
+.dark[data-accent="ciruela"],
+.dark [data-accent="ciruela"] {
+  --brio-primary: #bda2db;
+  --brio-kcal: #bda2db;
+}
+
+[data-accent="frambuesa"] {
+  --brio-primary: #a03459;
+  --brio-kcal: #a03459;
+}
+.dark[data-accent="frambuesa"],
+.dark [data-accent="frambuesa"] {
+  --brio-primary: #e79ab4;
+  --brio-kcal: #e79ab4;
+}
+
+[data-accent="violeta"] {
+  --brio-primary: #5a4bab;
+  --brio-kcal: #5a4bab;
+}
+.dark[data-accent="violeta"],
+.dark [data-accent="violeta"] {
+  --brio-primary: #a99ae8;
+  --brio-kcal: #a99ae8;
+}
+
+[data-accent="ambar"] {
+  --brio-primary: #7d5a11;
+  --brio-kcal: #7d5a11;
+}
+.dark[data-accent="ambar"],
+.dark [data-accent="ambar"] {
+  --brio-primary: #d9b061;
+  --brio-kcal: #d9b061;
+}
+
+[data-accent="grafito"] {
+  --brio-primary: #4c4a43;
+  --brio-kcal: #4c4a43;
+}
+.dark[data-accent="grafito"],
+.dark [data-accent="grafito"] {
+  --brio-primary: #b3afa4;
+  --brio-kcal: #b3afa4;
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;

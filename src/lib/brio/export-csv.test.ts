@@ -52,11 +52,23 @@ describe("empty state", () => {
     const s = defaultState();
     expect(mealsCsv(s).startsWith(CSV_BOM)).toBe(true);
     expect(rows(mealsCsv(s))).toEqual(["fecha;comida;alimento;cantidad;unidad;gramos;kcal;prot;carb;fat;fib"]);
-    expect(rows(weightsCsv(s))).toEqual(["fecha;kg;grasa;musculo"]);
+    expect(rows(weightsCsv(s))).toEqual(["fecha;kg;grasa;musculo;cintura;pecho;cadera;brazo;muslo"]);
     expect(rows(workoutsCsv(s))).toEqual(["fecha;tipo;minutos;intensidad;kcal"]);
     expect(rows(combinedCsv(s))[0]).toBe(
       "tipo;fecha;comida;alimento;cantidad;unidad;gramos;kcal;prot;carb;fat;fib;kg;grasa;musculo;minutos;intensidad",
     );
+  });
+});
+
+describe("medidas corporales", () => {
+  it("exporta cada medida en su columna, dejando vacías las que falten", () => {
+    // Se dejan huecos a propósito (cintura sí, pecho y cadera no, brazo sí):
+    // comprobar que las columnas aparecen vacías no probaría nada, lo que
+    // importa es que cada valor cae en la suya y no en la de al lado.
+    const s = withLogs((st) => {
+      st.weights = [{ date: "2026-02-01", kg: 80, waist: 92, arm: 34.5 }];
+    });
+    expect(rows(weightsCsv(s))[1]).toBe("2026-02-01;80;;;92;;;34,5;");
   });
 });
 
@@ -73,7 +85,10 @@ describe("fixture: 1 meal + 1 weight", () => {
       "fecha;comida;alimento;cantidad;unidad;gramos;kcal;prot;carb;fat;fib",
       "2026-01-15;Desayuno;Manzana;1;unidad;150;78;0,4;21;0,2;2,4",
     ]);
-    expect(rows(weightsCsv(s))).toEqual(["fecha;kg;grasa;musculo", "2026-01-15;72,5;;"]);
+    expect(rows(weightsCsv(s))).toEqual([
+      "fecha;kg;grasa;musculo;cintura;pecho;cadera;brazo;muslo",
+      "2026-01-15;72,5;;;;;;;",
+    ]);
 
     const combined = rows(combinedCsv(s));
     expect(combined).toHaveLength(3);
@@ -116,7 +131,7 @@ describe("CSV formula injection", () => {
     });
     // fat is invalid as a negative percentage but the point stands: numeric
     // cells must never gain a leading apostrophe just for starting with "-".
-    expect(rows(weightsCsv(s))[1]).toBe("2026-05-01;70;-1;");
+    expect(rows(weightsCsv(s))[1]).toBe("2026-05-01;70;-1;;;;;;");
   });
 });
 
@@ -155,7 +170,7 @@ describe("sort and workouts", () => {
       .slice(1)
       .map((l) => l.split(";")[0]);
     expect(weightDates).toEqual(["2026-03-01", "2026-03-10"]);
-    expect(rows(weightsCsv(s))[2]).toBe("2026-03-10;71;18,2;40");
+    expect(rows(weightsCsv(s))[2]).toBe("2026-03-10;71;18,2;40;;;;;");
   });
 
   it("exports workouts and places entreno after comida/peso on the same date", () => {

@@ -1,3 +1,5 @@
+import type { AccentId } from "./accent";
+
 export const APP_NAME = "Brío";
 export const APP_VERSION = "4.1.0";
 export const SCHEMA_VERSION = 4;
@@ -131,12 +133,36 @@ export type ShoppingItem = {
   t: number;
 };
 
+/**
+ * Las medidas que se pueden apuntar junto al peso, en centímetros.
+ *
+ * Viven aquí, junto a MEALS y compañía, para que el tipo de `WeightEntry`
+ * pueda derivarse de la lista: así añadir una medida es tocar un sitio, y la
+ * hoja de registro, la validación al cargar y el CSV recorren todas la misma
+ * fuente en vez de repetir la lista tres veces.
+ */
+export const MEASURES = [
+  { id: "waist", n: "Cintura" },
+  { id: "chest", n: "Pecho" },
+  { id: "hip", n: "Cadera" },
+  { id: "arm", n: "Brazo" },
+  { id: "thigh", n: "Muslo" },
+] as const;
+
+export type MeasureId = (typeof MEASURES)[number]["id"];
+
+/**
+ * Un pesaje y, opcionalmente, lo que te midieras esa misma mañana. Es una
+ * entrada por fecha y no una colección aparte a propósito: quien se mide lo
+ * hace el mismo día que se pesa, y así las dos series comparten eje temporal
+ * sin tener que cruzarlas.
+ */
 export type WeightEntry = {
   date: string;
   kg: number;
   fat?: number;
   muscle?: number;
-};
+} & Partial<Record<MeasureId, number>>;
 
 export type Profile = {
   name: string;
@@ -170,11 +196,21 @@ export type WeekdayPlan = {
 
 export type Settings = {
   theme: ThemePref;
+  /** Which palette drives `--brio-primary`/`--brio-kcal`. See lib/brio/accent.ts. */
+  accent: AccentId;
   units: "met" | "imp";
   glass: number;
   pantryBasics: boolean;
   activityAdjust: boolean;
   fasting: FastingId;
+  /**
+   * Minutes-from-midnight the eating window opens. The presets fix a window
+   * length (16:8 = 8h eating) but previously also fixed *when* — always
+   * 12:00–20:00 for 16:8, so someone eating 14:00–22:00 (normal in Spain)
+   * could not represent their actual schedule. This shifts the same-length
+   * window; it means nothing while `fasting` is "off".
+   */
+  fastingStart: number;
   macroPreset: MacroPresetId;
   macroPct: MacroPct;
   reminders: ReminderSettings;
@@ -186,6 +222,7 @@ export type Goals = {
   prot: number;
   carb: number;
   fat: number;
+  fib: number;
   steps: number;
   water: number;
   sleep: number;

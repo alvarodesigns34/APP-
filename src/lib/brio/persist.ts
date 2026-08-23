@@ -1,3 +1,5 @@
+import { DEFAULT_ACCENT, isAccentId } from "./accent";
+import { isMeasureInRange } from "./measures";
 import { DEFAULT_MACRO_PCT, clampMacroPct, isMacroPresetId, pctForPreset } from "./domain";
 import { DEFAULT_REMINDERS, parseReminders } from "./reminders";
 import { DEFAULT_WEEKDAY_PLAN, parseWeekdayPlan } from "./weekday-goals";
@@ -5,6 +7,7 @@ import {
   AUX_STORE_KEYS,
   LEGACY_STORE_KEYS,
   MEALS,
+  MEASURES,
   NOTE_MAX,
   SCHEMA_VERSION,
   STORE_KEY,
@@ -13,6 +16,7 @@ import {
   type FoodUnit,
   type IntensityId,
   type MealEntry,
+  type MeasureId,
   type PersistedState,
   type Profile,
   type Settings,
@@ -50,11 +54,16 @@ export function defaultState(): PersistedState {
     },
     settings: {
       theme: "auto",
+      accent: DEFAULT_ACCENT,
       units: "met",
       glass: 250,
       pantryBasics: true,
       activityAdjust: true,
       fasting: "off",
+      // Matches FASTING_PRESETS' own "16-8" start (12:00); irrelevant while
+      // fasting is "off", but a real default avoids a 00:00 fallback the one
+      // time someone turns fasting on without ever touching this field.
+      fastingStart: 12 * 60,
       macroPreset: "equilibrado",
       macroPct: { ...DEFAULT_MACRO_PCT },
       reminders: { ...DEFAULT_REMINDERS },
@@ -65,6 +74,7 @@ export function defaultState(): PersistedState {
       prot: 138,
       carb: 248,
       fat: 73,
+      fib: 31,
       steps: 8000,
       water: 2000,
       sleep: 480,
@@ -199,7 +209,14 @@ function parseWeight(v: unknown): WeightEntry | null {
   };
   const fat = pct(v.fat);
   const muscle = pct(v.muscle);
-  return { date: v.date, kg, ...(fat != null ? { fat } : {}), ...(muscle != null ? { muscle } : {}) };
+  // Las medidas se recorren desde MEASURES para que añadir una no exija
+  // acordarse de tocar también esta función.
+  const measures: Partial<Record<MeasureId, number>> = {};
+  for (const m of MEASURES) {
+    const n = numOrNull(v[m.id]);
+    if (n != null && isMeasureInRange(n)) measures[m.id] = n;
+  }
+  return { date: v.date, kg, ...(fat != null ? { fat } : {}), ...(muscle != null ? { muscle } : {}), ...measures };
 }
 
 function parseFood(v: unknown): Food | null {
@@ -284,11 +301,19 @@ export function migrate(raw: unknown): PersistedState {
   profile.birth = typeof profile.birth === "string" ? profile.birth : "";
   const settings = { ...base.settings, ...(isObj(out.settings) ? out.settings : {}) } as Settings;
   if (settings.theme !== "auto" && settings.theme !== "light" && settings.theme !== "dark") settings.theme = "auto";
+  // An unknown accent would leave `data-accent` pointing at a rule that does
+  // not exist, so the app would silently fall back to the bare `:root` green
+  // while Ajustes highlighted nothing — better to land on the real default.
+  if (!isAccentId(settings.accent)) settings.accent = DEFAULT_ACCENT;
   const fasting = (settings as Settings).fasting;
   if (fasting !== "off" && fasting !== "12-12" && fasting !== "14-10" && fasting !== "16-8" && fasting !== "18-6") {
     settings.fasting = "off";
   }
   if (settings.units !== "met" && settings.units !== "imp") settings.units = "met";
+  {
+    const n = numOrNull((settings as Settings).fastingStart);
+    settings.fastingStart = n != null && n >= 0 && n < 1440 ? Math.round(n) : base.settings.fastingStart;
+  }
   if (!isMacroPresetId(settings.macroPreset)) {
     settings.macroPreset = "equilibrado";
     settings.macroPct = { ...DEFAULT_MACRO_PCT };
@@ -321,6 +346,7 @@ export function migrate(raw: unknown): PersistedState {
     prot: nonNegative(rawGoals.prot, base.goals.prot),
     carb: nonNegative(rawGoals.carb, base.goals.carb),
     fat: nonNegative(rawGoals.fat, base.goals.fat),
+    fib: nonNegative(rawGoals.fib, base.goals.fib),
     steps: nonNegative(rawGoals.steps, base.goals.steps),
     water: nonNegative(rawGoals.water, base.goals.water),
     sleep: nonNegative(rawGoals.sleep, base.goals.sleep),

@@ -2,10 +2,15 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import { Card, Empty, Screen, SectionLabel, Title } from "@/components/brio/section";
-import { addDays, rangeKeys, sleepDuration, todayKey, weekColumns, WEEKDAYS } from "@/lib/brio/dates";
+import { WEEKDAYS, addDays, fmtMonthYear, rangeKeys, sleepDuration, todayKey, weekColumns } from "@/lib/brio/dates";
 import { nf, plural } from "@/lib/brio/format";
 import { buildMacroSeries, DEFAULT_TREND_RANGE, TREND_RANGES, type TrendRange } from "@/lib/brio/macro-series";
+import { latestWaist, measureChanges, waistToHeight } from "@/lib/brio/measures";
+import { achievements, achievementsDone, nextAchievements } from "@/lib/brio/achievements";
+import { AchievementsSheet } from "@/components/brio/achievements-sheet";
+import { MonthRecapSheet } from "@/components/brio/month-recap-sheet";
 import {
+  currentStreak,
   dayFoodTotals,
   goalsMet,
   waterTotal,
@@ -176,6 +181,8 @@ export function TrendsScreen() {
   const setViewDate = useBrioStore((s) => s.setViewDate);
   const navigate = useNavigate();
   const [range, setRange] = useState<TrendRange>(DEFAULT_TREND_RANGE);
+  const [logrosOpen, setLogrosOpen] = useState(false);
+  const [mesOpen, setMesOpen] = useState(false);
   const data = useMemo(() => {
     const keys = rangeKeys(todayKey(), range);
     const days = keys.map((k) => {
@@ -225,6 +232,12 @@ export function TrendsScreen() {
   }, [snap.weights, snap.goals.weight]);
   const pesoDomain = useMemo(() => pesoYDomain(wChart), [wChart]);
   const trend = useMemo(() => weightTrend(snap), [snap]);
+  const measures = useMemo(() => measureChanges(snap.weights), [snap.weights]);
+  // `currentStreak` recorre hasta 400 días, así que se calcula una vez aquí y
+  // se le pasa hecho a `achievements` en lugar de que lo repita por dentro.
+  const logros = useMemo(() => achievements(snap, currentStreak(snap)), [snap]);
+  const nextUp = useMemo(() => nextAchievements(logros, 3), [logros]);
+  const waist = useMemo(() => waistToHeight(latestWaist(snap.weights), snap.profile.height), [snap.weights, snap.profile.height]);
   const units = snap.settings.units;
 
   // One pass over the week instead of the five separate dayFoodTotals sweeps
@@ -323,6 +336,87 @@ export function TrendsScreen() {
         </>
       ) : null}
 
+      <SectionLabel>Tu mes</SectionLabel>
+      <Card className="mb-3" onClick={() => setMesOpen(true)}>
+        <span className="font-medium">{fmtMonthYear(todayKey())}</span>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Medias por día y comparación con el mes anterior.
+        </p>
+      </Card>
+
+      <SectionLabel>Logros</SectionLabel>
+      <Card className="mb-3" onClick={() => setLogrosOpen(true)}>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="font-medium">
+            {achievementsDone(logros)} de {logros.length} logros
+          </span>
+        </div>
+        {nextUp.length > 0 ? (
+          <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+            {nextUp.map((a) => (
+              <li key={a.id} className="flex justify-between gap-3">
+                <span className="min-w-0 truncate">{a.n}</span>
+                {a.of != null ? (
+                  <span className="shrink-0 tabular-nums text-xs">
+                    {nf(a.at ?? 0)}/{nf(a.of)}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-1 text-sm text-muted-foreground">Los tienes todos. No es poca cosa.</p>
+        )}
+      </Card>
+
+      {measures.length > 0 || waist != null ? (
+        <>
+          <SectionLabel>Medidas</SectionLabel>
+          <Card className="mb-3 space-y-3">
+            {waist != null ? (
+              <div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm text-muted-foreground">Cintura / altura</span>
+                  <span className="tabular-nums font-medium">{nf(waist.ratio, 2)}</span>
+                </div>
+                <p
+                  className={cn(
+                    "mt-0.5 text-sm",
+                    waist.tone === "ok" ? "text-primary" : waist.tone === "warn" ? "text-[var(--brio-warn)]" : "text-destructive",
+                  )}
+                >
+                  {waist.n}
+                </p>
+                {/* La regla que hay detrás del número, porque un 0,48 a secas
+                    no le dice nada a nadie que no la conozca. */}
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  La referencia es que la cintura mida menos de la mitad de tu altura.
+                </p>
+              </div>
+            ) : null}
+            {measures.length > 0 ? (
+              <ul className={cn("space-y-1", waist != null && "border-t border-border pt-3")}>
+                {measures.map((m) => (
+                  <li key={m.id} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="text-muted-foreground">{m.n}</span>
+                    <span className="tabular-nums">
+                      <b className="font-medium">{nf(m.last, 1)} cm</b>
+                      {m.delta != null && Math.abs(m.delta) >= 0.05 ? (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          {m.delta < 0 ? "−" : "+"}
+                          {nf(Math.abs(m.delta), 1)}
+                        </span>
+                      ) : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </Card>
+        </>
+      ) : null}
+
       <SectionLabel>Calendario</SectionLabel>
       <Card className="mb-3">
         <div className="flex gap-1.5">
@@ -392,6 +486,8 @@ export function TrendsScreen() {
       <Suspense fallback={<ChartSkeleton hasWeight={wChart.length > 0} />}>
         <TrendsCharts data={data} wChart={wChart} pesoDomain={pesoDomain} units={units} />
       </Suspense>
+          <AchievementsSheet open={logrosOpen} onOpenChange={setLogrosOpen} />
+      <MonthRecapSheet open={mesOpen} onOpenChange={setMesOpen} />
     </Screen>
   );
 }

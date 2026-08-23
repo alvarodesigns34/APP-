@@ -7,7 +7,11 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist/**", "node_modules/**", "src/routeTree.gen.ts", "coverage/**"],
+    // `dist/**` etc. only match at repo root — a subagent's isolated git
+    // worktree (`.claude/worktrees/<id>/dist/**`) or any other nested build
+    // output sailed straight through and flooded `npm run lint` with someone
+    // else's minified bundle. The `**/` prefix matches at any depth.
+    ignores: ["**/dist/**", "**/node_modules/**", "src/routeTree.gen.ts", "**/coverage/**", ".claude/**"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

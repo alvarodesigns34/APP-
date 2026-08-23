@@ -7,11 +7,22 @@ import type { CatalogState } from "@/lib/brio/use-catalog";
  * Screens must render this instead of their "no results" copy: an empty list
  * during loading reads as "this food does not exist", which is not true.
  */
-export function CatalogNotice({ state, loadingText }: { state: CatalogState; loadingText: string }) {
+export function CatalogNotice({
+  state,
+  loadingText,
+  // One fetch brings foods, recipes and routines, but the failure is read where
+  // it shows: "no se han podido cargar los alimentos" under the title "Rutinas"
+  // reads like a different error than the one that happened.
+  noun = "los alimentos",
+}: {
+  state: CatalogState;
+  loadingText: string;
+  noun?: string;
+}) {
   if (state.failed) {
     return (
       <div className="px-5 py-8 text-center">
-        <p className="text-sm font-medium">No se han podido cargar los alimentos</p>
+        <p className="text-sm font-medium">No se han podido cargar {noun}</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Comprueba la conexión. Lo que ya tienes registrado no se ha perdido.
         </p>
