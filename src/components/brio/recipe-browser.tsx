@@ -9,6 +9,7 @@ import { RECIPE_CATS, RECIPE_FILTERS, filterName, getFood, recipeAsFood, searchR
 import { RECIPE_SORTS, sortRecipes, type RecipeSortId } from "@/lib/brio/sort-recipes";
 import { HighlightText } from "@/components/brio/highlight-text";
 import { MyRecipeDetail, MyRecipeSheet } from "@/components/brio/my-recipes";
+import { CookModeSheet } from "@/components/brio/cook-mode";
 import { userRecipePerServing } from "@/lib/brio/user-recipes";
 import { useCatalog } from "@/lib/brio/use-catalog";
 import { CatalogNotice } from "@/components/brio/catalog-state";
@@ -274,6 +275,7 @@ export function RecipeDetail({
   const fav = favRecipes.includes(recipe.id);
   const missing = useMemo(() => missingIngredients({ ...useBrioStore.getState(), pantry }, recipe), [pantry, recipe]);
   const [meal, setMeal] = useState<MealId>("comida");
+  const [cooking, setCooking] = useState(false);
   const [servings, setServings] = useState(1);
   const scaled = useMemo(() => scaleRecipe(recipe, servings), [recipe, servings]);
   const badges = recipe.badges;
@@ -397,12 +399,29 @@ export function RecipeDetail({
       ) : (
         <p className="mb-3 text-xs text-primary">Tienes lo necesario en la despensa.</p>
       )}
-      <h3 className="mb-1 text-sm font-medium">Pasos</h3>
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-medium">Pasos</h3>
+        {recipe.steps.length > 0 ? (
+          <Button variant="ghost" size="sm" onClick={() => setCooking(true)}>
+            Modo cocina
+          </Button>
+        ) : null}
+      </div>
       <ol className="list-decimal space-y-2 pl-4 text-sm text-muted-foreground">
         {recipe.steps.map((st, i) => (
           <li key={i}>{st}</li>
         ))}
       </ol>
+      {/* Los ingredientes van ya escalados a las raciones elegidas: cocinar
+          para cuatro con las cantidades de una sería el peor momento para
+          descubrir el desajuste. */}
+      <CookModeSheet
+        open={cooking}
+        onOpenChange={setCooking}
+        name={recipe.name}
+        steps={recipe.steps}
+        ingredients={scaled.ingredients.map((i) => ({ name: i.name, g: i.g, base: i.base }))}
+      />
     </Sheet>
   );
 }

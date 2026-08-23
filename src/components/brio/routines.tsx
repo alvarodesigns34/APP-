@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ROUTINES, ROUTINE_LEVELS, parseRestSeconds } from "@/lib/brio/catalog";
 import { INTENSITIES } from "@/lib/brio/domain";
 import { remainingSeconds } from "@/lib/brio/timer";
+import { keepAwake } from "@/lib/brio/wake-lock";
 import { useCatalog } from "@/lib/brio/use-catalog";
 import { CatalogNotice } from "@/components/brio/catalog-state";
 import { useBrioStore } from "@/lib/brio/store";
@@ -38,6 +39,10 @@ export function RoutinesSheet({
     // started and then dismissed kept re-rendering twice a second behind it.
     // The instant is absolute, so the countdown is still right on reopening.
     if (!open || restEndsAt == null) return;
+    // Descansando entre series el móvil está apoyado y las manos ocupadas:
+    // que la pantalla se apague justo cuando quieres ver los segundos que
+    // quedan es lo peor que puede hacer.
+    const wake = keepAwake();
     setNow(Date.now());
     // Twice a second so the number is right within half a second of coming back
     // to a throttled tab. Missing ticks no longer matter — each one just asks
@@ -47,7 +52,10 @@ export function RoutinesSheet({
       setNow(t0);
       if (remainingSeconds(restEndsAt, t0) <= 0) setRestEndsAt(null);
     }, 500);
-    return () => window.clearInterval(t);
+    return () => {
+      window.clearInterval(t);
+      wake();
+    };
   }, [open, restEndsAt]);
 
   if (routine) {
