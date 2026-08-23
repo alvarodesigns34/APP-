@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   findFoodByBarcode,
   foodDraftHasMacros,
@@ -214,5 +214,86 @@ describe("findFoodByBarcode", () => {
 describe("offProductUrl", () => {
   it("builds the public v2 URL without an API key", () => {
     expect(offProductUrl(` ${NUTELLA} `)).toBe(`https://world.openfoodfacts.org/api/v2/product/${NUTELLA}.json`);
+  });
+});
+
+describe("decodeBarcodeZXing", () => {
+  // ZXing decodifica píxeles de verdad, así que no se puede probar de forma
+  // significativa aquí sin un canvas real (jsdom no lo tiene) — la
+  // decodificación de una imagen real se verifica en navegador, no en este
+  // archivo. Lo que sí se puede fijar sin eso es el contrato: qué hace esta
+  // función con lo que el lector le devuelve o le lanza.
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("pasa el texto decodificado por pickDetectedCode, no lo devuelve tal cual", async () => {
+    vi.doMock("@zxing/browser", () => ({
+      BrowserMultiFormatReader: class {
+        decode() {
+          // Con espacios y guiones, como puede venir de un lector real —
+          // pickDetectedCode es quien limpia esto, no decodeBarcodeZXing.
+          return { getText: () => "3017 6204 2200-3" };
+        }
+      },
+    }));
+    const { decodeBarcodeZXing } = await import("./barcode");
+    const el = {} as HTMLImageElement;
+    await expect(decodeBarcodeZXing(el)).resolves.toBe("3017620422003");
+  });
+
+  it("un código con formato de EAN pero checksum inválido no se descarta: pickDetectedCode ya lo acepta como 'bien formado'", async () => {
+    vi.doMock("@zxing/browser", () => ({
+      BrowserMultiFormatReader: class {
+        decode() {
+          return { getText: () => "1111111111111" };
+        }
+      },
+    }));
+    const { decodeBarcodeZXing } = await import("./barcode");
+    await expect(decodeBarcodeZXing({} as HTMLImageElement)).resolves.toBe("1111111111111");
+  });
+
+  it("un texto que no tiene forma de EAN/UPC se descarta", async () => {
+    vi.doMock("@zxing/browser", () => ({
+      BrowserMultiFormatReader: class {
+        decode() {
+          return { getText: () => "https://ejemplo.com" }; // un QR, por ejemplo
+        }
+      },
+    }));
+    const { decodeBarcodeZXing } = await import("./barcode");
+    await expect(decodeBarcodeZXing({} as HTMLImageElement)).resolves.toBeNull();
+  });
+
+  it("no encontrar nada en un fotograma es null, no un error que haya que capturar fuera", async () => {
+    vi.doMock("@zxing/browser", () => ({
+      BrowserMultiFormatReader: class {
+        decode() {
+          throw new Error("NotFoundException");
+        }
+      },
+    }));
+    const { decodeBarcodeZXing } = await import("./barcode");
+    await expect(decodeBarcodeZXing({} as HTMLVideoElement)).resolves.toBeNull();
+  });
+
+  it("memoriza el lector: el import dinámico solo se paga una vez", async () => {
+    let constructed = 0;
+    vi.doMock("@zxing/browser", () => ({
+      BrowserMultiFormatReader: class {
+        constructor() {
+          constructed += 1;
+        }
+        decode() {
+          return { getText: () => "3017620422003" };
+        }
+      },
+    }));
+    const { decodeBarcodeZXing } = await import("./barcode");
+    await decodeBarcodeZXing({} as HTMLImageElement);
+    await decodeBarcodeZXing({} as HTMLVideoElement);
+    await decodeBarcodeZXing({} as HTMLImageElement);
+    expect(constructed).toBe(1);
   });
 });

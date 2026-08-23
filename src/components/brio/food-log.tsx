@@ -19,6 +19,7 @@ import { loadSearchPrefs, rememberQuery, saveSearchPrefs } from "@/lib/brio/sear
 import { nf, parseNum, round } from "@/lib/brio/format";
 import {
   createBarcodeDetector,
+  decodeBarcodeZXing,
   detectBarcodeFromImage,
   fetchOffProduct,
   findFoodByBarcode,
@@ -600,7 +601,7 @@ function BarcodeScanSheet({
   const fileRef = useRef<HTMLInputElement>(null);
   const onDetectedRef = useRef(onDetected);
   onDetectedRef.current = onDetected;
-  const [cam, setCam] = useState<"pending" | "live" | "denied" | "unsupported">("pending");
+  const [cam, setCam] = useState<"pending" | "live" | "denied">("pending");
   const [manual, setManual] = useState("");
   const [reading, setReading] = useState(false);
 
@@ -624,39 +625,54 @@ function BarcodeScanSheet({
       onDetectedRef.current(code);
     }
 
-    async function tick(detector: NonNullable<Awaited<ReturnType<typeof createBarcodeDetector>>>) {
+    // Un fotograma → un código o null, sea cual sea el lector detrás. Con esto
+    // el bucle de sondeo no necesita saber si hay BarcodeDetector nativo o
+    // ZXing por debajo — es justo la diferencia que "unsupported" ya no
+    // existe como estado: con el fallback, cualquier navegador con cámara
+    // puede intentarlo.
+    type DetectOnce = (video: HTMLVideoElement) => Promise<string | null>;
+
+    async function tick(detectOnce: DetectOnce) {
       if (cancelled || emitted) return;
       const video = videoEl ?? videoRef.current;
       if (video && video.readyState >= 2) {
         try {
-          const codes = await detector.detect(video);
-          for (const code of codes) {
-            const ean = pickDetectedCode(code.rawValue);
-            if (ean) {
-              emit(ean);
-              return;
-            }
+          const ean = await detectOnce(video);
+          if (ean) {
+            emit(ean);
+            return;
           }
         } catch {
           /* frame dropped */
         }
       }
       timer = setTimeout(() => {
-        void tick(detector);
+        void tick(detectOnce);
       }, 280);
     }
 
+    async function pickDetectOnce(): Promise<DetectOnce | null> {
+      if (hasBarcodeDetector()) {
+        const detector = await createBarcodeDetector();
+        if (cancelled) return null;
+        if (detector) {
+          return async (video) => {
+            const codes = await detector.detect(video);
+            for (const code of codes) {
+              const ean = pickDetectedCode(code.rawValue);
+              if (ean) return ean;
+            }
+            return null;
+          };
+        }
+      }
+      // Safari en iPhone llega aquí: sin BarcodeDetector, ZXing por JS puro.
+      return (video) => decodeBarcodeZXing(video);
+    }
+
     async function start() {
-      if (!hasBarcodeDetector()) {
-        setCam("unsupported");
-        return;
-      }
-      const detector = await createBarcodeDetector();
-      if (cancelled) return;
-      if (!detector) {
-        setCam("unsupported");
-        return;
-      }
+      const detectOnce = await pickDetectOnce();
+      if (cancelled || !detectOnce) return;
       if (!navigator.mediaDevices?.getUserMedia) {
         setCam("denied");
         return;
@@ -681,7 +697,7 @@ function BarcodeScanSheet({
         }
         if (cancelled) return;
         setCam("live");
-        void tick(detector);
+        void tick(detectOnce);
       } catch {
         if (!cancelled) setCam("denied");
       }
@@ -709,25 +725,38 @@ function BarcodeScanSheet({
   async function onFile(file: File | undefined) {
     if (!file) return;
     setReading(true);
+    let objectUrl: string | null = null;
     try {
+      let ean: string | null = null;
       if (hasBarcodeDetector()) {
         const bitmap = await createImageBitmap(file);
         try {
-          const ean = await detectBarcodeFromImage(bitmap);
-          if (ean) {
-            onDetected(ean);
-            return;
-          }
+          ean = await detectBarcodeFromImage(bitmap);
         } finally {
           bitmap.close();
         }
-        toast.error("No se ha podido leer el código. Escríbelo a mano.");
       } else {
-        toast.error("Este navegador no lee códigos en fotos. Escribe el número.");
+        // Fallback ZXing: decodifica desde un <img>, que es lo que su API
+        // espera — no acepta un ImageBitmap como el detector nativo.
+        const img = new Image();
+        objectUrl = URL.createObjectURL(file);
+        const src = objectUrl;
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error("no se pudo cargar la imagen"));
+          img.src = src;
+        });
+        ean = await decodeBarcodeZXing(img);
       }
+      if (ean) {
+        onDetected(ean);
+        return;
+      }
+      toast.error("No se ha podido leer el código. Escríbelo a mano.");
     } catch {
       toast.error("No se ha podido leer el código. Escríbelo a mano.");
     } finally {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
       setReading(false);
       if (fileRef.current) fileRef.current.value = "";
     }
@@ -748,16 +777,9 @@ function BarcodeScanSheet({
           muted
           autoPlay
         />
-        {cam === "pending" && hasBarcodeDetector() ? (
-          <p className="text-sm text-muted-foreground">Pidiendo acceso a la cámara…</p>
-        ) : null}
+        {cam === "pending" ? <p className="text-sm text-muted-foreground">Pidiendo acceso a la cámara…</p> : null}
         {cam === "denied" ? (
           <p className="text-sm text-muted-foreground">No hay acceso a la cámara. Escribe el código o haz una foto.</p>
-        ) : null}
-        {cam === "unsupported" ? (
-          <p className="text-sm text-muted-foreground">
-            Este navegador no lee códigos en vivo. Escribe el EAN o haz una foto.
-          </p>
         ) : null}
         <div>
           <label className="mb-1 block text-sm font-medium" htmlFor="ean-manual">

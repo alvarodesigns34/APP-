@@ -231,3 +231,43 @@ export async function detectBarcodeFromImage(source: ImageBitmapSource): Promise
   }
   return null;
 }
+
+type ZXingReader = { decode: (el: HTMLVideoElement | HTMLImageElement) => { getText: () => string } };
+
+/**
+ * `BarcodeDetector` no existe en Safari — que es el navegador de cualquiera
+ * que instale esta PWA en un iPhone, no un caso raro — así que sin esto el
+ * botón de escanear era humo ahí: ni la cámara en vivo ni la foto
+ * funcionaban, solo escribir el número a mano. ZXing decodifica igual por JS
+ * puro, más lento por fotograma pero sin depender de una API que ahí no está.
+ *
+ * Import dinámico y memoizado en un módulo, no en el componente: quien sí
+ * tiene el detector nativo (Chrome/Android, la mayoría de instalaciones)
+ * nunca paga el coste de esta librería, y quien la necesita solo la carga
+ * una vez aunque abra la hoja de escanear varias veces.
+ */
+let zxingReaderPromise: Promise<ZXingReader> | null = null;
+
+export function loadZXingReader(): Promise<ZXingReader> {
+  if (!zxingReaderPromise) {
+    zxingReaderPromise = import("@zxing/browser").then(
+      ({ BrowserMultiFormatReader }) => new BrowserMultiFormatReader() as ZXingReader,
+    );
+  }
+  return zxingReaderPromise;
+}
+
+/**
+ * Decodifica un solo fotograma (vídeo) o una imagen estática con ZXing.
+ * `null` significa "no hay código en esto", igual que la ruta nativa — no
+ * encontrar nada en un fotograma suelto es lo normal mientras se enfoca, no
+ * un fallo que haya que reportar.
+ */
+export async function decodeBarcodeZXing(el: HTMLVideoElement | HTMLImageElement): Promise<string | null> {
+  try {
+    const reader = await loadZXingReader();
+    return pickDetectedCode(reader.decode(el).getText());
+  } catch {
+    return null;
+  }
+}
