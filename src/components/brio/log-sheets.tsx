@@ -287,11 +287,18 @@ export function WorkoutSheet({
       footer={
         <Button
           className="w-full"
+          // Sin los minutos no hay nada que guardar. Antes el `|| 30` inventaba
+          // media hora: si borrabas el campo para reteclearlo y tocabas guardar
+          // sin escribir nada, una sesión de 75 min pasaba a 30 en silencio, y
+          // con ella los kcal del día y los minutos de la semana.
+          disabled={!parsePositive(min)}
           onClick={() => {
+            const mins = parsePositive(min);
+            if (!mins) return;
             if (edit) {
-              update(date, edit.id, { type, min: parsePositive(min) || 30, intensity });
+              update(date, edit.id, { type, min: mins, intensity });
             } else {
-              add(date, type, parsePositive(min) || 30, intensity);
+              add(date, type, mins, intensity);
             }
             onOpenChange(false);
           }}
@@ -427,6 +434,12 @@ export function WeightSheet({
       footer={
         <Button
           className="w-full"
+          // El botón hacía un `return` mudo cuando el peso no era válido: ni
+          // guardaba, ni cerraba, ni decía nada, así que parecía que la app se
+          // había colgado. Y es fácil llegar ahí sin querer, porque al abrir la
+          // hoja el campo se autoselecciona y la primera tecla lo sustituye
+          // entero. Deshabilitado se ve que falta algo.
+          disabled={!parsePositive(v)}
           onClick={() => {
             const n = parsePositive(v);
             if (!n) return;

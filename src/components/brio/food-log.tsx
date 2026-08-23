@@ -82,6 +82,8 @@ export function FoodLogSheet({
   const [detailFood, setDetailFood] = useState<Food | null>(null);
   const prefsRef = useRef({ queries, cat });
   prefsRef.current = { queries, cat };
+  /** Identifica la búsqueda de código de barras en curso; ver `handleBarcode`. */
+  const lookupIdRef = useRef(0);
 
   const editing = !!edit;
 
@@ -93,6 +95,11 @@ export function FoodLogSheet({
       setCreateDraft(null);
       setScanOpen(false);
       setDetailFood(null);
+      // Cerrar la hoja invalida cualquier búsqueda de código de barras que
+      // siga en el aire, para que no vuelva a abrir nada por su cuenta.
+      lookupIdRef.current += 1;
+      setLookupBusy(false);
+      toast.dismiss("off-lookup");
       return;
     }
     setMeal(edit?.meal ?? defaultMeal);
@@ -115,7 +122,26 @@ export function FoodLogSheet({
       setGrams("100");
       setUnitName("g");
     }
-  }, [open, edit, defaultMeal, catalogReady]);
+    // `catalogReady` NO va aquí. Estaba, y hacía que terminar de cargar el
+    // catálogo volviera a correr este efecto entero: si abrías "Añadir" con el
+    // catálogo aún cargando (arranque en frío, red lenta), elegías un alimento
+    // propio —que sí se resuelve sin el catálogo—, marcabas Cena y escribías
+    // 250 g, al llegar el fetch se te borraba todo y la comida volvía a la de
+    // por defecto. Lo que de verdad necesitaba el catálogo es reintentar la
+    // búsqueda del alimento que se está editando, y eso es el efecto de abajo.
+  }, [open, edit, defaultMeal]);
+
+  // Al editar un registro cuyo alimento vive en el catálogo builtin, la primera
+  // pasada no lo encuentra si el catálogo aún no ha cargado. Se reintenta solo
+  // cuando sigue sin resolverse, para no pisar nada que hayas tocado tú.
+  useEffect(() => {
+    if (!open || !edit || pickedSnap) return;
+    const food = getFood(edit.entry.foodId, {
+      customFoods: useBrioStore.getState().customFoods,
+      recipes: useBrioStore.getState().recipes,
+    });
+    if (food) setPickedSnap(food);
+  }, [catalogReady, open, edit, pickedSnap]);
 
   // `pickedSnap` only pins *which* food is selected; the values come from the
   // live store. You can open the ficha of a custom food from here and edit it,
@@ -234,10 +260,20 @@ export function FoodLogSheet({
       toast.success(local.name);
       return;
     }
+    // La consulta a Open Food Facts tarda hasta 8 s y no se cancelaba nunca.
+    // Cerrar la hoja mientras tanto no paraba nada, así que la respuesta
+    // llegaba a una pantalla que ya no era esta: en el mejor caso un toast
+    // huérfano, en el peor te abría sola una hoja de "Crear alimento" encima
+    // de donde estuvieras, o te creaba un alimento propio permanente y lo
+    // seleccionaba en una hoja cerrada. Cada búsqueda se queda con su número;
+    // si al volver ya no es la vigente, no toca nada.
+    const mine = ++lookupIdRef.current;
+    const stillMine = () => lookupIdRef.current === mine;
     setLookupBusy(true);
     toast.loading("Buscando producto…", { id: "off-lookup" });
     try {
       const payload = await fetchOffProduct(ean);
+      if (!stillMine()) return;
       const draft = mapOffProduct(payload, ean);
       if (draft && foodDraftHasMacros(draft)) {
         const id = addCustomFood({
@@ -263,10 +299,12 @@ export function FoodLogSheet({
       toast.error("No está en el catálogo", { id: "off-lookup" });
       openManualCreate(draft?.name || ean, ean);
     } catch {
+      if (!stillMine()) return;
       toast.error("No está en el catálogo", { id: "off-lookup" });
       openManualCreate(ean, ean);
     } finally {
-      setLookupBusy(false);
+      if (stillMine()) setLookupBusy(false);
+      else toast.dismiss("off-lookup");
     }
   }
 
